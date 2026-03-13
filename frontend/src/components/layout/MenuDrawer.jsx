@@ -1,4 +1,4 @@
-import { FolderOpen, Home, LogOut, Shield, Upload, User, X } from "lucide-react";
+import { FolderOpen, Home, LogIn, LogOut, Shield, Upload, User, UserPlus, X } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import styles from "./MenuDrawer.module.css";
 
@@ -21,7 +21,7 @@ export default function MenuDrawer({
   isAuthenticated,
   user,
   onOpenLogin,
-  _onOpenSignup,
+  onOpenSignup,
   onLogout,
 }) {
   const location = useLocation();
@@ -51,6 +51,19 @@ export default function MenuDrawer({
                 onClick={isAuthenticated ? onClose : onOpenLogin}
             />
         </section>
+
+        {!isAuthenticated && (
+          <section className={styles.section}>
+            <button type="button" className={styles.item} onClick={onOpenLogin}>
+              <LogIn size={18} />
+              <span>로그인</span>
+            </button>
+            <button type="button" className={styles.item} onClick={onOpenSignup}>
+              <UserPlus size={18} />
+              <span>회원가입</span>
+            </button>
+          </section>
+        )}
 
         {/* 판례 관리 */}
         <section className={styles.section}>

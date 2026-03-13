@@ -18,6 +18,7 @@ export default function Header() {
   } = useAuth();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const showUserChip = !isBootstrapping && isAuthenticated;
 
   const openLogin = () => {
     setMenuOpen(false);
@@ -44,15 +45,14 @@ export default function Header() {
           </Link>
 
           <div className={styles.right}>
-            {!isBootstrapping &&
-              (isAuthenticated ? (
-                <span className={styles.userChip}>{user?.username || "사용자"}</span>
-              ) : (
-                <button type="button" className={styles.outlineBtn} onClick={openLogin}>
-                  <LogIn size={16} />
-                  로그인
-                </button>
-              ))}
+            {showUserChip ? (
+              <span className={styles.userChip}>{user?.username || "사용자"}</span>
+            ) : (
+              <button type="button" className={styles.outlineBtn} onClick={openLogin}>
+                <LogIn size={16} />
+                로그인
+              </button>
+            )}
 
             <button
               type="button"
