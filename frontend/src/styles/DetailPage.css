@@ -1,0 +1,222 @@
+.detail-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 뒤로가기 */
+.detail-back-btn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-bottom: 4px;
+  transition: color 0.15s ease;
+}
+
+.detail-back-btn:hover {
+  color: #0f172a;
+}
+
+.detail-download-btn {
+  background: #1b47c2;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.detail-download-btn:hover {
+  background: #1d4ed8;
+}
+
+/* 헤더 카드 */
+.detail-header-card {
+  padding: 28px;
+}
+
+.detail-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.detail-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail-card {
+  padding: 0 24px 20px 24px;
+}
+
+/* 뱃지 */
+.detail-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.detail-badge--case {
+  background: #e8f0ff;
+  color: #2563eb;
+}
+
+.detail-badge--status {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.detail-badge--done {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.detail-badge--failed {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.detail-badge--processing {
+  background: #fef9c3;
+  color: #a16207;
+}
+
+
+/* 제목 */
+.detail-title {
+  font-size: 30px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  margin: 0 0 10px;
+}
+
+/* 메타 정보 행 */
+.detail-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  padding-top: 0px;
+}
+
+.detail-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 20px;
+}
+
+.detail-meta-item:first-child {
+  padding-left: 0;
+}
+
+.detail-meta-divider {
+  width: 1px;
+  height: 32px;
+  background: #e2e8f0;
+}
+
+.detail-meta-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.detail-meta-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* 원고/피고 2열 */
+.detail-parties-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.detail-party-card {
+  padding: 20px 24px;
+}
+
+.detail-party-text {
+  font-size: 14px;
+  color: #0f172a;
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* 일반 섹션 카드 */
+.detail-section-card {
+  padding: 20px 24px;
+}
+
+.detail-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 10px;
+}
+
+.detail-section-text {
+  font-size: 14px;
+  color: #1e293b;
+  line-height: 1.75;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* 로딩 / 에러 */
+.detail-loading,
+.detail-error {
+  padding: 80px 24px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 15px;
+}
+
+.detail-error {
+  color: #b91c1c;
+}
+
+/* 반응형 */
+@media (max-width: 640px) {
+  .detail-header-card {
+    padding: 18px;
+  }
+
+  .detail-title {
+    font-size: 20px;
+  }
+
+  .detail-parties-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-meta-item {
+    padding: 0 12px;
+  }
+}

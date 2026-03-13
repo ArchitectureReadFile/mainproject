@@ -1,0 +1,291 @@
+.upload-page {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.upload-hero {
+  margin-bottom: 28px;
+}
+
+.upload-hero h1 {
+  margin: 0;
+  font-size: 54px;
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.upload-hero p {
+  margin: 18px 0 0;
+  font-size: 22px;
+  line-height: 1.4;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.app-card {
+  border: 1px solid #dbe2ea;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.app-card--clickable {
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.app-card--clickable:hover {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  transform: translateY(-2px);
+}
+
+.upload-main-card__header {
+  padding: 28px 28px 0;
+  margin-bottom: 18px;
+}
+
+.upload-main-card__header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.upload-main-card__header p {
+  margin: 10px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #7c8698;
+}
+
+.dropzone {
+  border: 3px dashed #cfe0f5;
+  border-radius: 20px;
+  background: #fbfdff;
+  padding: 56px 24px;
+  margin: 0 28px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.dropzone.is-drag-over {
+  border-color: #7aa2ff;
+  background: #f3f8ff;
+}
+
+.dropzone.is-disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.dropzone__icon {
+  margin: 0 auto 18px;
+  color: #93a8c4;
+  display: flex;
+  justify-content: center;
+}
+
+.dropzone__title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.dropzone__desc {
+  margin-top: 10px;
+  font-size: 18px;
+  color: #8090a8;
+  font-weight: 600;
+}
+
+.app-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #fff;
+  transition: background 120ms ease, box-shadow 120ms ease;
+  cursor: pointer;
+}
+
+.app-btn:disabled {
+  cursor: not-allowed;
+}
+
+.app-btn--primary {
+  background: #0b1330;
+  box-shadow: 0 8px 20px rgba(11, 19, 48, 0.18);
+}
+
+.app-btn--outline {
+  background: #ffffff;
+  color: #8b8c95;
+  border: 1px solid #dbe2ea;
+  box-shadow: none;
+}
+
+.app-btn--primary:disabled {
+  background: #8b8c95;
+  box-shadow: none;
+}
+
+.app-btn--outline:hover {
+  background: #f8fafc;
+}
+
+.upload-submit-btn {
+  width: calc(100% - 56px);
+  margin: 22px 28px 28px;
+  padding: 16px 24px;
+  font-size: 18px;
+  border-radius: 14px;
+}
+
+.panel-card {
+  margin-top: 20px;
+  padding: 18px;
+  border-radius: 18px;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.file-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.file-list__item {
+  border: 1px solid #e3eaf4;
+  background: #f8fbff;
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.file-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.file-list__name {
+  color: #0f172a;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.file-list__size {
+  color: #64748b;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.steps-grid {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.step-card {
+  border: 1px solid #dfe7f1;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 24px 20px;
+  text-align: center;
+}
+
+.step-card__badge {
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  background: #e8f0ff;
+  color: #2563eb;
+  font-weight: 800;
+  font-size: 28px;
+}
+
+.step-card__title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.step-card__desc {
+  margin-top: 8px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .upload-hero h1 {
+    font-size: 38px;
+  }
+
+  .upload-hero p {
+    font-size: 18px;
+  }
+
+  .upload-main-card {
+    padding: 18px;
+  }
+
+  .dropzone {
+    padding: 38px 16px;
+  }
+
+  .dropzone__title {
+    font-size: 20px;
+  }
+
+  .dropzone__desc {
+    font-size: 15px;
+  }
+
+  .app-btn {
+    font-size: 16px;
+    padding: 15px 16px;
+  }
+}
+
+.upload-progress {
+  margin-top: 16px;
+}
+
+.upload-progress__bar {
+  width: 100%;
+  background: #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  height: 10px;
+}
+
+.upload-progress__fill {
+  background: #2563eb;
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

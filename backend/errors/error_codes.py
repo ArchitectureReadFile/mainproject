@@ -1,0 +1,117 @@
+from enum import Enum
+
+
+class ErrorCode(Enum):
+    """
+    (에러코드, HTTP 상태코드, 메시지) 형식으로 정의합니다.
+
+    에러코드 prefix 규칙:
+      AUTH  : 인증/인가 (토큰, 세션)
+      USER  : 사용자 계정 (가입, 로그인, 정보)
+      EMAIL : 이메일 발송 및 인증 코드
+      DOC   : 문서 업로드 및 PDF 처리
+      LLM   : LLM 요약 처리
+      SUM   : 요약 결과 조회
+      FILE  : 파일 다운로드
+    """
+
+    # ── 인증 (AUTH) ──────────────────────────────────────────────────────────
+    # 액세스 토큰
+    AUTH_TOKEN_MISSING = ("AUTH_001", 401, "로그인이 필요합니다.")
+    AUTH_TOKEN_INVALID = ("AUTH_002", 401, "유효하지 않은 인증 토큰입니다.")
+
+    # 리프레시 토큰
+    AUTH_REFRESH_TOKEN_MISSING = ("AUTH_003", 401, "리프레시 토큰이 없습니다.")
+    AUTH_REFRESH_TOKEN_EXPIRED = (
+        "AUTH_004",
+        401,
+        "유효하지 않거나 만료된 리프레시 토큰입니다. 다시 로그인해주세요.",
+    )
+    AUTH_REFRESH_TOKEN_INVALID = ("AUTH_005", 401, "유효하지 않은 리프레시 토큰입니다.")
+
+    # 사용자 상태
+    AUTH_USER_INVALID = ("AUTH_006", 401, "유효하지 않은 사용자입니다.")
+
+    # 사용자 권한
+    AUTH_FORBIDDEN = ("AUTH_007", 403, "권한이 없습니다.")
+
+    # ── 사용자 (USER) ────────────────────────────────────────────────────────
+    USER_NOT_FOUND = ("USER_001", 404, "사용자를 찾을 수 없습니다.")
+    USER_ACCOUNT_NOT_FOUND = (
+        "USER_002",
+        404,
+        "해당 이메일로 가입된 계정 정보를 찾을 수 없습니다.",
+    )
+    USER_INACTIVE = ("USER_003", 403, "비활성화된 계정입니다.")
+    USER_INVALID_CREDENTIALS = (
+        "USER_004",
+        401,
+        "이메일 또는 비밀번호가 올바르지 않습니다.",
+    )
+    USER_EMAIL_ALREADY_EXISTS = ("USER_005", 409, "이미 사용 중인 이메일입니다.")
+    USER_USERNAME_ALREADY_EXISTS = ("USER_006", 409, "이미 사용 중인 닉네임입니다.")
+    USER_PASSWORD_TOO_LONG = (
+        "USER_007",
+        422,
+        "비밀번호는 UTF-8 기준 72바이트 이하여야 합니다.",
+    )
+    USER_EMAIL_NOT_VERIFIED = (
+        "USER_008",
+        401,
+        "이메일 인증이 완료되지 않았거나 인증 시간이 초과되었습니다.",
+    )
+    USER_RATE_LIMIT_EXCEEDED = (
+        "USER_009",
+        429,
+        "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    )
+
+    # ── 이메일 (EMAIL) ───────────────────────────────────────────────────────
+    EMAIL_SEND_FAILED = (
+        "EMAIL_001",
+        500,
+        "이메일 발송에 실패했습니다. 이메일 주소를 확인해주세요.",
+    )
+    EMAIL_CODE_NOT_FOUND = (
+        "EMAIL_002",
+        400,
+        "인증 코드가 만료되었거나 존재하지 않습니다.",
+    )
+    EMAIL_CODE_MISMATCH = ("EMAIL_003", 400, "인증 코드가 일치하지 않습니다.")
+
+    # ── 문서 (DOC) ───────────────────────────────────────────────────────────
+    DOC_NOT_FOUND = ("DOC_001", 404, "문서를 찾을 수 없습니다.")
+    DOC_PDF_TEXT_TOO_SHORT = (
+        "DOC_002",
+        422,
+        "PDF에서 충분한 텍스트를 추출할 수 없습니다. 스캔본이거나 텍스트 레이어가 없는 문서일 수 있습니다.",
+    )
+    DOC_PDF_PARSE_FAILED = ("DOC_003", 422, "PDF 파일을 읽을 수 없습니다.")
+    DOC_INVALID_FILE_TYPE = ("DOC_004", 415, "PDF 파일만 업로드 가능합니다.")
+    DOC_FILE_TOO_LARGE = ("DOC_005", 413, "파일 크기는 20MB 이하여야 합니다.")
+
+    # ── LLM 요약 (LLM) ───────────────────────────────────────────────────────
+    LLM_EMPTY_PAGES = ("LLM_001", 422, "텍스트 추출 결과가 비어 있습니다.")
+    LLM_ALL_PROFILES_FAILED = (
+        "LLM_002",
+        502,
+        "Ollama 요약 요청이 모든 프로파일에서 실패했습니다.",
+    )
+
+    # ── 요약 결과 (SUM) ──────────────────────────────────────────────────────
+    SUM_NOT_FOUND = ("SUM_001", 404, "요약을 찾을 수 없습니다.")
+
+    # ── 파일 다운로드 (FILE) ─────────────────────────────────────────────────
+    FILE_NOT_FOUND = ("FILE_001", 404, "파일을 찾을 수 없습니다.")
+
+    @property
+    def code(self) -> str:
+        return self.value[0]
+
+    @property
+    def status_code(self) -> int:
+        return self.value[1]
+
+    @property
+    def message(self) -> str:
+        return self.value[2]

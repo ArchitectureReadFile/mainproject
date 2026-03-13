@@ -1,0 +1,31 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# VSCode (공유 설정은 유지, 개인 설정만 제외)
+.vscode/settings.json
+!.vscode/extensions.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# 로컬 환경 설정
+docker-compose.override.yml
+
+# 업로드 파일
+backend/uploads/
+
+# AI 관련
+backend/services/rag/chroma_data/
+training/output/
+training/checkpoints/
+*.gguf
+*.safetensors
+*.bin
+
+# 빌드 결과물
+frontend/dist/

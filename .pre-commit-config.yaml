@@ -1,0 +1,18 @@
+repos:
+  - repo: local
+    hooks:
+      # 백엔드 ruff fix
+      - id: ruff-fix
+        name: Ruff fix (backend)
+        language: system
+        entry: bash -c 'cd backend && ruff check . --fix && ruff format . && git add -u'
+        pass_filenames: false
+        files: ^backend/.*\.py$
+
+      # 프론트엔드 ESLint fix
+      - id: eslint
+        name: ESLint fix (frontend)
+        language: system
+        entry: bash -c 'cd frontend && npx eslint src --ext .js,.jsx --fix --max-warnings=-0 && git add -u'
+        pass_filenames: false
+        files: ^frontend/src/.*\.(js|jsx)$
