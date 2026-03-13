@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AuthModal, useAuth } from "../../features/auth/index.js";
 import styles from "../../styles/Header.module.css";
-import MenuDrawer from "./MenuDrawer.ajsx";
+import MenuDrawer from "./MenuDrawer.jsx";
 
 export default function Header() {
   const {
