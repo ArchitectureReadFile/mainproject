@@ -1,6 +1,7 @@
 import client from '@/api/client'
 import Button from '@/components/ui/Button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 import Input from '@/components/ui/Input'
 import { Calendar, LogOut, Mail } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -19,6 +20,7 @@ export default function MypagePage() {
   const [editing, setEditing] = useState(false)
   const [username, setUsername] = useState('')
   const [inputWidth, setInputWidth] = useState(0)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const inputRef = useRef(null)
   const nameRef = useRef(null)
   const spanRef = useRef(null)
@@ -79,8 +81,7 @@ export default function MypagePage() {
     }
   }
 
-  const handleDeleteAccount = async () => {
-    if (!window.confirm('정말로 회원탈퇴를 하시겠습니까?')) return
+  const handleDeleteConfirm = async () => {
     try {
       await client.delete('/auth/delete')
       toast.success('회원탈퇴가 완료되었습니다.')
@@ -89,6 +90,7 @@ export default function MypagePage() {
       window.location.reload()
     } catch {
       toast.error('회원탈퇴 실패')
+      setShowDeleteModal(false)
     }
   }
 
@@ -196,12 +198,25 @@ export default function MypagePage() {
           <CardDescription>계정 및 보안 관리</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="destructive" className="w-full gap-2" onClick={handleDeleteAccount}>
+          <Button
+            variant="destructive"
+            className="w-full gap-2"
+            onClick={() => setShowDeleteModal(true)}
+          >
             <LogOut className="w-4 h-4" />
             회원탈퇴
           </Button>
         </CardContent>
       </Card>
+
+      <ConfirmModal
+        open={showDeleteModal}
+        message={'정말로 회원탈퇴를 하시겠습니까?\n탈퇴 후 계정 정보는 복구할 수 없습니다.'}
+        confirmLabel="탈퇴하기"
+        cancelLabel="취소"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setShowDeleteModal(false)}
+      />
     </div>
   )
 }

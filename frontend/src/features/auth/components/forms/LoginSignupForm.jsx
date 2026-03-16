@@ -1,5 +1,6 @@
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import Label from '@/components/ui/Label'
 import { useEffect, useRef, useState } from 'react'
 import { getErrorMessageByCode } from '../../../../lib/errors'
 import { sendVerificationCode, verifyCode } from '../../api/emailApi.js'
@@ -98,7 +99,7 @@ export default function LoginSignupForm({ view, setView, onClose }) {
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         {!isLogin && (
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="auth-username" className="text-sm font-medium">이름</label>
+            <Label htmlFor="auth-username">이름</Label>
             <Input
               id="auth-username"
               ref={firstInputRef}
@@ -112,7 +113,7 @@ export default function LoginSignupForm({ view, setView, onClose }) {
         )}
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="auth-email" className="text-sm font-medium">이메일</label>
+          <Label htmlFor="auth-email">이메일</Label>
           <div className="flex gap-2">
             <Input
               id="auth-email"
@@ -160,12 +161,16 @@ export default function LoginSignupForm({ view, setView, onClose }) {
               </Button>
             </div>
           )}
-          {!isLogin && emailVerify.error && <p className="text-xs text-destructive">{emailVerify.error}</p>}
-          {!isLogin && emailVerify.success && <p className="text-xs text-green-600">{emailVerify.success}</p>}
+          {!isLogin && emailVerify.error && (
+            <p className="text-xs text-destructive">{emailVerify.error}</p>
+          )}
+          {!isLogin && emailVerify.success && (
+            <p className="text-xs text-success">{emailVerify.success}</p>
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="auth-password" className="text-sm font-medium">비밀번호</label>
+          <Label htmlFor="auth-password">비밀번호</Label>
           <Input
             id="auth-password"
             type="password"
@@ -179,7 +184,7 @@ export default function LoginSignupForm({ view, setView, onClose }) {
 
         {!isLogin && (
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="auth-confirm-password" className="text-sm font-medium">비밀번호 확인</label>
+            <Label htmlFor="auth-confirm-password">비밀번호 확인</Label>
             <Input
               id="auth-confirm-password"
               type="password"

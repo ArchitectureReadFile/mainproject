@@ -1,4 +1,5 @@
 import Button from '@/components/ui/Button'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/Sheet'
 import { cn } from '@/lib/utils'
 import { FolderOpen, Home, LogIn, LogOut, Shield, User, UserPlus, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
@@ -32,31 +33,16 @@ export default function MenuDrawer({
 }) {
   const location = useLocation()
 
-  if (!open) return null
-
   return (
-    <>
-      {/* 오버레이 */}
-      <div
-        className="fixed inset-0 z-[35] bg-black/45"
-        onClick={onClose}
-      />
-
-      {/* 드로어 */}
-      <aside className="fixed top-0 right-0 z-40 h-dvh w-[min(86vw,320px)] bg-background border-l border-border shadow-xl overflow-y-auto">
-
+    <Sheet open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+      <SheetContent>
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-border">
-          <h3 className="m-0 text-lg font-bold text-foreground">메뉴</h3>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            aria-label="닫기"
-          >
+        <SheetHeader>
+          <SheetTitle>메뉴</SheetTitle>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="닫기">
             <X size={20} />
           </Button>
-        </div>
+        </SheetHeader>
 
         {/* 프로필 */}
         <div className="border-b border-border py-2">
@@ -146,7 +132,7 @@ export default function MenuDrawer({
             </Button>
           </div>
         )}
-      </aside>
-    </>
+      </SheetContent>
+    </Sheet>
   )
 }

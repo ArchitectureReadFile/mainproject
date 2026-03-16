@@ -2,6 +2,7 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import Input from '@/components/ui/Input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs'
 import { BarChart3, CheckCircle, FileText, Search, Settings, Shield, Trash2, Users, XCircle } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../../features/auth/index.js'
@@ -209,11 +210,8 @@ function SettingsTab() {
   )
 }
 
-const TAB_CONTENT = { dashboard: DashboardTab, users: UsersTab, cases: CasesTab, settings: SettingsTab }
-
 export default function AdminPage() {
   const { user } = useAuth()
-  const [tab, setTab] = useState('dashboard')
 
   if (user?.role !== 'ADMIN') {
     return (
@@ -223,8 +221,6 @@ export default function AdminPage() {
       </div>
     )
   }
-
-  const TabContent = TAB_CONTENT[tab]
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
@@ -236,21 +232,19 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div className="flex gap-2 mb-6 border-b pb-2">
-        {TABS.map(({ key, label, Icon }) => (
-          <Button
-            key={key}
-            variant={tab === key ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setTab(key)}
-            className="gap-1.5"
-          >
-            <Icon size={15} />{label}
-          </Button>
-        ))}
-      </div>
-
-      <TabContent />
+      <Tabs defaultValue="dashboard">
+        <TabsList>
+          {TABS.map(({ key, label, Icon }) => (
+            <TabsTrigger key={key} value={key}>
+              <Icon size={15} />{label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value="dashboard"><DashboardTab /></TabsContent>
+        <TabsContent value="users"><UsersTab /></TabsContent>
+        <TabsContent value="cases"><CasesTab /></TabsContent>
+        <TabsContent value="settings"><SettingsTab /></TabsContent>
+      </Tabs>
     </div>
   )
 }
