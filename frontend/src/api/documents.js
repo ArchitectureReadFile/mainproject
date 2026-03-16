@@ -19,6 +19,10 @@ export async function fetchDocumentDetail(id) {
   return data
 }
 
+export async function deleteDocument(id) {
+  await client.delete(`/documents/${id}`)
+}
+
 export async function downloadSummaryPdf(summaryId, caseNumber, summaryTitle) {
   const response = await client.get(`/summaries/${summaryId}/download`, {
     responseType: 'blob',

@@ -1,5 +1,4 @@
-import client from '@/api/client'
-import { downloadSummaryPdf, fetchDocumentDetail } from '@/api/documents'
+import { deleteDocument, downloadSummaryPdf, fetchDocumentDetail } from '@/api/documents'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
@@ -61,7 +60,7 @@ export default function DocumentPage() {
 
   const handleDeleteConfirm = async () => {
     try {
-      await client.delete('/documents/' + doc_id)
+      await deleteDocument(doc_id)
       navigate('/workspace', { state: { deleted: true } })
     } catch {
       toast.error('삭제에 실패했습니다.')

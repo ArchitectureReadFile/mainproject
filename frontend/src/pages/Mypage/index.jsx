@@ -9,13 +9,10 @@ import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { meApi } from '../../features/auth/api/authApi'
 
-const FILES_PER_PAGE = 5
 
 export default function MypagePage() {
   const navigate = useNavigate()
   const [user, setUser] = useState(null)
-  const [uploadedFiles, setUploadedFiles] = useState([])
-  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [username, setUsername] = useState('')
@@ -35,29 +32,7 @@ export default function MypagePage() {
     }
   }, [navigate])
 
-  const fetchMyFiles = async () => {
-    try {
-      const PAGE_SIZE = 50
-      let skip = 0
-      let allItems = []
-      let total = Infinity
-      while (allItems.length < total) {
-        const res = await client.get('/documents/', { params: { skip, limit: PAGE_SIZE, view_type: 'my' } })
-        const { items, total: t } = res.data
-        total = t
-        allItems = [...allItems, ...(items || [])]
-        if (items.length < PAGE_SIZE) break
-        skip += PAGE_SIZE
-      }
-      setUploadedFiles(allItems)
-    } catch {
-      toast.error('파일 목록을 불러오지 못했습니다.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { fetchUser(); fetchMyFiles() }, [fetchUser])
+  useEffect(() => { fetchUser() }, [fetchUser])
 
   const handleUpdateUsername = async () => {
     try {
@@ -82,10 +57,6 @@ export default function MypagePage() {
       setShowDeleteModal(false)
     }
   }
-
-  const startIndex = (page - 1) * FILES_PER_PAGE
-  const paginatedFiles = uploadedFiles.slice(startIndex, startIndex + FILES_PER_PAGE)
-  const totalPages = Math.ceil(uploadedFiles.length / FILES_PER_PAGE)
 
   if (loading || !user) return (
     <div className="p-8 text-center text-muted-foreground">Loading...</div>
@@ -141,47 +112,6 @@ export default function MypagePage() {
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* 업로드 파일 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>업로드 파일</CardTitle>
-          <CardDescription>업로드한 판례 파일 목록</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {paginatedFiles.length === 0 ? (
-            <p className="text-sm text-muted-foreground">업로드된 파일이 없습니다.</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {paginatedFiles.map((file) => (
-                <li key={file.id} className="flex justify-between items-center text-sm py-2 border-b last:border-0">
-                  {file.summary_id ? (
-
-                    <a
-                      href={'/api/summaries/' + file.summary_id + '/download'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >{file.title}</a>
-                  ) : (
-                    <span className="text-foreground">{file.title}</span>
-                  )}
-                  <span className="text-muted-foreground text-xs shrink-0 ml-4">
-                    {new Date(file.created_at).toLocaleDateString()}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3 mt-4">
-              <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(page - 1)}>이전</Button>
-              <span className="text-sm text-muted-foreground">{page} / {totalPages}</span>
-              <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(page + 1)}>다음</Button>
-            </div>
-          )}
         </CardContent>
       </Card>
 
