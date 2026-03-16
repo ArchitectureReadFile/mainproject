@@ -238,15 +238,15 @@ export default function AdminPage() {
 
       <div className="flex gap-2 mb-6 border-b pb-2">
         {TABS.map(({ key, label, Icon }) => (
-          <button
+          <Button
             key={key}
-            type="button"
+            variant={tab === key ? 'default' : 'ghost'}
+            size="sm"
             onClick={() => setTab(key)}
-            className={'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors ' +
-              (tab === key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
+            className="gap-1.5"
           >
             <Icon size={15} />{label}
-          </button>
+          </Button>
         ))}
       </div>
 

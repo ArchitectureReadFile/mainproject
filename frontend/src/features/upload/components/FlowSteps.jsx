@@ -6,12 +6,14 @@ export default function FlowSteps() {
   ]
 
   return (
-    <section className="steps-grid">
+    <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
       {steps.map(([step, title, desc]) => (
-        <div key={step} className="step-card">
-          <div className="step-card__badge">{step}</div>
-          <div className="step-card__title">{title}</div>
-          <div className="step-card__desc">{desc}</div>
+        <div key={step} className="flex flex-col items-center text-center gap-2 p-6 rounded-xl border bg-muted/40">
+          <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+            {step}
+          </div>
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="text-xs text-muted-foreground">{desc}</p>
         </div>
       ))}
     </section>

@@ -22,8 +22,8 @@ export default function LandingPage() {
 
       {/* 히어로 */}
       <section className="flex flex-col items-center text-center gap-6 mb-16">
-        <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
-          <Scale className="w-8 h-8 text-blue-600" />
+        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+          <Scale className="w-8 h-8 text-primary" />
         </div>
         <h1 className="text-4xl font-bold">판례 AI 플랫폼</h1>
         <p className="text-muted-foreground text-lg leading-relaxed">
@@ -45,38 +45,20 @@ export default function LandingPage() {
 
       {/* 기능 카드 */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-        <div className="p-6 border rounded-xl flex flex-col gap-2">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mb-1">
-            <Upload className="w-5 h-5 text-blue-600" />
+        {[
+          { Icon: Upload,   title: '간편한 업로드', sub: 'PDF 파일을 드래그 앤 드롭하여 쉽게 업로드',    desc: '판례 문서를 선택하면 자동으로 텍스트를 추출하고 데이터베이스에 저장합니다.' },
+          { Icon: Sparkles, title: 'AI 자동 요약',  sub: 'EXAONE이 핵심 내용을 자동으로 추출',         desc: '복잡한 법률 용어와 긴 판례 문서를 AI가 이해하기 쉽게 요약해드립니다.' },
+          { Icon: Search,   title: 'RAG 검색',      sub: '유사 판례를 즉시 찾아보세요',                desc: 'ChromaDB 기반 벡터 검색으로 관련 판례를 빠르게 찾고 비교할 수 있습니다.' },
+        ].map(({ Icon, title, sub, desc }) => (
+          <div key={title} className="p-6 border rounded-xl flex flex-col gap-2">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-1">
+              <Icon className="w-5 h-5 text-primary" />
+            </div>
+            <h4 className="font-semibold">{title}</h4>
+            <p className="text-sm text-muted-foreground">{sub}</p>
+            <p className="text-sm text-muted-foreground/70">{desc}</p>
           </div>
-          <h4 className="font-semibold">간편한 업로드</h4>
-          <p className="text-sm text-muted-foreground">PDF 파일을 드래그 앤 드롭하여 쉽게 업로드</p>
-          <p className="text-sm text-muted-foreground/70">
-            판례 문서를 선택하면 자동으로 텍스트를 추출하고 데이터베이스에 저장합니다.
-          </p>
-        </div>
-
-        <div className="p-6 border rounded-xl flex flex-col gap-2">
-          <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center mb-1">
-            <Sparkles className="w-5 h-5 text-purple-600" />
-          </div>
-          <h4 className="font-semibold">AI 자동 요약</h4>
-          <p className="text-sm text-muted-foreground">EXAONE이 핵심 내용을 자동으로 추출</p>
-          <p className="text-sm text-muted-foreground/70">
-            복잡한 법률 용어와 긴 판례 문서를 AI가 이해하기 쉽게 요약해드립니다.
-          </p>
-        </div>
-
-        <div className="p-6 border rounded-xl flex flex-col gap-2">
-          <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center mb-1">
-            <Search className="w-5 h-5 text-green-600" />
-          </div>
-          <h4 className="font-semibold">RAG 검색</h4>
-          <p className="text-sm text-muted-foreground">유사 판례를 즉시 찾아보세요</p>
-          <p className="text-sm text-muted-foreground/70">
-            ChromaDB 기반 벡터 검색으로 관련 판례를 빠르게 찾고 비교할 수 있습니다.
-          </p>
-        </div>
+        ))}
       </section>
 
       {/* 작동 방식 */}

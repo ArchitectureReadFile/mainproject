@@ -1,3 +1,4 @@
+import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import { LogIn, Menu, Scale, X } from 'lucide-react'
 import { useState } from 'react'
@@ -37,7 +38,7 @@ export default function Header() {
 
           <Link to="/" className="no-underline text-inherit min-w-0">
             <div className="flex items-center gap-2.5">
-              <Scale className="w-8 h-8 text-blue-600 shrink-0" />
+              <Scale className="w-8 h-8 text-primary shrink-0" />
               <div>
                 <p className="m-0 text-lg font-extrabold leading-tight text-foreground">판례 AI 플랫폼</p>
                 <p className="m-0 mt-0.5 text-xs text-muted-foreground hidden sm:block">Legal AI Platform</p>
@@ -47,9 +48,9 @@ export default function Header() {
 
           <div className="flex items-center gap-2 shrink-0">
             {showUserChip ? (
-              <span className="border border-blue-200 bg-blue-50 text-blue-900 rounded-full px-3 py-1 text-xs font-bold hidden sm:inline-flex">
+              <Badge variant="secondary" className="hidden sm:inline-flex">
                 {user?.username || '사용자'}
-              </span>
+              </Badge>
             ) : (
               <Button variant="outline" size="sm" onClick={openLogin} className="gap-1.5">
                 <LogIn size={15} />

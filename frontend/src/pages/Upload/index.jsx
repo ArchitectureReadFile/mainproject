@@ -1,6 +1,6 @@
-import { FileText } from 'lucide-react'
-import Button from '../../components/ui/Button.jsx'
-import { Card } from '../../components/ui/Card.jsx'
+import Button from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { FileText, X } from 'lucide-react'
 import { UploadProvider, useUpload } from '../../context/UploadContext.jsx'
 import FileDropzone from '../../features/upload/components/FileDropzone.jsx'
 import FileStatusItem from '../../features/upload/components/FileStatusItem.jsx'
@@ -25,16 +25,23 @@ function UploadPageInner() {
   } = useUpload()
 
   return (
-    <div className="upload-page">
-      <section className="upload-hero">
-        <h1>판례 업로드</h1>
-        <p>판례 PDF를 업로드하면 AI가 자동으로 요약하고 데이터베이스에 저장합니다.</p>
+    <div className="max-w-2xl mx-auto px-4 py-10 flex flex-col gap-6">
+
+      {/* 히어로 */}
+      <section className="text-center flex flex-col gap-2">
+        <h1 className="text-2xl font-bold">판례 업로드</h1>
+        <p className="text-sm text-muted-foreground">
+          판례 PDF를 업로드하면 AI가 자동으로 요약하고 데이터베이스에 저장합니다.
+        </p>
       </section>
 
-      <Card className="upload-main-card">
-        <div className="upload-main-card__header">
-          <h2>PDF 파일 선택</h2>
-          <p>파일을 드래그 앤 드롭하거나 클릭하여 선택하세요. (최대 5개)</p>
+      {/* 파일 선택 카드 */}
+      <Card className="p-6 flex flex-col gap-4">
+        <div>
+          <h2 className="text-base font-semibold">PDF 파일 선택</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            파일을 드래그 앤 드롭하거나 클릭하여 선택하세요. (최대 5개)
+          </p>
         </div>
 
         {!isRunning && waitingItems.length < 5 && (
@@ -51,19 +58,24 @@ function UploadPageInner() {
         )}
 
         {waitingItems.length > 0 && (
-          <ul className="file-list" style={{ marginTop: 18 }}>
+          <ul className="flex flex-col gap-1.5">
             {waitingItems.map((it) => (
-              <li key={it.file.name} className="file-list__item">
-                <FileText size={15} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                <span className="file-list__name">{it.file.name}</span>
-                <span className="file-list__size" style={{ color: '#94a3b8' }}>대기 중</span>
+              <li
+                key={it.file.name}
+                className="flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-sm"
+              >
+                <FileText size={15} className="text-muted-foreground shrink-0" />
+                <span className="flex-1 truncate">{it.file.name}</span>
+                <span className="text-xs text-muted-foreground">대기 중</span>
                 {!isRunning && (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
                     onClick={() => removeItem(it.file)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#cbd5e1', fontSize: 15, marginLeft: 4 }}
                   >
-                    ✕
-                  </button>
+                    <X size={13} />
+                  </Button>
                 )}
               </li>
             ))}
@@ -73,16 +85,17 @@ function UploadPageInner() {
         <Button
           onClick={handleUpload}
           disabled={waitingItems.length === 0 || isRunning}
-          className="upload-submit-btn"
+          className="w-full"
         >
           {isRunning ? '처리 중...' : '업로드 및 요약 생성'}
         </Button>
       </Card>
 
+      {/* 처리 현황 */}
       {started && (
-        <Card className="panel-card">
-          <h3 className="panel-title">처리 현황</h3>
-          <ul className="file-list" style={{ marginTop: 14 }}>
+        <Card className="p-6 flex flex-col gap-3">
+          <h3 className="text-base font-semibold">처리 현황</h3>
+          <ul className="flex flex-col gap-2">
             {processingItems.map((it) => (
               <FileStatusItem
                 key={it.file.name + '-' + it.status}

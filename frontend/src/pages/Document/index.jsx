@@ -1,8 +1,10 @@
 import client from '@/api/client'
 import { downloadSummaryPdf, fetchDocumentDetail } from '@/api/documents'
+import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { useAuth } from '@/features/auth/context/AuthContext'
+import { Download, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -30,8 +32,17 @@ export default function DocumentPage() {
     load()
   }, [doc_id])
 
-  if (loading) return <div className="detail-page"><div className="detail-loading">불러오는 중...</div></div>
-  if (error || !doc) return <div className="detail-page"><div className="detail-error">{error || '문서를 찾을 수 없습니다.'}</div></div>
+  if (loading) return (
+    <div className="max-w-3xl mx-auto px-4 py-12 text-center text-muted-foreground">
+      불러오는 중...
+    </div>
+  )
+
+  if (error || !doc) return (
+    <div className="max-w-3xl mx-auto px-4 py-12 text-center text-destructive">
+      {error || '문서를 찾을 수 없습니다.'}
+    </div>
+  )
 
   const s = doc
   const isAdmin = user?.role === 'ADMIN'
@@ -58,21 +69,25 @@ export default function DocumentPage() {
   }
 
   return (
-    <div className="detail-page">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <button className="detail-back-btn" onClick={() => navigate(-1)}>← 워크스페이스로</button>
-        <div style={{ display: 'flex', gap: 8 }}>
+    <div className="max-w-3xl mx-auto px-4 py-8 flex flex-col gap-5">
+
+      {/* 상단 액션 */}
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1.5">
+          ← 워크스페이스로
+        </Button>
+        <div className="flex gap-2">
           {doc.summary_id && (
-            <button className="detail-download-btn" onClick={handleDownload}>PDF 다운로드</button>
+            <Button variant="outline" size="sm" onClick={handleDownload} className="gap-1.5">
+              <Download size={14} />
+              PDF 다운로드
+            </Button>
           )}
           {canDelete && (
-            <button
-              className="detail-download-btn"
-              onClick={() => setShowDeleteModal(true)}
-              style={{ background: '#ef4444', color: '#fff', border: 'none' }}
-            >
+            <Button variant="destructive" size="sm" onClick={() => setShowDeleteModal(true)} className="gap-1.5">
+              <Trash2 size={14} />
               삭제
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -85,37 +100,53 @@ export default function DocumentPage() {
         onCancel={() => setShowDeleteModal(false)}
       />
 
-      <div style={{ padding: '11px' }}>
-        <h1 className="detail-title">{s.case_name || s.summary_title || '제목 없음'}</h1>
-        <div className="detail-meta-row">
-          <div className="detail-meta-item">
-            <span className="detail-meta-label">법원</span>
-            <span className="detail-meta-value">{s.court_name || '-'}</span>
+      {/* 제목 + 메타 */}
+      <div className="px-1">
+        <h1 className="text-2xl font-bold mb-3">{s.case_name || s.summary_title || '제목 없음'}</h1>
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
+          <div className="flex gap-1.5">
+            <span className="font-medium text-foreground">법원</span>
+            <span>{s.court_name || '-'}</span>
           </div>
-          <div className="detail-meta-divider" />
-          <div className="detail-meta-item">
-            <span className="detail-meta-label">사건번호</span>
-            <span className="detail-meta-value">{s.case_number || '-'}</span>
+          <div className="flex gap-1.5">
+            <span className="font-medium text-foreground">사건번호</span>
+            <span>{s.case_number || '-'}</span>
           </div>
-          <div className="detail-meta-divider" />
-          <div className="detail-meta-item">
-            <span className="detail-meta-label">판결일</span>
-            <span className="detail-meta-value">{s.judgment_date || '-'}</span>
+          <div className="flex gap-1.5">
+            <span className="font-medium text-foreground">판결일</span>
+            <span>{s.judgment_date || '-'}</span>
           </div>
         </div>
       </div>
 
-      <Card className="detail-card"><h3>AI 요약</h3><p className="detail-section-text">{s.summary_main}</p></Card>
-      <Card className="detail-card"><h3>당사자</h3>
-        <div className="detail-parties-grid">
-          <div className="detail-party-item"><p className="detail-section-label">원고</p><p className="detail-party-text">{s.plaintiff}</p></div>
-          <div className="detail-party-item"><p className="detail-section-label">피고</p><p className="detail-party-text">{s.defendant}</p></div>
+      {/* 섹션 카드들 */}
+      {[
+        { title: 'AI 요약',   content: s.summary_main },
+        { title: '사실 관계', content: s.facts },
+        { title: '판결 주문', content: s.judgment_order },
+        { title: '판단 근거', content: s.judgment_reason },
+        { title: '관련 법령', content: s.related_laws },
+      ].map(({ title, content }) => (
+        <Card key={title} className="p-6">
+          <h3 className="text-sm font-semibold text-muted-foreground mb-2">{title}</h3>
+          <p className="text-sm leading-relaxed whitespace-pre-wrap">{content || '-'}</p>
+        </Card>
+      ))}
+
+      {/* 당사자 */}
+      <Card className="p-6">
+        <h3 className="text-sm font-semibold text-muted-foreground mb-3">당사자</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">원고</p>
+            <p className="text-sm font-medium">{s.plaintiff || '-'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">피고</p>
+            <p className="text-sm font-medium">{s.defendant || '-'}</p>
+          </div>
         </div>
       </Card>
-      <Card className="detail-card"><h3>사실 관계</h3><p className="detail-section-text">{s.facts}</p></Card>
-      <Card className="detail-card"><h3>판결 주문</h3><p className="detail-section-text">{s.judgment_order}</p></Card>
-      <Card className="detail-card"><h3>판단 근거</h3><p className="detail-section-text">{s.judgment_reason}</p></Card>
-      <Card className="detail-card"><h3>관련 법령</h3><p className="detail-section-text">{s.related_laws}</p></Card>
     </div>
   )
 }
