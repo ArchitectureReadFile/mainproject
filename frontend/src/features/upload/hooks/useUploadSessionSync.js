@@ -52,8 +52,8 @@ export function useUploadSessionSync({
   useEffect(() => {
     const previousPath = previousPathRef.current
     const leftUploadPage =
-      previousPath.startsWith('/upload') &&
-      !locationPath.startsWith('/upload')
+      previousPath.includes('/upload') &&
+      !locationPath.includes('/upload')
 
     if (leftUploadPage && isRunningRef.current) {
       abandonActiveUpload()
