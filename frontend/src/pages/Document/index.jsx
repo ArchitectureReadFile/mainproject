@@ -1,11 +1,11 @@
+import client from '@/api/client'
+import { downloadSummaryPdf, fetchDocumentDetail } from '@/api/documents'
+import Card from '@/components/ui/Card'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useAuth } from '@/features/auth/context/AuthContext'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import Card from '../../components/ui/Card'
-import ConfirmModal from '../../components/ui/ConfirmModal.jsx'
-import { useAuth } from '../../features/auth/context/AuthContext'
-import { downloadSummaryPdf, fetchDocumentDetail } from '../../lib/api'
-import axiosInstance from '../../lib/axios'
 
 export default function DocumentPage() {
   const { doc_id } = useParams()
@@ -49,7 +49,7 @@ export default function DocumentPage() {
 
   const handleDeleteConfirm = async () => {
     try {
-      await axiosInstance.delete(`/documents/${doc_id}`)
+      await client.delete('/documents/' + doc_id)
       navigate('/workspace', { state: { deleted: true } })
     } catch {
       toast.error('삭제에 실패했습니다.')

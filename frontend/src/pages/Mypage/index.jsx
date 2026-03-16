@@ -1,10 +1,12 @@
+import client from '@/api/client'
+import Button from '@/components/ui/Button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import Input from '@/components/ui/Input'
 import { Calendar, LogOut, Mail } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card'
 import { meApi } from '../../features/auth/api/authApi'
-import axiosInstance from '../../lib/axios'
 
 const FILES_PER_PAGE = 5
 
@@ -41,7 +43,7 @@ export default function MypagePage() {
       let allItems = []
       let total = Infinity
       while (allItems.length < total) {
-        const res = await axiosInstance.get('/documents/', { params: { skip, limit: PAGE_SIZE, view_type: 'my' } })
+        const res = await client.get('/documents/', { params: { skip, limit: PAGE_SIZE, view_type: 'my' } })
         const { items, total: t } = res.data
         total = t
         allItems = [...allItems, ...(items || [])]
@@ -56,10 +58,7 @@ export default function MypagePage() {
     }
   }
 
-  useEffect(() => {
-    fetchUser()
-    fetchMyFiles()
-  }, [fetchUser])
+  useEffect(() => { fetchUser(); fetchMyFiles() }, [fetchUser])
 
   useEffect(() => {
     if (nameRef.current) setInputWidth(nameRef.current.offsetWidth)
@@ -71,7 +70,7 @@ export default function MypagePage() {
 
   const handleUpdateUsername = async () => {
     try {
-      const res = await axiosInstance.patch('/auth/username', { username })
+      const res = await client.patch('/auth/username', { username })
       setUser((prev) => ({ ...prev, username: res.data.username }))
       setEditing(false)
       toast.success('이름이 변경되었습니다.')
@@ -83,7 +82,7 @@ export default function MypagePage() {
   const handleDeleteAccount = async () => {
     if (!window.confirm('정말로 회원탈퇴를 하시겠습니까?')) return
     try {
-      await axiosInstance.delete('/auth/delete')
+      await client.delete('/auth/delete')
       toast.success('회원탈퇴가 완료되었습니다.')
       localStorage.clear()
       navigate('/')
@@ -97,13 +96,13 @@ export default function MypagePage() {
   const paginatedFiles = uploadedFiles.slice(startIndex, startIndex + FILES_PER_PAGE)
   const totalPages = Math.ceil(uploadedFiles.length / FILES_PER_PAGE)
 
-  if (loading || !user) return <div className="p-8 text-center text-gray-400">Loading...</div>
+  if (loading || !user) return <div className="p-8 text-center text-muted-foreground">Loading...</div>
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10 flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold">프로필</h1>
-        <p className="text-gray-500 text-sm mt-1">계정 정보를 확인하고 관리하세요</p>
+        <p className="text-muted-foreground text-sm mt-1">계정 정보를 확인하고 관리하세요</p>
       </div>
 
       {/* 기본 정보 */}
@@ -113,46 +112,39 @@ export default function MypagePage() {
             {editing ? (
               <div className="flex items-center gap-2">
                 <span ref={spanRef} className="invisible absolute">{username || '이름'}</span>
-                <input
+                <Input
                   ref={inputRef}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="border rounded px-2 py-1 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="text-lg font-semibold"
                   style={{ width: inputWidth + 'px', minWidth: '80px' }}
                 />
-                <button
-                  className="text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                  onClick={handleUpdateUsername}
-                >저장</button>
-                <button
-                  className="text-sm px-3 py-1 border rounded hover:bg-gray-50"
-                  onClick={() => { setUsername(user.username); setEditing(false) }}
-                >취소</button>
+                <Button size="sm" onClick={handleUpdateUsername}>저장</Button>
+                <Button size="sm" variant="outline" onClick={() => { setUsername(user.username); setEditing(false) }}>취소</Button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
                 <h2 ref={nameRef} className="text-xl font-semibold">{user.username}</h2>
-                <button
-                  className="text-sm px-3 py-1 border rounded hover:bg-gray-50"
-                  onClick={() => { setEditing(true); setTimeout(() => inputRef.current?.focus(), 0) }}
-                >이름 수정</button>
+                <Button size="sm" variant="outline" onClick={() => { setEditing(true); setTimeout(() => inputRef.current?.focus(), 0) }}>
+                  이름 수정
+                </Button>
               </div>
             )}
           </div>
 
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3 text-sm text-gray-600">
-              <Mail className="w-4 h-4 text-gray-400" />
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <Mail className="w-4 h-4" />
               <div>
-                <p className="text-xs text-gray-400">이메일</p>
-                <p>{user.email}</p>
+                <p className="text-xs text-muted-foreground">이메일</p>
+                <p className="text-foreground">{user.email}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 text-sm text-gray-600">
-              <Calendar className="w-4 h-4 text-gray-400" />
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <Calendar className="w-4 h-4" />
               <div>
-                <p className="text-xs text-gray-400">가입일</p>
-                <p>{new Date(user.created_at).toLocaleDateString()}</p>
+                <p className="text-xs text-muted-foreground">가입일</p>
+                <p className="text-foreground">{new Date(user.created_at).toLocaleDateString()}</p>
               </div>
             </div>
           </div>
@@ -167,7 +159,7 @@ export default function MypagePage() {
         </CardHeader>
         <CardContent>
           {paginatedFiles.length === 0 ? (
-            <p className="text-sm text-gray-400">업로드된 파일이 없습니다.</p>
+            <p className="text-sm text-muted-foreground">업로드된 파일이 없습니다.</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {paginatedFiles.map((file) => (
@@ -177,29 +169,21 @@ export default function MypagePage() {
                       href={'/api/summaries/' + file.summary_id + '/download'}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
+                      className="text-primary hover:underline"
                     >{file.title}</a>
                   ) : (
-                    <span className="text-gray-700">{file.title}</span>
+                    <span className="text-foreground">{file.title}</span>
                   )}
-                  <span className="text-gray-400 text-xs">{new Date(file.created_at).toLocaleDateString()}</span>
+                  <span className="text-muted-foreground text-xs">{new Date(file.created_at).toLocaleDateString()}</span>
                 </li>
               ))}
             </ul>
           )}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3 mt-4 text-sm">
-              <button
-                className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-40"
-                disabled={page === 1}
-                onClick={() => setPage(page - 1)}
-              >이전</button>
-              <span className="text-gray-500">{page} / {totalPages}</span>
-              <button
-                className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-40"
-                disabled={page === totalPages}
-                onClick={() => setPage(page + 1)}
-              >다음</button>
+            <div className="flex items-center justify-center gap-3 mt-4">
+              <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(page - 1)}>이전</Button>
+              <span className="text-sm text-muted-foreground">{page} / {totalPages}</span>
+              <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(page + 1)}>다음</Button>
             </div>
           )}
         </CardContent>
@@ -212,13 +196,10 @@ export default function MypagePage() {
           <CardDescription>계정 및 보안 관리</CardDescription>
         </CardHeader>
         <CardContent>
-          <button
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-            onClick={handleDeleteAccount}
-          >
+          <Button variant="destructive" className="w-full gap-2" onClick={handleDeleteAccount}>
             <LogOut className="w-4 h-4" />
             회원탈퇴
-          </button>
+          </Button>
         </CardContent>
       </Card>
     </div>

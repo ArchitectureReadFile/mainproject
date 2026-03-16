@@ -1,4 +1,5 @@
-import Button from './Button.jsx'
+import Button from './Button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './Dialog'
 
 export default function ConfirmModal({
   open,
@@ -8,27 +9,18 @@ export default function ConfirmModal({
   onConfirm,
   onCancel,
 }) {
-  if (!open) return null
-
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-      }}
-    >
-      <div style={{ background: '#fff', borderRadius: 12, padding: 32, width: 340 }}>
-        <p style={{ marginBottom: 24, fontWeight: 600, whiteSpace: 'pre-line' }}>{message}</p>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onCancel() }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>확인</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground whitespace-pre-line mb-6">{message}</p>
+        <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onCancel}>{cancelLabel}</Button>
-          <Button onClick={onConfirm} style={{ background: '#ef4444', color: '#fff' }}>{confirmLabel}</Button>
+          <Button variant="destructive" onClick={onConfirm}>{confirmLabel}</Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -1,19 +1,19 @@
-import axiosInstance from '../../../lib/axios.js'
+import client from '@/api/client'
 
 export async function createUploadSessionApi(fileNames) {
-  const { data } = await axiosInstance.post('/documents/upload-session', {
+  const { data } = await client.post('/documents/upload-session', {
     file_names: fileNames,
   })
   return data
 }
 
 export async function getUploadSessionApi() {
-  const { data } = await axiosInstance.get('/documents/upload-session')
+  const { data } = await client.get('/documents/upload-session')
   return data
 }
 
 export async function abandonUploadSessionApi() {
-  const { data } = await axiosInstance.post('/documents/upload-session/abandon')
+  const { data } = await client.post('/documents/upload-session/abandon')
   return data
 }
 
@@ -26,20 +26,19 @@ export async function abandonUploadSessionKeepaliveApi() {
 }
 
 export async function clearUploadSessionApi() {
-  await axiosInstance.delete('/documents/upload-session')
+  await client.delete('/documents/upload-session')
 }
 
 export async function uploadDocumentApi(file) {
   const formData = new FormData()
   formData.append('file', file)
-
-  const { data } = await axiosInstance.post('/documents/upload', formData, {
+  const { data } = await client.post('/documents/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
   return data
 }
 
 export async function getDocumentDetailApi(docId) {
-  const { data } = await axiosInstance.get(`/documents/${docId}`)
+  const { data } = await client.get('/documents/' + docId)
   return data
 }

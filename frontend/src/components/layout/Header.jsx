@@ -1,8 +1,8 @@
+import Button from '@/components/ui/Button'
 import { LogIn, Menu, Scale, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AuthModal, useAuth } from '../../features/auth/index.js'
-import styles from '../../styles/Header.module.css'
 import MenuDrawer from './MenuDrawer.jsx'
 
 export default function Header() {
@@ -32,37 +32,40 @@ export default function Header() {
 
   return (
     <>
-      <header className={styles.header}>
-        <div className={styles.container}>
-          <Link to="/" className={styles.logoLink}>
-            <div className={styles.logoWrap}>
-              <Scale className={styles.logoIcon} />
+      <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur-sm">
+        <div className="max-w-[1100px] mx-auto px-5 py-3.5 flex items-center justify-between gap-3">
+
+          <Link to="/" className="no-underline text-inherit min-w-0">
+            <div className="flex items-center gap-2.5">
+              <Scale className="w-8 h-8 text-blue-600 shrink-0" />
               <div>
-                <p className={styles.logoTitle}>판례 AI 플랫폼</p>
-                <p className={styles.logoSub}>Legal AI Platform</p>
+                <p className="m-0 text-lg font-extrabold leading-tight text-foreground">판례 AI 플랫폼</p>
+                <p className="m-0 mt-0.5 text-xs text-muted-foreground hidden sm:block">Legal AI Platform</p>
               </div>
             </div>
           </Link>
 
-          <div className={styles.right}>
+          <div className="flex items-center gap-2 shrink-0">
             {showUserChip ? (
-              <span className={styles.userChip}>{user?.username || '사용자'}</span>
+              <span className="border border-blue-200 bg-blue-50 text-blue-900 rounded-full px-3 py-1 text-xs font-bold hidden sm:inline-flex">
+                {user?.username || '사용자'}
+              </span>
             ) : (
-              <button type="button" className={styles.outlineBtn} onClick={openLogin}>
-                <LogIn size={16} />
+              <Button variant="outline" size="sm" onClick={openLogin} className="gap-1.5">
+                <LogIn size={15} />
                 로그인
-              </button>
+              </Button>
             )}
 
-            <button
-              type="button"
-              className={styles.menuBtn}
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setMenuOpen((prev) => !prev)}
               aria-label={menuOpen ? '메뉴 닫기' : '메뉴 열기'}
               aria-expanded={menuOpen}
             >
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
+            </Button>
           </div>
         </div>
       </header>
