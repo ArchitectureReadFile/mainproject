@@ -4,24 +4,21 @@ import re
 from datetime import datetime
 
 from repositories.document_repository import DocumentRepository
-from services.summary.process_service import ProcessService
 from services.upload_session_service import UploadSessionService
+from tasks.upload_task import process_upload_task
 
 logger = logging.getLogger(__name__)
 
 
 class UploadService:
-    """파일 저장 + Document 레코드 생성 + 백그라운드 요약 태스크 등록을 담당합니다."""
-
     UPLOAD_DIR = "uploads"
 
     def __init__(self, repository: DocumentRepository):
         self.repository = repository
-        self.process_service = ProcessService()
         self.upload_session_service = UploadSessionService()
         os.makedirs(self.UPLOAD_DIR, exist_ok=True)
 
-    def handle_upload(self, files, background_tasks, user_id: int):
+    def handle_upload(self, files, user_id: int):
         doc_ids = []
 
         for file in files:
@@ -41,10 +38,11 @@ class UploadService:
             doc_ids.append(document.id)
             self.upload_session_service.mark_processing(user_id, filename, document.id)
 
-            background_tasks.add_task(
-                self.process_service.process_file,
-                file_path,
-                document.id,
+            process_upload_task.delay(
+                file_path=file_path,
+                document_id=document.id,
+                user_id=user_id,
+                file_name=filename,
             )
 
         return {"message": "업로드 중", "document_ids": doc_ids}

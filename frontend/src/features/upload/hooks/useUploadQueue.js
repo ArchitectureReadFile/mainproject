@@ -1,18 +1,16 @@
 import { useCallback } from 'react'
 import { toast } from 'sonner'
 import {
+  cancelUploadItemApi,
   clearUploadSessionApi,
   createUploadSessionApi,
   uploadDocumentApi,
 } from '../api/uploadSessionApi.js'
 import {
-  buildSummary,
   isSameFile,
   makeItem,
   MAX_FILES,
 } from '../uploadState.js'
-import { useUploadPolling } from './useUploadPolling.js'
-import { useRecoveryPolling } from './useRecoveryPolling.js'
 
 export function useUploadQueue({
   fileInputRef,
@@ -20,8 +18,6 @@ export function useUploadQueue({
   setItems,
   isRunning,
   setIsRunning,
-  started,
-  setStarted,
   setIsDragOver,
   stopRequestedRef,
   pollingDocIdsRef,
@@ -31,61 +27,9 @@ export function useUploadQueue({
     setItems((prev) => prev.map((it) => (isSameFile(it, file) ? { ...it, ...patch } : it)))
   }, [setItems])
 
-  const applyCompletedResult = useCallback((file, result, docId) => {
-    updateItem(file, {
-      ...(docId ? { docId } : {}),
-      status: 'done',
-      progress: 100,
-      summary: buildSummary(result),
-    })
-  }, [updateItem])
-
-  const applyFailedResult = useCallback((file, err) => {
-    updateItem(file, {
-      status: 'failed',
-      progress: 0,
-      error: err.message || '처리 중 오류가 발생했습니다.',
-    })
-  }, [updateItem])
-
-  // 실시간 업로드 중 신규 파일 폴링
-  const { startPolling } = useUploadPolling({
-    pollingDocIdsRef,
-    updateItem,
-    applyCompletedResult,
-  })
-
-  // 페이지 재진입/새로고침 후 processing 중인 아이템 복구 폴링
-  useRecoveryPolling({
-    items,
-    pollingDocIdsRef,
-    applyCompletedResult,
-    applyFailedResult,
-    setIsRunning,
-  })
-
-  const processOne = useCallback(async (file) => {
-    updateItem(file, { status: 'processing', progress: 0, error: null })
-
-    const timer = setInterval(() => {
-      setItems((prev) =>
-        prev.map((it) => {
-          if (!isSameFile(it, file) || it.status !== 'processing') return it
-          return { ...it, progress: Math.min(it.progress + 7, 90) }
-        })
-      )
-    }, 400)
-
-    try {
-      const uploadData = await uploadDocumentApi(file)
-      const docId = uploadData.document_ids[0]
-      clearInterval(timer)
-      await startPolling(file, docId)
-    } catch (err) {
-      clearInterval(timer)
-      applyFailedResult(file, err)
-    }
-  }, [applyFailedResult, setItems, startPolling, updateItem])
+  const updateItemByDocId = useCallback((docId, patch) => {
+    setItems((prev) => prev.map((it) => (it.docId === docId ? { ...it, ...patch } : it)))
+  }, [setItems])
 
   const addFiles = useCallback((newFiles) => {
     if (isRunning) return
@@ -139,10 +83,62 @@ export function useUploadQueue({
     setItems((prev) => prev.filter((it) => !isSameFile(it, fileObj)))
   }, [setItems])
 
+  const cancelItem = useCallback(async (docId) => {
+    try {
+      await cancelUploadItemApi(docId)
+      updateItemByDocId(docId, { status: 'failed', error: '사용자가 취소했습니다.' })
+
+      setItems((prev) => {
+        const stillRunning = prev.some(
+          (it) => it.docId !== docId && (it.status === 'processing' || it.status === 'queued')
+        )
+        if (!stillRunning) setIsRunning(false)
+        return prev
+      })
+    } catch {
+      toast.error('취소에 실패했습니다.')
+    }
+  }, [updateItemByDocId, setItems, setIsRunning])
+
   const toggleExpand = useCallback((file) => {
     const current = items.find((it) => isSameFile(it, file))
     updateItem(file, { expanded: !current?.expanded })
   }, [items, updateItem])
+
+  const handleWsMessage = useCallback((message) => {
+    const { type, doc_id, summary, error } = message
+
+    if (type === 'upload_processing') {
+      updateItemByDocId(doc_id, { status: 'processing', progress: 0 })
+    } else if (type === 'upload_done') {
+      updateItemByDocId(doc_id, {
+        status: 'done',
+        progress: 100,
+        summary: summary || null,
+      })
+      setItems((prev) => {
+        const stillRunning = prev.some(
+          (it) => it.docId !== doc_id && (it.status === 'processing' || it.status === 'queued')
+        )
+        if (!stillRunning) setIsRunning(false)
+        return prev
+      })
+    } else if (type === 'upload_failed') {
+      updateItemByDocId(doc_id, {
+        status: 'failed',
+        error: error || '처리 중 오류가 발생했습니다.',
+      })
+      setItems((prev) => {
+        const stillRunning = prev.some(
+          (it) => it.docId !== doc_id && (it.status === 'processing' || it.status === 'queued')
+        )
+        if (!stillRunning) setIsRunning(false)
+        return prev
+      })
+    } else if (type === 'upload_cancelled') {
+      updateItemByDocId(doc_id, { status: 'failed', error: '사용자가 취소했습니다.' })
+    }
+  }, [updateItemByDocId, setItems, setIsRunning])
 
   const handleUpload = useCallback(async () => {
     if (isRunning) return
@@ -159,17 +155,24 @@ export function useUploadQueue({
       return
     }
 
-    setItems(waitingOnly)
+    // 버튼 클릭 시 이전 done/failed 초기화, 대기 파일만 queued로 전환
+    setItems(waitingOnly.map((it) => ({ ...it, status: 'queued' })))
     setIsRunning(true)
-    setStarted(true)
 
-    for (const file of waitingOnly.map((it) => it.file)) {
+    for (const it of waitingOnly) {
       if (stopRequestedRef.current) break
-      await processOne(file)
+      try {
+        const uploadData = await uploadDocumentApi(it.file)
+        const docId = uploadData.document_ids[0]
+        updateItem(it.file, { docId })
+      } catch (err) {
+        updateItem(it.file, {
+          status: 'failed',
+          error: err.message || '업로드 실패',
+        })
+      }
     }
-
-    setIsRunning(false)
-  }, [isRunning, items, processOne, setItems, setIsRunning, setStarted, stopRequestedRef])
+  }, [isRunning, items, setItems, setIsRunning, stopRequestedRef, updateItem])
 
   const clearSession = useCallback(() => {
     clearUploadSessionApi().catch(() => {})
@@ -185,12 +188,17 @@ export function useUploadQueue({
     handleDragLeave,
     openFilePicker,
     removeItem,
+    cancelItem,
     toggleExpand,
     handleUpload,
+    handleWsMessage,
     clearSession,
     waitingItems: items.filter((it) => it.status === 'waiting'),
-    processingItems: started
-      ? items.filter((it) => it.status === 'processing' || it.status === 'done' || it.status === 'failed')
-      : [],
+    processingItems: items.filter((it) =>
+      it.status === 'queued' ||
+      it.status === 'processing' ||
+      it.status === 'done' ||
+      it.status === 'failed'
+    ),
   }
 }

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -63,9 +63,38 @@ def clear_upload_session(current_user: User = Depends(get_current_user)):
     service.clear_session(current_user.id)
 
 
+@router.delete("/upload-session/item/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
+def cancel_upload_item(
+    doc_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    """개별 파일 업로드 취소 — Celery 태스크 강제 중단"""
+    import os
+
+    import redis as redis_lib
+
+    from celery_app import celery_app
+
+    REDIS_HOST = os.getenv("REDIS_HOST", "redis")
+    r = redis_lib.Redis(host=REDIS_HOST, port=6379, db=0, decode_responses=True)
+
+    # 해당 doc_id의 task_id 조회 후 revoke
+    task_id_key = f"upload_task:{current_user.id}:{doc_id}"
+    task_id = r.get(task_id_key)
+    if task_id:
+        celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+        r.delete(task_id_key)
+    r.close()
+
+    # 세션에서도 실패 처리
+    session_service = UploadSessionService()
+    session_service.mark_document_failed(
+        current_user.id, doc_id, "사용자가 취소했습니다."
+    )
+
+
 @router.post("/upload")
 def upload(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -79,7 +108,7 @@ def upload(
     file.file.seek(0)
 
     service = UploadService(DocumentRepository(db))
-    return service.handle_upload([file], background_tasks, user_id=current_user.id)
+    return service.handle_upload([file], user_id=current_user.id)
 
 
 @router.get("")

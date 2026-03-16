@@ -1,17 +1,15 @@
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { FileText, X } from 'lucide-react'
-import { UploadProvider, useUpload } from '../../features/upload/context/UploadContext.jsx'
 import FileDropzone from '../../features/upload/components/FileDropzone.jsx'
 import FileStatusItem from '../../features/upload/components/FileStatusItem.jsx'
 import FlowSteps from '../../features/upload/components/FlowSteps.jsx'
+import { UploadProvider, useUpload } from '../../features/upload/context/UploadContext.jsx'
 
 function UploadPageInner() {
   const {
     fileInputRef,
     isDragOver,
-    isRunning,
-    started,
     waitingItems,
     processingItems,
     handleFileChange,
@@ -20,14 +18,19 @@ function UploadPageInner() {
     handleDragLeave,
     openFilePicker,
     removeItem,
+    cancelItem,
     toggleExpand,
     handleUpload,
   } = useUpload()
 
+  // 진행중(queued or processing) 항목이 하나라도 있으면 잠금
+  const hasActiveItems = processingItems.some(
+    (it) => it.status === 'queued' || it.status === 'processing'
+  )
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-10 flex flex-col gap-6">
 
-      {/* 히어로 */}
       <section className="text-center flex flex-col gap-2">
         <h1 className="text-2xl font-bold">판례 업로드</h1>
         <p className="text-sm text-muted-foreground">
@@ -35,7 +38,6 @@ function UploadPageInner() {
         </p>
       </section>
 
-      {/* 파일 선택 카드 */}
       <Card className="p-6 flex flex-col gap-4">
         <div>
           <h2 className="text-base font-semibold">PDF 파일 선택</h2>
@@ -44,10 +46,11 @@ function UploadPageInner() {
           </p>
         </div>
 
-        {!isRunning && waitingItems.length < 5 && (
+        {/* 드롭존 — 진행중이면 숨김 */}
+        {!hasActiveItems && (
           <FileDropzone
             fileInputRef={fileInputRef}
-            isUploading={isRunning}
+            isUploading={false}
             isDragOver={isDragOver}
             onOpenPicker={openFilePicker}
             onFileChange={handleFileChange}
@@ -57,7 +60,8 @@ function UploadPageInner() {
           />
         )}
 
-        {waitingItems.length > 0 && (
+        {/* 대기 파일 목록 — 진행중이 아닐 때만 */}
+        {!hasActiveItems && waitingItems.length > 0 && (
           <ul className="flex flex-col gap-1.5">
             {waitingItems.map((it) => (
               <li
@@ -67,16 +71,14 @@ function UploadPageInner() {
                 <FileText size={15} className="text-muted-foreground shrink-0" />
                 <span className="flex-1 truncate">{it.file.name}</span>
                 <span className="text-xs text-muted-foreground">대기 중</span>
-                {!isRunning && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                    onClick={() => removeItem(it.file)}
-                  >
-                    <X size={13} />
-                  </Button>
-                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={() => removeItem(it.file)}
+                >
+                  <X size={13} />
+                </Button>
               </li>
             ))}
           </ul>
@@ -84,15 +86,15 @@ function UploadPageInner() {
 
         <Button
           onClick={handleUpload}
-          disabled={waitingItems.length === 0 || isRunning}
+          disabled={waitingItems.length === 0 || hasActiveItems}
           className="w-full"
         >
-          {isRunning ? '처리 중...' : '업로드 및 요약 생성'}
+          {hasActiveItems ? '처리 중...' : '업로드 및 요약 생성'}
         </Button>
       </Card>
 
       {/* 처리 현황 */}
-      {started && (
+      {processingItems.length > 0 && (
         <Card className="p-6 flex flex-col gap-3">
           <h3 className="text-base font-semibold">처리 현황</h3>
           <ul className="flex flex-col gap-2">
@@ -102,6 +104,7 @@ function UploadPageInner() {
                 it={it}
                 file={it.file}
                 onToggle={toggleExpand}
+                onCancel={cancelItem}
               />
             ))}
           </ul>

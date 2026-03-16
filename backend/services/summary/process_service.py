@@ -250,5 +250,6 @@ class ProcessService:
                         file_path,
                         exc_info=True,
                     )
+            raise
         finally:
             db.close()

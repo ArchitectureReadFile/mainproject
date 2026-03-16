@@ -1,3 +1,4 @@
+import { useAuth } from '@/features/auth/index.js'
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
@@ -6,12 +7,14 @@ import {
 } from '../api/uploadSessionApi.js'
 import { useUploadQueue } from '../hooks/useUploadQueue.js'
 import { useUploadSessionSync } from '../hooks/useUploadSessionSync.js'
+import { useUploadWebSocket } from '../hooks/useUploadWebSocket.js'
 import { makeRestoredItem } from '../uploadState.js'
 
 const UploadContext = createContext(null)
 
 export function UploadProvider({ children }) {
   const location = useLocation()
+  const { user } = useAuth()
   const fileInputRef = useRef(null)
   const isRunningRef = useRef(false)
   const stopRequestedRef = useRef(false)
@@ -20,12 +23,10 @@ export function UploadProvider({ children }) {
   const [items, setItems] = useState([])
   const [isDragOver, setIsDragOver] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
-  const [started, setStarted] = useState(false)
 
   const syncSessionState = useCallback((session) => {
     const restoredItems = (session?.items ?? []).map(makeRestoredItem)
     setItems(restoredItems)
-    setStarted(restoredItems.length > 0)
     setIsRunning(restoredItems.some((item) => item.status === 'processing'))
   }, [])
 
@@ -35,13 +36,11 @@ export function UploadProvider({ children }) {
 
   const resetLocalState = useCallback(() => {
     setItems([])
-    setStarted(false)
     setIsRunning(false)
   }, [])
 
   const abandonActiveUpload = useCallback(async () => {
     stopRequestedRef.current = true
-
     try {
       const session = await requestAbandonSession()
       syncSessionState(session)
@@ -70,8 +69,10 @@ export function UploadProvider({ children }) {
     handleDragLeave,
     openFilePicker,
     removeItem,
+    cancelItem,
     toggleExpand,
     handleUpload,
+    handleWsMessage,
     clearSession,
   } = useUploadQueue({
     fileInputRef,
@@ -79,12 +80,17 @@ export function UploadProvider({ children }) {
     setItems,
     isRunning,
     setIsRunning,
-    started,
-    setStarted,
     setIsDragOver,
     stopRequestedRef,
     pollingDocIdsRef,
     resetLocalState,
+  })
+
+  // WebSocket 연결 — 업로드 진행 중에만 연결
+  useUploadWebSocket({
+    userId: user?.id,
+    onMessage: handleWsMessage,
+    isRunning,
   })
 
   const confirmLogout = useCallback(() => {
@@ -99,7 +105,6 @@ export function UploadProvider({ children }) {
     items,
     isDragOver,
     isRunning,
-    started,
     waitingItems,
     processingItems,
     handleFileChange,
@@ -108,6 +113,7 @@ export function UploadProvider({ children }) {
     handleDragLeave,
     openFilePicker,
     removeItem,
+    cancelItem,
     toggleExpand,
     handleUpload,
     confirmLogout,
@@ -116,7 +122,6 @@ export function UploadProvider({ children }) {
     items,
     isDragOver,
     isRunning,
-    started,
     waitingItems,
     processingItems,
     handleFileChange,
@@ -125,6 +130,7 @@ export function UploadProvider({ children }) {
     handleDragLeave,
     openFilePicker,
     removeItem,
+    cancelItem,
     toggleExpand,
     handleUpload,
     clearSession,

@@ -120,6 +120,28 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  celery_worker:
+    image: python:3.11-slim
+    container_name: celery_worker_container
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+      - backend_pip_cache:/root/.cache/pip
+    env_file:
+      - ./backend/.env
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - REDIS_HOST=redis
+      - TZ=UTC
+    command: sh -c "apt-get update && apt-get install -y --no-install-recommends poppler-utils libgomp1 libglib2.0-0 libgl1 && pip install -r requirements.txt && celery -A celery_app worker --loglevel=info --concurrency=1"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+
 volumes:
   ollama_data:
   mariadb_data:

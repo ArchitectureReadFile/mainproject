@@ -38,7 +38,6 @@ export async function uploadDocumentApi(file) {
   return data
 }
 
-export async function getDocumentDetailApi(docId) {
-  const { data } = await client.get('/documents/' + docId)
-  return data
+export async function cancelUploadItemApi(docId) {
+  await client.delete(`/documents/upload-session/item/${docId}`)
 }
