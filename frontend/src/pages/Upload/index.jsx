@@ -1,13 +1,12 @@
 import { FileText } from 'lucide-react'
-import Button from '../components/ui/Button.jsx'
-import { Card } from '../components/ui/Card.jsx'
-import FileDropzone from '../features/upload/components/FileDropzone.jsx'
-import FileStatusItem from '../features/upload/components/FileStatusItem.jsx'
-import FlowSteps from '../features/upload/components/FlowSteps.jsx'
-import { useUpload } from '../context/UploadContext.jsx'
-import '../styles/upload-page.css'
+import Button from '../../components/ui/Button.jsx'
+import { Card } from '../../components/ui/Card.jsx'
+import { UploadProvider, useUpload } from '../../context/UploadContext.jsx'
+import FileDropzone from '../../features/upload/components/FileDropzone.jsx'
+import FileStatusItem from '../../features/upload/components/FileStatusItem.jsx'
+import FlowSteps from '../../features/upload/components/FlowSteps.jsx'
 
-export default function UploadPage() {
+function UploadPageInner() {
   const {
     fileInputRef,
     isDragOver,
@@ -32,7 +31,6 @@ export default function UploadPage() {
         <p>판례 PDF를 업로드하면 AI가 자동으로 요약하고 데이터베이스에 저장합니다.</p>
       </section>
 
-      {/* 선택 카드 */}
       <Card className="upload-main-card">
         <div className="upload-main-card__header">
           <h2>PDF 파일 선택</h2>
@@ -81,14 +79,13 @@ export default function UploadPage() {
         </Button>
       </Card>
 
-      {/* 처리 현황 카드 */}
       {started && (
         <Card className="panel-card">
           <h3 className="panel-title">처리 현황</h3>
           <ul className="file-list" style={{ marginTop: 14 }}>
             {processingItems.map((it) => (
               <FileStatusItem
-                key={`${it.file.name}-${it.status}`}
+                key={it.file.name + '-' + it.status}
                 it={it}
                 file={it.file}
                 onToggle={toggleExpand}
@@ -100,5 +97,13 @@ export default function UploadPage() {
 
       <FlowSteps />
     </div>
+  )
+}
+
+export default function UploadPage() {
+  return (
+    <UploadProvider>
+      <UploadPageInner />
+    </UploadProvider>
   )
 }

@@ -1,9 +1,9 @@
-import { LogIn, Menu, Scale, X } from "lucide-react";
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { AuthModal, useAuth } from "../../features/auth/index.js";
-import styles from "../../styles/Header.module.css";
-import MenuDrawer from "./MenuDrawer.jsx";
+import { LogIn, Menu, Scale, X } from 'lucide-react'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { AuthModal, useAuth } from '../../features/auth/index.js'
+import styles from '../../styles/Header.module.css'
+import MenuDrawer from './MenuDrawer.jsx'
 
 export default function Header() {
   const {
@@ -15,20 +15,20 @@ export default function Header() {
     authModalMode,
     openAuthModal,
     closeAuthModal,
-  } = useAuth();
+  } = useAuth()
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const showUserChip = !isBootstrapping && isAuthenticated;
+  const [menuOpen, setMenuOpen] = useState(false)
+  const showUserChip = !isBootstrapping && isAuthenticated
 
   const openLogin = () => {
-    setMenuOpen(false);
-    openAuthModal("login");
-  };
+    setMenuOpen(false)
+    openAuthModal('login')
+  }
 
   const openSignup = () => {
-    setMenuOpen(false);
-    openAuthModal("signup");
-  };
+    setMenuOpen(false)
+    openAuthModal('signup')
+  }
 
   return (
     <>
@@ -38,15 +38,15 @@ export default function Header() {
             <div className={styles.logoWrap}>
               <Scale className={styles.logoIcon} />
               <div>
-                <p className={styles.logoTitle}>판례 요약 시스템</p>
-                <p className={styles.logoSub}>Legal Case Summarization</p>
+                <p className={styles.logoTitle}>판례 AI 플랫폼</p>
+                <p className={styles.logoSub}>Legal AI Platform</p>
               </div>
             </div>
           </Link>
 
           <div className={styles.right}>
             {showUserChip ? (
-              <span className={styles.userChip}>{user?.username || "사용자"}</span>
+              <span className={styles.userChip}>{user?.username || '사용자'}</span>
             ) : (
               <button type="button" className={styles.outlineBtn} onClick={openLogin}>
                 <LogIn size={16} />
@@ -58,7 +58,7 @@ export default function Header() {
               type="button"
               className={styles.menuBtn}
               onClick={() => setMenuOpen((prev) => !prev)}
-              aria-label={menuOpen ? "메뉴 닫기" : "메뉴 열기"}
+              aria-label={menuOpen ? '메뉴 닫기' : '메뉴 열기'}
               aria-expanded={menuOpen}
             >
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
@@ -83,5 +83,5 @@ export default function Header() {
         onClose={closeAuthModal}
       />
     </>
-  );
+  )
 }

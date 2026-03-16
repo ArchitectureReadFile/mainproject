@@ -1,89 +1,73 @@
-import { useEffect } from "react";
-import { Route, Routes } from "react-router-dom";
-import Footer from "./components/layout/Footer.jsx";
-import Header from "./components/layout/Header.jsx";
-import { UploadProvider, useUpload } from "./context/UploadContext.jsx";
-import { ProtectedRoute } from "./features/auth/index.js";
-import { useAuth } from "./features/auth/context/AuthContext.jsx";
-import AdminPage from "./pages/AdminPage.jsx";
-import DocumentDetailPage from "./pages/DocumentDetailPage.jsx";
-import MainPage from "./pages/MainPage.jsx";
-import PersonalProfile from './pages/MyPage.jsx';
-import SearchPage from "./pages/SearchPage.jsx";
-import UploadPage from "./pages/UploadPage.jsx";
-import styles from "./styles/App.module.css";
-
-function LogoutGuardBridge() {
-  const { registerLogoutGuard } = useAuth();
-  const { confirmLogout, clearSession } = useUpload();
-
-  useEffect(() => {
-    registerLogoutGuard({ confirm: confirmLogout, clear: clearSession });
-    return () => registerLogoutGuard(null);
-  }, [registerLogoutGuard, confirmLogout, clearSession]);
-
-  return null;
-}
-
-function UploadRoute() {
-  return (
-    <UploadProvider>
-      <LogoutGuardBridge />
-      <UploadPage />
-    </UploadProvider>
-  );
-}
+import { Route, Routes } from 'react-router-dom'
+import Footer from './components/layout/Footer.jsx'
+import Header from './components/layout/Header.jsx'
+import { ProtectedRoute } from './features/auth/index.js'
+import AdminPage from './pages/Admin/index.jsx'
+import DocumentPage from './pages/Document/index.jsx'
+import LandingPage from './pages/Landing/index.jsx'
+import MypagePage from './pages/Mypage/index.jsx'
+import UploadPage from './pages/Upload/index.jsx'
+import WorkspacePage from './pages/Workspace/index.jsx'
 
 export default function App() {
   return (
-    <div className={styles.root}>
+    <div className="min-h-screen flex flex-col">
       <Header />
-      <main className={styles.main}>
+      <main className="flex-1">
         <Routes>
-          <Route path="/" element={<MainPage />} />
+          <Route path="/" element={<LandingPage />} />
+
           <Route
-            path="/upload"
-            element={(
+            path="/workspace"
+            element={
               <ProtectedRoute>
-                <UploadRoute />
+                <WorkspacePage />
               </ProtectedRoute>
-            )}
+            }
           />
           <Route
-            path="/documents"
-            element={(
+            path="/workspace/:group_id"
+            element={
               <ProtectedRoute>
-                <SearchPage />
+                <WorkspacePage />
               </ProtectedRoute>
-            )}
+            }
           />
           <Route
-            path="/documents/:id"
-            element={(
+            path="/workspace/:group_id/upload"
+            element={
               <ProtectedRoute>
-                <DocumentDetailPage />
+                <UploadPage />
               </ProtectedRoute>
-            )}
+            }
+          />
+          <Route
+            path="/workspace/:group_id/documents/:doc_id"
+            element={
+              <ProtectedRoute>
+                <DocumentPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mypage"
+            element={
+              <ProtectedRoute>
+                <MypagePage />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/admin"
-            element={(
+            element={
               <ProtectedRoute requireAdmin>
                 <AdminPage />
               </ProtectedRoute>
-            )}
-          />
-          <Route
-            path="/profile"
-            element={(
-              <ProtectedRoute>
-                <PersonalProfile />
-              </ProtectedRoute>
-            )}
+            }
           />
         </Routes>
       </main>
       <Footer />
     </div>
-  );
+  )
 }
