@@ -7,9 +7,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from './AlertDialog'
+} from './alert-dialog'
 
-export default function ConfirmModal({
+export function ConfirmModal({
   open,
   message,
   confirmLabel = '확인',

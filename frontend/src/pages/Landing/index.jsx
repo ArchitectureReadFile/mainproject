@@ -1,4 +1,5 @@
-import Button from '@/components/ui/Button'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { FolderOpen, Scale, Search, Shield, Sparkles, Upload } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/index.js'
@@ -50,14 +51,14 @@ export default function LandingPage() {
           { Icon: Sparkles, title: 'AI 자동 요약',  sub: 'EXAONE이 핵심 내용을 자동으로 추출',         desc: '복잡한 법률 용어와 긴 판례 문서를 AI가 이해하기 쉽게 요약해드립니다.' },
           { Icon: Search,   title: 'RAG 검색',      sub: '유사 판례를 즉시 찾아보세요',                desc: 'ChromaDB 기반 벡터 검색으로 관련 판례를 빠르게 찾고 비교할 수 있습니다.' },
         ].map(({ Icon, title, sub, desc }) => (
-          <div key={title} className="p-6 border rounded-xl flex flex-col gap-2">
+          <Card key={title} className="p-6 flex flex-col gap-2">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-1">
               <Icon className="w-5 h-5 text-primary" />
             </div>
             <h4 className="font-semibold">{title}</h4>
             <p className="text-sm text-muted-foreground">{sub}</p>
             <p className="text-sm text-muted-foreground/70">{desc}</p>
-          </div>
+          </Card>
         ))}
       </section>
 

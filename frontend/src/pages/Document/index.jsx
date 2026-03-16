@@ -1,10 +1,11 @@
 import client from '@/api/client'
 import { downloadSummaryPdf, fetchDocumentDetail } from '@/api/documents'
-import Button from '@/components/ui/Button'
-import Card from '@/components/ui/Card'
-import ConfirmModal from '@/components/ui/ConfirmModal'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { ConfirmModal } from '@/components/ui/confirm-modal'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAuth } from '@/features/auth/context/AuthContext'
-import { Download, Trash2 } from 'lucide-react'
+import { ArrowLeft, Download, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -74,20 +75,31 @@ export default function DocumentPage() {
       {/* 상단 액션 */}
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1.5">
-          ← 워크스페이스로
+          <ArrowLeft size={15} />
+          워크스페이스로
         </Button>
         <div className="flex gap-2">
           {doc.summary_id && (
-            <Button variant="outline" size="sm" onClick={handleDownload} className="gap-1.5">
-              <Download size={14} />
-              PDF 다운로드
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" onClick={handleDownload} className="gap-1.5">
+                  <Download size={14} />
+                  PDF 다운로드
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>요약본 PDF를 다운로드합니다</TooltipContent>
+            </Tooltip>
           )}
           {canDelete && (
-            <Button variant="destructive" size="sm" onClick={() => setShowDeleteModal(true)} className="gap-1.5">
-              <Trash2 size={14} />
-              삭제
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="destructive" size="sm" onClick={() => setShowDeleteModal(true)} className="gap-1.5">
+                  <Trash2 size={14} />
+                  삭제
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>문서를 영구 삭제합니다</TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>

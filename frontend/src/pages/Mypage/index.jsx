@@ -1,8 +1,8 @@
 import client from '@/api/client'
-import Button from '@/components/ui/Button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
-import ConfirmModal from '@/components/ui/ConfirmModal'
-import Input from '@/components/ui/Input'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ConfirmModal } from '@/components/ui/confirm-modal'
+import { Input } from '@/components/ui/input'
 import { Calendar, LogOut, Mail } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
@@ -19,11 +19,8 @@ export default function MypagePage() {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [username, setUsername] = useState('')
-  const [inputWidth, setInputWidth] = useState(0)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const inputRef = useRef(null)
-  const nameRef = useRef(null)
-  const spanRef = useRef(null)
 
   const fetchUser = useCallback(async () => {
     try {
@@ -62,14 +59,6 @@ export default function MypagePage() {
 
   useEffect(() => { fetchUser(); fetchMyFiles() }, [fetchUser])
 
-  useEffect(() => {
-    if (nameRef.current) setInputWidth(nameRef.current.offsetWidth)
-  }, [username, editing, user])
-
-  useEffect(() => {
-    if (spanRef.current) setInputWidth(spanRef.current.offsetWidth)
-  }, [username])
-
   const handleUpdateUsername = async () => {
     try {
       const res = await client.patch('/auth/username', { username })
@@ -98,7 +87,9 @@ export default function MypagePage() {
   const paginatedFiles = uploadedFiles.slice(startIndex, startIndex + FILES_PER_PAGE)
   const totalPages = Math.ceil(uploadedFiles.length / FILES_PER_PAGE)
 
-  if (loading || !user) return <div className="p-8 text-center text-muted-foreground">Loading...</div>
+  if (loading || !user) return (
+    <div className="p-8 text-center text-muted-foreground">Loading...</div>
+  )
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10 flex flex-col gap-6">
@@ -113,21 +104,21 @@ export default function MypagePage() {
           <div>
             {editing ? (
               <div className="flex items-center gap-2">
-                <span ref={spanRef} className="invisible absolute">{username || '이름'}</span>
                 <Input
                   ref={inputRef}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="text-lg font-semibold"
-                  style={{ width: inputWidth + 'px', minWidth: '80px' }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleUpdateUsername() }}
+                  className="text-lg font-semibold max-w-[200px]"
+                  autoFocus
                 />
                 <Button size="sm" onClick={handleUpdateUsername}>저장</Button>
                 <Button size="sm" variant="outline" onClick={() => { setUsername(user.username); setEditing(false) }}>취소</Button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <h2 ref={nameRef} className="text-xl font-semibold">{user.username}</h2>
-                <Button size="sm" variant="outline" onClick={() => { setEditing(true); setTimeout(() => inputRef.current?.focus(), 0) }}>
+                <h2 className="text-xl font-semibold">{user.username}</h2>
+                <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
                   이름 수정
                 </Button>
               </div>
@@ -136,14 +127,14 @@ export default function MypagePage() {
 
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <Mail className="w-4 h-4" />
+              <Mail className="w-4 h-4 shrink-0" />
               <div>
                 <p className="text-xs text-muted-foreground">이메일</p>
                 <p className="text-foreground">{user.email}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <Calendar className="w-4 h-4" />
+              <Calendar className="w-4 h-4 shrink-0" />
               <div>
                 <p className="text-xs text-muted-foreground">가입일</p>
                 <p className="text-foreground">{new Date(user.created_at).toLocaleDateString()}</p>
@@ -167,6 +158,7 @@ export default function MypagePage() {
               {paginatedFiles.map((file) => (
                 <li key={file.id} className="flex justify-between items-center text-sm py-2 border-b last:border-0">
                   {file.summary_id ? (
+
                     <a
                       href={'/api/summaries/' + file.summary_id + '/download'}
                       target="_blank"
@@ -176,7 +168,9 @@ export default function MypagePage() {
                   ) : (
                     <span className="text-foreground">{file.title}</span>
                   )}
-                  <span className="text-muted-foreground text-xs">{new Date(file.created_at).toLocaleDateString()}</span>
+                  <span className="text-muted-foreground text-xs shrink-0 ml-4">
+                    {new Date(file.created_at).toLocaleDateString()}
+                  </span>
                 </li>
               ))}
             </ul>

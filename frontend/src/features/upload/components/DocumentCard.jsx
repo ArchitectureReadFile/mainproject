@@ -1,5 +1,5 @@
-import Button from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../../auth/context/AuthContext.jsx'

@@ -1,5 +1,6 @@
-import Button from '@/components/ui/Button'
-import Input from '@/components/ui/Input'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { getErrorMessageByCode } from '../../../../lib/errors'
@@ -70,7 +71,7 @@ export default function ResetPasswordForm({ setView }) {
   return (
     <form onSubmit={onResetPassword} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="reset-email" className="text-sm font-medium">이메일 주소</label>
+        <Label htmlFor="reset-email">이메일 주소</Label>
         <div className="flex gap-2">
           <Input
             id="reset-email"
@@ -96,7 +97,7 @@ export default function ResetPasswordForm({ setView }) {
 
       {isCodeSent && !isVerified && (
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="verification-code" className="text-sm font-medium">인증번호 확인</label>
+          <Label htmlFor="verification-code">인증번호 확인</Label>
           <div className="flex gap-2">
             <Input
               id="verification-code"
@@ -122,7 +123,7 @@ export default function ResetPasswordForm({ setView }) {
 
       {isVerified && (
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="reset-new-password" className="text-sm font-medium">새로운 비밀번호</label>
+          <Label htmlFor="reset-new-password">새로운 비밀번호</Label>
           <Input
             id="reset-new-password"
             type="password"
@@ -140,14 +141,15 @@ export default function ResetPasswordForm({ setView }) {
         {loading ? '처리 중...' : '비밀번호 변경하기'}
       </Button>
 
-      <button
+      <Button
         type="button"
-        className="text-sm text-muted-foreground hover:text-foreground text-center"
+        variant="ghost"
+        className="w-full text-muted-foreground"
         onClick={() => setView('login')}
         disabled={loading}
       >
         로그인으로 돌아가기
-      </button>
+      </Button>
     </form>
   )
 }

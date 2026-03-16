@@ -1,4 +1,4 @@
-import Button from '@/components/ui/Button'
+import { Button } from '@/components/ui/button'
 import { CheckCircle, ChevronDown, ChevronUp, FileText, Loader2, XCircle } from 'lucide-react'
 
 function StatusIcon({ status }) {
