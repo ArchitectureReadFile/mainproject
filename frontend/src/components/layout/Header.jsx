@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { LogIn, Menu, Scale, X } from 'lucide-react'
+import { useTheme } from '@/hooks/useTheme'
+import { LogIn, Menu, Moon, Scale, Sun, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AuthModal, useAuth } from '../../features/auth/index.js'
@@ -18,6 +19,7 @@ export default function Header() {
     closeAuthModal,
   } = useAuth()
 
+  const { theme, toggle } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
   const showUserChip = !isBootstrapping && isAuthenticated
 
@@ -57,6 +59,15 @@ export default function Header() {
                 로그인
               </Button>
             )}
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggle}
+              aria-label={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
+            >
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </Button>
 
             <Button
               variant="ghost"
