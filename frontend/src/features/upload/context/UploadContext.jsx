@@ -3,10 +3,10 @@ import { useLocation } from 'react-router-dom'
 import {
   abandonUploadSessionApi,
   abandonUploadSessionKeepaliveApi,
-} from '../features/upload/api/uploadSessionApi.js'
-import { useUploadQueue } from '../features/upload/hooks/useUploadQueue.js'
-import { useUploadSessionSync } from '../features/upload/hooks/useUploadSessionSync.js'
-import { makeRestoredItem } from '../features/upload/uploadState.js'
+} from '../api/uploadSessionApi.js'
+import { useUploadQueue } from '../hooks/useUploadQueue.js'
+import { useUploadSessionSync } from '../hooks/useUploadSessionSync.js'
+import { makeRestoredItem } from '../uploadState.js'
 
 const UploadContext = createContext(null)
 

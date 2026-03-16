@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { FileText, X } from 'lucide-react'
-import { UploadProvider, useUpload } from '../../context/UploadContext.jsx'
+import { UploadProvider, useUpload } from '../../features/upload/context/UploadContext.jsx'
 import FileDropzone from '../../features/upload/components/FileDropzone.jsx'
 import FileStatusItem from '../../features/upload/components/FileStatusItem.jsx'
 import FlowSteps from '../../features/upload/components/FlowSteps.jsx'
