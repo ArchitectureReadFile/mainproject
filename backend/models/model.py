@@ -34,6 +34,22 @@ class DocumentStatus(enum.Enum):
     FAILED = "FAILED"
 
 
+class SubscriptionPlan(enum.Enum):
+    FREE = "FREE"
+    PREMIUM = "PREMIUM"
+
+
+class SubscriptionStatus(enum.Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    CANCELLED = "CANCELLED"
+
+
+class GroupStatus(enum.Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+
 document_categories = Table(
     "document_categories",
     Base.metadata,
@@ -71,6 +87,19 @@ class User(Base):
 
     documents = relationship(
         "Document", back_populates="owner", cascade="all, delete-orphan"
+    )
+    # cascade 제거 — FK가 SET NULL이므로 ORM이 row를 삭제하면 안 됨
+    precedents = relationship(
+        "Precedent", back_populates="uploaded_by_admin", passive_deletes=True
+    )
+    subscription = relationship(
+        "Subscription",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    group_memberships = relationship(
+        "GroupMember", back_populates="user", cascade="all, delete-orphan"
     )
 
 
@@ -141,3 +170,103 @@ class Summary(Base):
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
 
     document = relationship("Document", back_populates="summary")
+
+
+class Precedent(Base):
+    """RAG용 판례 메타 및 인덱싱 상태 테이블"""
+
+    __tablename__ = "precedents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_url = Column(String(2048), unique=True, nullable=False)
+    title = Column(String(512), nullable=True)  # 자동 추출 전까지 null 허용
+    processing_status = Column(
+        Enum(DocumentStatus, native_enum=False),
+        default=DocumentStatus.PENDING,
+        nullable=False,
+    )
+    error_message = Column(Text, nullable=True)
+    uploaded_by_admin_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
+
+    uploaded_by_admin = relationship("User", back_populates="precedents")
+
+
+class Subscription(Base):
+    """사용자 구독 플랜 — premium_users/conversion_rate 집계 기준"""
+
+    __tablename__ = "subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+    plan = Column(
+        Enum(SubscriptionPlan, native_enum=False),
+        default=SubscriptionPlan.FREE,
+        nullable=False,
+    )
+    status = Column(
+        Enum(SubscriptionStatus, native_enum=False),
+        default=SubscriptionStatus.ACTIVE,
+        nullable=False,
+    )
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
+
+    user = relationship("User", back_populates="subscription")
+
+
+class Group(Base):
+    """워크스페이스(그룹) — active_groups/active_group_count 집계 기준"""
+
+    __tablename__ = "groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    owner_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status = Column(
+        Enum(GroupStatus, native_enum=False),
+        default=GroupStatus.ACTIVE,
+        nullable=False,
+    )
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
+
+    members = relationship(
+        "GroupMember", back_populates="group", cascade="all, delete-orphan"
+    )
+
+
+class GroupMember(Base):
+    """그룹 멤버십 — 사용자별 활성 그룹 수 집계용"""
+
+    __tablename__ = "group_members"
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(
+        Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+    group = relationship("Group", back_populates="members")
+    user = relationship("User", back_populates="group_memberships")

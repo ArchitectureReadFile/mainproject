@@ -6,21 +6,19 @@ class ErrorCode(Enum):
     (에러코드, HTTP 상태코드, 메시지) 형식으로 정의합니다.
 
     에러코드 prefix 규칙:
-      AUTH  : 인증/인가 (토큰, 세션)
-      USER  : 사용자 계정 (가입, 로그인, 정보)
-      EMAIL : 이메일 발송 및 인증 코드
-      DOC   : 문서 업로드 및 PDF 처리
-      LLM   : LLM 요약 처리
-      SUM   : 요약 결과 조회
-      FILE  : 파일 다운로드
+      AUTH      : 인증/인가 (토큰, 세션)
+      USER      : 사용자 계정 (가입, 로그인, 정보)
+      EMAIL     : 이메일 발송 및 인증 코드
+      DOC       : 문서 업로드 및 PDF 처리
+      LLM       : LLM 요약 처리
+      SUM       : 요약 결과 조회
+      FILE      : 파일 다운로드
+      PRECEDENT : RAG 판례 관리
     """
 
     # ── 인증 (AUTH) ──────────────────────────────────────────────────────────
-    # 액세스 토큰
     AUTH_TOKEN_MISSING = ("AUTH_001", 401, "로그인이 필요합니다.")
     AUTH_TOKEN_INVALID = ("AUTH_002", 401, "유효하지 않은 인증 토큰입니다.")
-
-    # 리프레시 토큰
     AUTH_REFRESH_TOKEN_MISSING = ("AUTH_003", 401, "리프레시 토큰이 없습니다.")
     AUTH_REFRESH_TOKEN_EXPIRED = (
         "AUTH_004",
@@ -28,11 +26,7 @@ class ErrorCode(Enum):
         "유효하지 않거나 만료된 리프레시 토큰입니다. 다시 로그인해주세요.",
     )
     AUTH_REFRESH_TOKEN_INVALID = ("AUTH_005", 401, "유효하지 않은 리프레시 토큰입니다.")
-
-    # 사용자 상태
     AUTH_USER_INVALID = ("AUTH_006", 401, "유효하지 않은 사용자입니다.")
-
-    # 사용자 권한
     AUTH_FORBIDDEN = ("AUTH_007", 403, "권한이 없습니다.")
 
     # ── 사용자 (USER) ────────────────────────────────────────────────────────
@@ -103,6 +97,16 @@ class ErrorCode(Enum):
 
     # ── 파일 다운로드 (FILE) ─────────────────────────────────────────────────
     FILE_NOT_FOUND = ("FILE_001", 404, "파일을 찾을 수 없습니다.")
+
+    # ── 판례 (PRECEDENT) ─────────────────────────────────────────────────────
+    PRECEDENT_NOT_FOUND = ("PRECEDENT_001", 404, "판례를 찾을 수 없습니다.")
+    PRECEDENT_DUPLICATE_URL = ("PRECEDENT_002", 409, "이미 등록된 판례 URL입니다.")
+    PRECEDENT_INVALID_URL = ("PRECEDENT_003", 422, "유효하지 않은 URL 형식입니다.")
+    PRECEDENT_DOMAIN_NOT_ALLOWED = (
+        "PRECEDENT_004",
+        422,
+        "허용되지 않은 도메인입니다. 등록 가능한 판례 사이트의 URL만 입력해주세요.",
+    )
 
     @property
     def code(self) -> str:
