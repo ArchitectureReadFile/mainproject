@@ -53,6 +53,17 @@
 | `GENERAL` | 일반 사용자 |
 | `ADMIN` | 관리자 |
 
+### 1-6. 공통 처리 상태값
+
+워크스페이스 문서 처리와 RAG 판례 인덱싱에 공통으로 사용하는 처리 상태입니다.
+
+| 값 | 설명 |
+| --- | --- |
+| `PENDING` | 작업 대기 |
+| `PROCESSING` | 작업 진행 중 |
+| `DONE` | 작업 완료 |
+| `FAILED` | 작업 실패 |
+
 ## 2. Auth API
 
 ### POST `/api/auth/signup`
@@ -383,7 +394,172 @@
   - `application/pdf`
   - 첨부 다운로드 헤더 포함
 
-## 6. 현재 구현 기준 메모
+## 6. Admin API 초안
+
+어드민은 고객 워크스페이스 내부 운영에 직접 개입하지 않고, 플랫폼 운영 및 RAG용 판례 데이터베이스를 관리합니다.
+
+### GET `/api/admin/stats`
+
+- 설명: 관리자 대시보드 핵심 지표 조회
+- 인증: 필요
+- 권한: `ADMIN`
+- 성공 응답 예시:
+
+```json
+{
+  "total_users": 1284,
+  "premium_users": 236,
+  "premium_conversion_rate": 18.4,
+  "active_groups": 142,
+  "ai_success_rate": 97.2
+}
+```
+
+### GET `/api/admin/usage`
+
+- 설명: 저장소/AI 처리량 통계 조회
+- 인증: 필요
+- 권한: `ADMIN`
+- 성공 응답 예시:
+
+```json
+{
+  "service_usage": {
+    "storage": {
+      "used_gb": 84.3,
+      "limit_gb": 200
+    },
+    "daily_uploads": [
+      { "date": "2026-03-10", "count": 43 },
+      { "date": "2026-03-11", "count": 58 }
+    ],
+    "document_jobs": {
+      "DONE": 92,
+      "PROCESSING": 5,
+      "FAILED": 3
+    }
+  },
+  "rag_usage": {
+    "precedent_count": 24381,
+    "vector_storage_mb": 12840,
+    "index_jobs": {
+      "DONE": 24195,
+      "PROCESSING": 186,
+      "FAILED": 54
+    }
+  }
+}
+```
+
+### GET `/api/admin/users`
+
+- 설명: 사용자 목록 조회
+- 인증: 필요
+- 권한: `ADMIN`
+- 성공 응답 예시:
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "username": "김대표",
+      "email": "daeyo@abclaw.kr",
+      "role": "GENERAL",
+      "is_active": true,
+      "plan": "PREMIUM",
+      "active_group_count": 1,
+      "created_at": "2026-03-13T10:00:00"
+    }
+  ],
+  "total": 1284
+}
+```
+
+### PATCH `/api/admin/users/{user_id}`
+
+- 설명: 사용자 상태 변경
+- 인증: 필요
+- 권한: `ADMIN`
+- 요청 예시:
+
+```json
+{
+  "is_active": false
+}
+```
+
+### DELETE `/api/admin/users/{user_id}`
+
+- 설명: 사용자 삭제
+- 인증: 필요
+- 권한: `ADMIN`
+- 성공 응답:
+  - `204 No Content`
+
+### GET `/api/admin/precedents`
+
+- 설명: RAG용 판례 메타 및 처리 상태 목록 조회
+- 인증: 필요
+- 권한: `ADMIN`
+- 성공 응답 예시:
+
+```json
+{
+  "items": [
+    {
+      "id": 15,
+      "source_url": "https://example.com/cases/2023da12345",
+      "title": "대법원 2023다12345 손해배상(기)",
+      "processing_status": "DONE",
+      "error_message": null,
+      "uploaded_by_admin_id": 3,
+      "created_at": "2026-03-15T10:00:00",
+      "updated_at": "2026-03-15T10:03:00"
+    }
+  ],
+  "total": 24381
+}
+```
+
+### POST `/api/admin/precedents`
+
+- 설명: 지원된 도메인의 판례 URL 등록
+- 인증: 필요
+- 권한: `ADMIN`
+- 요청 예시:
+
+```json
+{
+  "source_url": "https://example.com/cases/2023da12345"
+}
+```
+
+- 부가 동작:
+  - `precedents` row 생성
+  - URL 기준 메타 추출 및 벡터화 파이프라인 시작
+  - 동일한 `source_url`은 중복 등록 불가
+
+### POST `/api/admin/precedents/{precedent_id}/retry`
+
+- 설명: 실패한 판례 인덱싱 재처리
+- 인증: 필요
+- 권한: `ADMIN`
+- 부가 동작:
+  - 기존 row 재사용
+  - `processing_status`를 다시 갱신하여 파이프라인 재실행
+  - 새 row를 생성하지 않음
+
+### POST `/api/admin/precedents/reindex`
+
+- 설명: RAG 인덱스 재생성 실행
+- 인증: 필요
+- 권한: `ADMIN`
+- 요청 바디: 추후 범위 지정 옵션 추가 가능
+- 성공 응답:
+  - 작업 시작 정보 또는 `202 Accepted`
+
+## 7. 현재 구현 기준 메모
 
 - 관리자 전용 API는 현재 별도 라우터로 구현되어 있지 않습니다.
 - 회원탈퇴 API는 현재 문서 범위에서 구현되어 있지 않습니다.
