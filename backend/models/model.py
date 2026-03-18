@@ -139,14 +139,14 @@ class User(Base):
     owned_groups = relationship("Group", back_populates="owner")
     
     memberships = relationship(
-        "UserGroups",
-        foreign_keys="UserGroups.user_id",
+        "GroupMember",
+        foreign_keys="GroupMember.user_id",
         back_populates="user",
     )
 
     invited_members = relationship(
-        "UserGroups",
-        foreign_keys="UserGroups.invited_by_user_id",
+        "GroupMember",
+        foreign_keys="GroupMember.invited_by_user_id",
         back_populates="invited_by",
     )
 
@@ -177,9 +177,6 @@ class User(Base):
         back_populates="deleted_by",
     )
 
-    precedents = relationship(
-        "Precedent", back_populates="uploaded_by_admin", passive_deletes=True
-    )
 
 
 class Subscription(Base):
@@ -215,7 +212,7 @@ class Group(Base):
     updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
 
     owner = relationship("User", back_populates="owned_groups")
-    members = relationship("UserGroups", back_populates="group", cascade="all, delete-orphan")
+    members = relationship("GroupMember", back_populates="group", cascade="all, delete-orphan")
     documents = relationship(
         "Document",
         back_populates="group",
@@ -229,8 +226,8 @@ class Group(Base):
     )
 
 
-class UserGroups(Base):
-    __tablename__ = "user_groups"
+class GroupMember(Base):
+    __tablename__ = "group_members"
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -504,28 +501,3 @@ class Notification(Base):
     actor = relationship("User", foreign_keys=[actor_user_id], back_populates="sent_notifications")
     group = relationship("Group", back_populates="notifications")
 
-
-class Precedent(Base):
-    """RAG용 판례 메타 및 인덱싱 상태 테이블"""
-    __tablename__ = "precedents"
-
-    id = Column(Integer, primary_key=True, index=True)
-    source_url = Column(String(2048), unique=True, nullable=False)
-    title = Column(String(512), nullable=True)
-    text = Column(Text, nullable=True)
-    processing_status = Column(
-        Enum(DocumentStatus, native_enum=False),
-        default=DocumentStatus.PENDING,
-        nullable=False,
-    )
-    error_message = Column(Text, nullable=True)
-    uploaded_by_admin_id = Column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
-    )
-
-    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
-    updated_at = Column(
-        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
-    )
-
-    uploaded_by_admin = relationship("User", back_populates="precedents")

@@ -1,5 +1,5 @@
 from errors import AppException, ErrorCode
-from models.model import MembershipRole, PlanType, Subscription
+from models.model import MembershipRole, SubscriptionPlan, Subscription
 from repositories.group_repository import GroupRepository
 from schemas.group import GroupDetailResponse, GroupSummaryResponse
 from typing import Optional
@@ -16,7 +16,7 @@ class GroupService:
             .first()
         )
 
-        if not sub or sub.plan != PlanType.PREMIUM:
+        if not sub or sub.plan != SubscriptionPlan.PREMIUM:
             raise AppException(ErrorCode.GROUP_NOT_PREMIUM)
         
         
