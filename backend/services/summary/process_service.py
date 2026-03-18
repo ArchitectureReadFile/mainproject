@@ -12,7 +12,7 @@ from pdf2image import convert_from_bytes
 
 from database import SessionLocal
 from errors import AppException, ErrorCode
-from models.model import DocumentStatus
+from models.model import ProcessingStatus
 from repositories.document_repository import DocumentRepository
 from repositories.summary_repository import SummaryRepository
 from services.summary.llm_service import LLMService
@@ -155,7 +155,7 @@ class ProcessService:
         repository = DocumentRepository(db)
 
         try:
-            repository.update_status(document_id, DocumentStatus.PROCESSING)
+            repository.update_status(document_id, ProcessingStatus.PROCESSING)
             db.commit()
 
             with open(file_path, "rb") as f:
@@ -199,13 +199,13 @@ class ProcessService:
                 related_laws=summary_data.get("related_laws"),
             )
 
-            repository.update_status(document_id, DocumentStatus.DONE)
+            repository.update_status(document_id, ProcessingStatus.DONE)
             db.commit()
 
             document = repository.get_detail(document_id)
             if document:
                 self.upload_session_service.mark_document_done(
-                    document.user_id,
+                    document.uploader_user_id,
                     document_id,
                     {
                         "case_number": summary_data.get("case_number") or "-",
@@ -222,7 +222,7 @@ class ProcessService:
             logger.error(
                 f"[요약 실패] doc_id={document_id}, error={str(e)}", exc_info=True
             )
-            repository.update_status(document_id, DocumentStatus.FAILED)
+            repository.update_status(document_id, ProcessingStatus.FAILED)
             db.commit()
 
             document = repository.get_detail(document_id)
@@ -233,7 +233,7 @@ class ProcessService:
             )
             if document:
                 self.upload_session_service.mark_document_failed(
-                    document.user_id,
+                    document.uploader_user_id,
                     document_id,
                     error_message,
                 )

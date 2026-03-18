@@ -4,7 +4,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from errors import AppException, ErrorCode
-from models.model import Category, Document, DocumentStatus, Summary, User, UserRole
+from models.model import Category, Document, ProcessingStatus, Summary, User, UserRole, DocumentLifecycleStatus
 
 logger = logging.getLogger(__name__)
 
@@ -14,18 +14,21 @@ class DocumentRepository:
         self.db = db
 
     def create_pending_document(self, user_id: int, document_url: str) -> Document:
+        """
         document = Document(
-            user_id=user_id, document_url=document_url, status=DocumentStatus.PENDING
+            user_id=user_id, document_url=document_url, status=ProcessingStatus.PENDING
         )
         self.db.add(document)
         self.db.commit()
         self.db.refresh(document)
         return document
+        """
+        pass
 
-    def update_status(self, document_id: int, status: DocumentStatus):
+    def update_status(self, document_id: int, status: ProcessingStatus):
         document = self.db.query(Document).filter(Document.id == document_id).first()
         if document:
-            document.status = status
+            document.processing_status = status
             return
         logger.warning(
             "[Document 상태 변경 누락] document_id=%s, status=%s", document_id, status
@@ -37,10 +40,10 @@ class DocumentRepository:
         query = self.db.query(Document).join(Document.owner).outerjoin(Document.summary)
 
         if view_type == "my":
-            query = query.filter(Document.user_id == user_id)
+            query = query.filter(Document.uploader_user_id == user_id)
         elif user_role != UserRole.ADMIN.value:
             query = query.filter(
-                or_(Document.user_id == user_id, User.role == UserRole.ADMIN)
+                or_(Document.uploader_user_id == user_id, User.role == UserRole.ADMIN)
             )
 
         if category and category != "전체":
@@ -49,14 +52,14 @@ class DocumentRepository:
         if keyword:
             query = query.filter(
                 or_(
-                    Document.document_url.contains(keyword),
+                    Document.original_filename.contains(keyword),
                     Summary.summary_title.contains(keyword),
-                    Summary.summary_main.contains(keyword),
+                    Summary.summary_text.contains(keyword),
                 )
             )
 
         if status:
-            query = query.filter(Document.status == status)
+            query = query.filter(Document.processing_status == status)
 
         total = query.count()
         documents = (
@@ -76,7 +79,7 @@ class DocumentRepository:
         document = self.db.query(Document).filter(Document.id == document_id).first()
         if not document:
             raise AppException(ErrorCode.DOC_NOT_FOUND)
-        if document.user_id != user_id and user_role != UserRole.ADMIN.value:
+        if document.uploader_user_id != user_id and user_role != UserRole.ADMIN.value:
             raise AppException(ErrorCode.AUTH_FORBIDDEN)
         self.db.delete(document)
         self.db.commit()
