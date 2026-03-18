@@ -12,7 +12,7 @@ from pdf2image import convert_from_bytes
 
 from database import SessionLocal
 from errors import AppException, ErrorCode
-from models.model import ProcessingStatus
+from models.model import DocumentStatus
 from repositories.document_repository import DocumentRepository
 from repositories.summary_repository import SummaryRepository
 from services.summary.llm_service import LLMService
@@ -155,7 +155,7 @@ class ProcessService:
         repository = DocumentRepository(db)
 
         try:
-            repository.update_status(document_id, ProcessingStatus.PROCESSING)
+            repository.update_status(document_id, DocumentStatus.PROCESSING)
             db.commit()
 
             with open(file_path, "rb") as f:
@@ -199,7 +199,7 @@ class ProcessService:
                 related_laws=summary_data.get("related_laws"),
             )
 
-            repository.update_status(document_id, ProcessingStatus.DONE)
+            repository.update_status(document_id, DocumentStatus.DONE)
             db.commit()
 
             document = repository.get_detail(document_id)
@@ -222,7 +222,7 @@ class ProcessService:
             logger.error(
                 f"[요약 실패] doc_id={document_id}, error={str(e)}", exc_info=True
             )
-            repository.update_status(document_id, ProcessingStatus.FAILED)
+            repository.update_status(document_id, DocumentStatus.FAILED)
             db.commit()
 
             document = repository.get_detail(document_id)

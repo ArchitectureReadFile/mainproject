@@ -4,7 +4,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from errors import AppException, ErrorCode
-from models.model import Category, Document, ProcessingStatus, Summary, User, UserRole, DocumentLifecycleStatus
+from models.model import Category, Document, DocumentStatus, Summary, User, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ class DocumentRepository:
     def create_pending_document(self, user_id: int, document_url: str) -> Document:
         """
         document = Document(
-            user_id=user_id, document_url=document_url, status=ProcessingStatus.PENDING
+            user_id=user_id, document_url=document_url, status=DocumentStatus.PENDING
         )
         self.db.add(document)
         self.db.commit()
@@ -25,7 +25,7 @@ class DocumentRepository:
         """
         pass
 
-    def update_status(self, document_id: int, status: ProcessingStatus):
+    def update_status(self, document_id: int, status: DocumentStatus):
         document = self.db.query(Document).filter(Document.id == document_id).first()
         if document:
             document.processing_status = status

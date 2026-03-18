@@ -514,8 +514,8 @@ class Precedent(Base):
     title = Column(String(512), nullable=True)
     text = Column(Text, nullable=True)
     processing_status = Column(
-        Enum(ProcessingStatus, native_enum=False),
-        default=ProcessingStatus.PENDING,
+        Enum(DocumentStatus, native_enum=False),
+        default=DocumentStatus.PENDING,
         nullable=False,
     )
     error_message = Column(Text, nullable=True)
