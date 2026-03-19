@@ -27,10 +27,13 @@ sys.path.insert(0, os.path.dirname(__file__))
 from database import SessionLocal, init_db
 from models.model import (
     Document,
+    DocumentLifecycleStatus,
     DocumentStatus,
     Group,
     GroupMember,
     GroupStatus,
+    MembershipRole,
+    MembershipStatus,
     Precedent,
     Subscription,
     SubscriptionPlan,
@@ -125,14 +128,14 @@ SEED_SUBSCRIPTIONS = [
     (
         f"choi{SEED_EMAIL_DOMAIN}",
         "PREMIUM",
-        "INACTIVE",
+        "EXPIRED",
         16,
     ),  # 비활성 PREMIUM → FREE로 표시
     (f"jung{SEED_EMAIL_DOMAIN}", "FREE", "ACTIVE", 14),
     (
         f"han{SEED_EMAIL_DOMAIN}",
         "PREMIUM",
-        "CANCELLED",
+        "CANCELED",
         10,
     ),  # 취소 PREMIUM → FREE로 표시
     (f"kwon{SEED_EMAIL_DOMAIN}", "FREE", "ACTIVE", 4),
@@ -145,7 +148,7 @@ SEED_GROUPS = [
     ("변호사 이팀", f"lee{SEED_EMAIL_DOMAIN}", "ACTIVE"),
     ("박사무소 A", f"park{SEED_EMAIL_DOMAIN}", "ACTIVE"),
     ("최팀장 그룹", f"choi{SEED_EMAIL_DOMAIN}", "ACTIVE"),
-    ("구 한변리 사무소", f"han{SEED_EMAIL_DOMAIN}", "INACTIVE"),
+    ("구 한변리 사무소", f"han{SEED_EMAIL_DOMAIN}", "DELETE_PENDING"),
 ]
 
 # (group_name, member_emails) — 그룹에 추가할 멤버
@@ -417,7 +420,7 @@ def seed_groups(db, user_map: dict) -> dict[str, "Group"]:
             continue
         existing = (
             db.query(Group)
-            .filter(Group.name == name, Group.owner_id == owner.id)
+            .filter(Group.name == name, Group.owner_user_id == owner.id)
             .first()
         )
         if existing:
@@ -426,11 +429,20 @@ def seed_groups(db, user_map: dict) -> dict[str, "Group"]:
             continue
         group = Group(
             name=name,
-            owner_id=owner.id,
+            owner_user_id=owner.id,
             status=GroupStatus(status),
         )
         db.add(group)
         db.flush()
+        db.add(
+            GroupMember(
+                group_id=group.id,
+                user_id=owner.id,
+                role=MembershipRole.OWNER,
+                status=MembershipStatus.ACTIVE,
+                joined_at=group.created_at or _days_ago(0),
+            )
+        )
         group_map[name] = group
         print(f"  [OK]   group '{name}' ({status})")
     db.commit()
@@ -457,19 +469,52 @@ def seed_group_members(db, user_map: dict, group_map: dict):
             if existing:
                 print(f"  [SKIP] member {email} → '{group_name}'")
                 continue
-            db.add(GroupMember(group_id=group.id, user_id=user.id))
+            db.add(
+                GroupMember(
+                    group_id=group.id,
+                    user_id=user.id,
+                    role=MembershipRole.EDITOR,
+                    status=MembershipStatus.ACTIVE,
+                    invited_by_user_id=group.owner_user_id,
+                    joined_at=_days_ago(0),
+                )
+            )
             print(f"  [OK]   member {email} → '{group_name}'")
     db.commit()
 
 
+def _pick_group_for_user(db, user_id: int) -> Group | None:
+    membership = (
+        db.query(GroupMember)
+        .join(Group, Group.id == GroupMember.group_id)
+        .filter(
+            GroupMember.user_id == user_id,
+            GroupMember.status == MembershipStatus.ACTIVE,
+            Group.status == GroupStatus.ACTIVE,
+        )
+        .first()
+    )
+    if membership:
+        return db.query(Group).filter(Group.id == membership.group_id).first()
+
+    return db.query(Group).filter(Group.owner_user_id == user_id).first()
+
+
 def seed_documents(db, user_map: dict):
-    """문서 생성. document_url로 중복 체크."""
+    """문서 생성. stored_path로 중복 체크."""
     for i, (email, status, days_ago) in enumerate(SEED_DOCUMENTS):
         user = user_map.get(email)
         if not user:
             continue
-        url = f"https://storage.seed.test/docs/seed_{i:03d}.pdf"
-        existing = db.query(Document).filter(Document.document_url == url).first()
+        group = _pick_group_for_user(db, user.id)
+        if not group:
+            print(f"  [SKIP] document seed_{i:03d} (group 없음: {email})")
+            continue
+
+        stored_path = f"https://storage.seed.test/docs/seed_{i:03d}.pdf"
+        existing = (
+            db.query(Document).filter(Document.stored_path == stored_path).first()
+        )
         if existing:
             print(f"  [SKIP] document seed_{i:03d}")
             continue
@@ -477,10 +522,15 @@ def seed_documents(db, user_map: dict):
         # created_at을 특정 시각으로 고정 — 그래프 분산 목적
         created = _days_ago(days_ago).replace(hour=9 + (i % 8), minute=i % 60)
         doc = Document(
-            user_id=user.id,
-            document_url=url,
-            status=DocumentStatus(status),
+            group_id=group.id,
+            uploader_user_id=user.id,
+            original_filename=f"seed_{i:03d}.pdf",
+            stored_path=stored_path,
+            title=f"seed_{i:03d}",
+            processing_status=DocumentStatus(status),
+            lifecycle_status=DocumentLifecycleStatus.ACTIVE,
             created_at=created,
+            updated_at=created,
         )
         db.add(doc)
         print(f"  [OK]   document seed_{i:03d} ({status}, {days_ago}일 전)")

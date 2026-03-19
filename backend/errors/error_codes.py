@@ -119,7 +119,7 @@ class ErrorCode(Enum):
     @property
     def message(self) -> str:
         return self.value[2]
-    
+
     # ── 워크스페이스 (GROUP) ─────────────────────────────────────────────────
     GROUP_NOT_FOUND = ("GROUP_001", 404, "워크스페이스를 찾을 수 없습니다.")
     GROUP_OWNER_LIMIT = ("GROUP_002", 409, "이미 소유한 워크스페이스가 있습니다.")

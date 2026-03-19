@@ -11,10 +11,10 @@ from routers.admin import router as admin_router
 from routers.auth import router as auth_router
 from routers.document import router as document_router
 from routers.email import router as email_router
+from routers.group import router as group_router
 from routers.search import router as search_router
 from routers.summarize import router as summarize_router
 from routers.ws import router as ws_router
-from routers.group import router as group_router
 
 
 @asynccontextmanager

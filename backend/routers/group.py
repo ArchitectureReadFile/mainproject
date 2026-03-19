@@ -8,16 +8,17 @@ from routers.auth import get_current_user
 from schemas.group import GroupCreateRequest, GroupDetailResponse, GroupSummaryResponse
 from services.group_service import GroupService
 
-
 router = APIRouter(prefix="/groups", tags=["groups"])
 
 
-def get_group_service(db:Session = Depends(get_db)) -> GroupService:
+def get_group_service(db: Session = Depends(get_db)) -> GroupService:
     return GroupService(GroupRepository(db))
 
 
 # 그룹 생성
-@router.post("", response_model=GroupDetailResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=GroupDetailResponse, status_code=status.HTTP_201_CREATED
+)
 def create_group(
     payload: GroupCreateRequest,
     db: Session = Depends(get_db),
@@ -47,6 +48,3 @@ def get_group_detail(
     service: GroupService = Depends(get_group_service),
 ):
     return service.get_group_detail(current_user.id, group_id)
-
-
-
