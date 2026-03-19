@@ -124,3 +124,7 @@ class ErrorCode(Enum):
     GROUP_NOT_FOUND = ("GROUP_001", 404, "워크스페이스를 찾을 수 없습니다.")
     GROUP_OWNER_LIMIT = ("GROUP_002", 409, "이미 소유한 워크스페이스가 있습니다.")
     GROUP_NOT_PREMIUM = ("GROUP_003", 403, "프리미엄 구독이 필요합니다.")
+    GROUP_NOT_OWNER = ("GROUP_004", 403, "워크스페이스 소유자만 가능합니다.")
+    GROUP_ALREADY_DELETE_PENDING = ("GROUP_005", 409, "이미 삭제 요청된 워크스페이스입니다.")
+    GROUP_NOT_DELETE_PENDING = ("GROUP_006", 400, "삭제 요청 상태가 아닙니다.")
+    GROUP_RESTORE_OWNER_LIMIT = ("GROUP_007", 409, "이미 소유한 활성 워크스페이스가 있어 복구할 수 없습니다.")

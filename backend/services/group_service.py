@@ -1,7 +1,7 @@
 from typing import Optional
 
 from errors import AppException, ErrorCode
-from models.model import MembershipRole, Subscription, SubscriptionPlan
+from models.model import MembershipRole, Subscription, SubscriptionPlan, Group, GroupStatus
 from repositories.group_repository import GroupRepository
 from schemas.group import GroupDetailResponse, GroupSummaryResponse
 
@@ -10,6 +10,7 @@ class GroupService:
     def __init__(self, repository: GroupRepository):
         self.repository = repository
 
+    # PREMIUM 플랜 체크
     def _check_premium(self, user_id: int):
         sub = (
             self.repository.db.query(Subscription)
@@ -19,6 +20,12 @@ class GroupService:
 
         if not sub or sub.plan != SubscriptionPlan.PREMIUM:
             raise AppException(ErrorCode.GROUP_NOT_PREMIUM)
+
+    # OWNER 권한 체크
+    def _check_owner(self, user_id: int, group: Group):
+        if group.owner_user_id != user_id:
+            raise AppException(ErrorCode.GROUP_NOT_OWNER)
+
 
     # 그룹 생성
     def create_group(
@@ -88,3 +95,69 @@ class GroupService:
             created_at=group.created_at,
             updated_at=group.updated_at,
         )
+
+
+    # 그룹 삭제
+    def request_delete_group(self, user_id: int, group_id: int) -> GroupDetailResponse:
+        group = self.repository.get_group_by_id(group_id)
+
+        if not group:
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+        
+        self._check_owner(user_id, group)
+
+        if group.status == GroupStatus.DELETE_PENDING:
+            raise AppException(ErrorCode.GROUP_ALREADY_DELETE_PENDING)
+
+        group = self.repository.request_delete_group(group)
+
+        return GroupDetailResponse(
+            id=group.id,
+            name=group.name,
+            description=group.description,
+            status=group.status.value,
+            my_role=MembershipRole.OWNER.value,
+            owner_id=group.owner_user_id,
+            owner_username=group.owner.username,
+            member_count=self.repository.count_member(group.id),
+            document_count=self.repository.count_document(group.id),
+            delete_scheduled_at=group.delete_scheduled_at,
+            created_at=group.created_at,
+            updated_at=group.updated_at,
+        )
+
+
+    # 그룹 삭제 취소 
+    def cancel_delete_group(self, user_id: int, group_id: int) -> GroupDetailResponse:
+        group = self.repository.get_group_by_id(group_id)
+
+        if not group:
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+        
+        self._check_owner(user_id, group)
+
+        if group.status != GroupStatus.DELETE_PENDING:
+            raise AppException(ErrorCode.GROUP_NOT_DELETE_PENDING)
+        
+        if self.repository.count_active_owner_groups(user_id) >= 1:
+            raise AppException(ErrorCode.GROUP_RESTORE_OWNER_LIMIT)
+        
+        group = self.repository.cancel_delete_group(group)
+
+        return GroupDetailResponse(
+            id=group.id,
+            name=group.name,
+            description=group.description,
+            status=group.status.value,
+            my_role=MembershipRole.OWNER.value,
+            owner_id=group.owner_user_id,
+            owner_username=group.owner.username,
+            member_count=self.repository.count_member(group.id),
+            document_count=self.repository.count_document(group.id),
+            delete_scheduled_at=group.delete_scheduled_at,
+            created_at=group.created_at,
+            updated_at=group.updated_at,
+        )
+
+
+        
