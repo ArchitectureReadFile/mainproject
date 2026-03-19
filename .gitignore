@@ -20,6 +20,7 @@ docker-compose.override.yml
 backend/uploads/
 
 # AI 관련
+backend/.model_cache/
 backend/services/rag/chroma_data/
 training/output/
 training/checkpoints/

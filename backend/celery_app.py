@@ -12,7 +12,7 @@ celery_app = Celery(
     "worker",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["tasks.upload_task"],
+    include=["tasks.upload_task", "tasks.precedent_task"],
 )
 
 celery_app.conf.update(

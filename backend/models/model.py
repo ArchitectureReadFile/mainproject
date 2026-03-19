@@ -442,6 +442,7 @@ class Precedent(Base):
     id = Column(Integer, primary_key=True, index=True)
     source_url = Column(String(2048), unique=True, nullable=False)
     title = Column(String(512), nullable=True)  # 자동 추출 전까지 null 허용
+    text = Column(Text, nullable=True)  # 요지 + 판결내용 + 상세내용 합본
     processing_status = Column(
         Enum(DocumentStatus, native_enum=False),
         default=DocumentStatus.PENDING,
