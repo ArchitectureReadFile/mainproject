@@ -173,9 +173,34 @@ def get_admin_precedents(
     )
 
     items = base.order_by(Precedent.created_at.desc()).offset(skip).limit(limit).all()
+    failed_items = (
+        base.filter(Precedent.processing_status == DocumentStatus.FAILED)
+        .order_by(Precedent.updated_at.desc())
+        .limit(5)
+        .all()
+    )
+    pending_items = (
+        base.filter(
+            Precedent.processing_status.in_(
+                [DocumentStatus.PENDING, DocumentStatus.PROCESSING]
+            )
+        )
+        .order_by(Precedent.updated_at.desc())
+        .limit(5)
+        .all()
+    )
+    recent_items = (
+        base.filter(Precedent.processing_status == DocumentStatus.DONE)
+        .order_by(Precedent.updated_at.desc())
+        .limit(5)
+        .all()
+    )
     return AdminPrecedentListResponse(
         summary=summary,
         items=[PrecedentItem.model_validate(p) for p in items],
+        failed_items=[PrecedentItem.model_validate(p) for p in failed_items],
+        pending_items=[PrecedentItem.model_validate(p) for p in pending_items],
+        recent_items=[PrecedentItem.model_validate(p) for p in recent_items],
         total=total,
     )
 

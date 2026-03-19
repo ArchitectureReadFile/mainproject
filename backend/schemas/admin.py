@@ -90,6 +90,9 @@ class PrecedentItem(BaseModel):
 class AdminPrecedentListResponse(BaseModel):
     summary: PrecedentSummary
     items: list[PrecedentItem]
+    failed_items: list[PrecedentItem]
+    pending_items: list[PrecedentItem]
+    recent_items: list[PrecedentItem]
     total: int
 
 

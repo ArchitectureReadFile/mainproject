@@ -228,3 +228,14 @@ def count() -> int:
         return 0
     result = client.count(collection_name=QDRANT_COLLECTION, exact=True)
     return result.count
+
+
+def clear() -> None:
+    """컬렉션 전체를 비운다. 컬렉션이 없으면 조용히 스킵."""
+    client = _get_client()
+    existing = [c.name for c in client.get_collections().collections]
+    if QDRANT_COLLECTION not in existing:
+        logger.debug("clear 스킵: 컬렉션 없음 (%s)", QDRANT_COLLECTION)
+        return
+    client.delete_collection(collection_name=QDRANT_COLLECTION)
+    logger.info("Qdrant 컬렉션 삭제 완료: %s", QDRANT_COLLECTION)
