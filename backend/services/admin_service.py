@@ -94,7 +94,7 @@ def get_admin_stats(db: Session) -> AdminStatsResponse:
     total_docs = db.query(func.count(Document.id)).scalar() or 0
     done_docs = (
         db.query(func.count(Document.id))
-        .filter(Document.status == DocumentStatus.DONE)
+        .filter(Document.processing_status == DocumentStatus.DONE)
         .scalar()
         or 0
     )
@@ -140,7 +140,7 @@ def get_admin_usage(db: Session) -> AdminUsageResponse:
         service_usage=ServiceUsage(
             storage=StorageInfo(used_gb=0.0, limit_gb=10.0),
             daily_uploads=list(reversed(daily_uploads)),
-            document_jobs=_job_counts(Document.status),
+            document_jobs=_job_counts(Document.processing_status),
         ),
         rag_usage=RagUsage(
             precedent_count=db.query(func.count(Precedent.id)).scalar() or 0,

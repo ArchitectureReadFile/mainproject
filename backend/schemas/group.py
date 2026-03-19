@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
+
 from models.model import GroupStatus, MembershipRole
 
 
@@ -20,6 +21,7 @@ class GroupCreateRequest(BaseModel):
 
 class GroupSummaryResponse(BaseModel):
     """워크스페이스 카드(목록용)"""
+
     id: int
     name: str
     status: GroupStatus
@@ -31,9 +33,9 @@ class GroupSummaryResponse(BaseModel):
     created_at: datetime
 
 
-
 class GroupDetailResponse(BaseModel):
     """워크스페이스 상세"""
+
     id: int
     name: str
     description: Optional[str]

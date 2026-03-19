@@ -26,26 +26,31 @@ class UserRole(enum.Enum):
     ADMIN = "ADMIN"
     GENERAL = "GENERAL"
 
+
 class SubscriptionStatus(enum.Enum):
     ACTIVE = "ACTIVE"
     CANCELED = "CANCELED"
     EXPIRED = "EXPIRED"
 
+
 class MembershipRole(enum.Enum):
-    OWNER = "OWNER" 
+    OWNER = "OWNER"
     ADMIN = "ADMIN"
     EDITOR = "EDITOR"
     VIEWER = "VIEWER"
 
+
 class MembershipStatus(enum.Enum):
-    INVITED = "INVITED" 
+    INVITED = "INVITED"
     ACTIVE = "ACTIVE"
     REMOVED = "REMOVED"
 
+
 class GroupStatus(enum.Enum):
-    ACTIVE = "ACTIVE" 
+    ACTIVE = "ACTIVE"
     DELETE_PENDING = "DELETE_PENDING"
     DELETED = "DELETED"
+
 
 class DocumentStatus(enum.Enum):
     PENDING = "PENDING"
@@ -53,13 +58,15 @@ class DocumentStatus(enum.Enum):
     DONE = "DONE"
     FAILED = "FAILED"
 
+
 class ReviewStatus(enum.Enum):
-    PENDING_REVIEW = "PENDING_REVIEW" 
+    PENDING_REVIEW = "PENDING_REVIEW"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
 
+
 class DocumentLifecycleStatus(enum.Enum):
-    ACTIVE = "ACTIVE" 
+    ACTIVE = "ACTIVE"
     DELETE_PENDING = "DELETE_PENDING"
     DELETED = "DELETED"
 
@@ -70,7 +77,7 @@ class ChatMessageRole(enum.Enum):
 
 
 class NotificationType(enum.Enum):
-    GROUP_DELETE_REQUESTED = "GROUP_DELETE_REQUESTED" 
+    GROUP_DELETE_REQUESTED = "GROUP_DELETE_REQUESTED"
     GROUP_DELETE_CANCELED = "GROUP_DELETE_CANCELED"
     DOCUMENT_DELETE_REQUESTED = "DOCUMENT_DELETE_REQUESTED"
     DOCUMENT_RESTORED = "DOCUMENT_RESTORED"
@@ -137,7 +144,7 @@ class User(Base):
     )
 
     owned_groups = relationship("Group", back_populates="owner")
-    
+
     memberships = relationship(
         "GroupMember",
         foreign_keys="GroupMember.user_id",
@@ -150,8 +157,10 @@ class User(Base):
         back_populates="invited_by",
     )
 
-    chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
-    
+    chat_sessions = relationship(
+        "ChatSession", back_populates="user", cascade="all, delete-orphan"
+    )
+
     notifications = relationship(
         "Notification",
         foreign_keys="Notification.user_id",
@@ -166,9 +175,9 @@ class User(Base):
     )
 
     reviewed_documents = relationship(
-       "DocumentApproval",
-       foreign_keys="DocumentApproval.reviewer_user_id",
-       back_populates="reviewer",
+        "DocumentApproval",
+        foreign_keys="DocumentApproval.reviewer_user_id",
+        back_populates="reviewer",
     )
 
     deleted_documents = relationship(
@@ -178,19 +187,30 @@ class User(Base):
     )
 
 
-
 class Subscription(Base):
     __tablename__ = "subscriptions"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
-    plan = Column(Enum(SubscriptionPlan, native_enum=False), default=SubscriptionPlan.FREE, nullable=False)
-    status = Column(Enum(SubscriptionStatus, native_enum=False), default=SubscriptionStatus.ACTIVE, nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    plan = Column(
+        Enum(SubscriptionPlan, native_enum=False),
+        default=SubscriptionPlan.FREE,
+        nullable=False,
+    )
+    status = Column(
+        Enum(SubscriptionStatus, native_enum=False),
+        default=SubscriptionStatus.ACTIVE,
+        nullable=False,
+    )
 
     started_at = Column(DateTime, default=utc_now_naive, nullable=False)
     ended_at = Column(DateTime)
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
-    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
 
     user = relationship("User", back_populates="subscription")
 
@@ -199,20 +219,28 @@ class Group(Base):
     __tablename__ = "groups"
 
     id = Column(Integer, primary_key=True)
-    owner_user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    owner_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
     name = Column(String(100), nullable=False)
     description = Column(Text)
-    status = Column(Enum(GroupStatus, native_enum=False), default=GroupStatus.ACTIVE, nullable=False)
+    status = Column(
+        Enum(GroupStatus, native_enum=False), default=GroupStatus.ACTIVE, nullable=False
+    )
 
     delete_requested_at = Column(DateTime)
     delete_scheduled_at = Column(DateTime)
     deleted_at = Column(DateTime)
 
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
-    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
 
     owner = relationship("User", back_populates="owned_groups")
-    members = relationship("GroupMember", back_populates="group", cascade="all, delete-orphan")
+    members = relationship(
+        "GroupMember", back_populates="group", cascade="all, delete-orphan"
+    )
     documents = relationship(
         "Document",
         back_populates="group",
@@ -220,7 +248,7 @@ class Group(Base):
     )
 
     notifications = relationship(
-       "Notification",
+        "Notification",
         back_populates="group",
         cascade="all, delete-orphan",
     )
@@ -230,27 +258,38 @@ class GroupMember(Base):
     __tablename__ = "group_members"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    group_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    group_id = Column(
+        Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False
+    )
     role = Column(Enum(MembershipRole, native_enum=False), nullable=False)
-    status = Column(Enum(MembershipStatus, native_enum=False), default=MembershipStatus.ACTIVE, nullable=False)
+    status = Column(
+        Enum(MembershipStatus, native_enum=False),
+        default=MembershipStatus.ACTIVE,
+        nullable=False,
+    )
 
-    invited_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    invited_by_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     invited_at = Column(DateTime, nullable=True)
     joined_at = Column(DateTime)
     removed_at = Column(DateTime)
 
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
-    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "group_id", name="uq_user_group"),
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
     )
+
+    __table_args__ = (UniqueConstraint("user_id", "group_id", name="uq_user_group"),)
 
     user = relationship("User", foreign_keys=[user_id], back_populates="memberships")
     group = relationship("Group", back_populates="members")
-    invited_by = relationship("User", foreign_keys=[invited_by_user_id], back_populates="invited_members")
-
+    invited_by = relationship(
+        "User", foreign_keys=[invited_by_user_id], back_populates="invited_members"
+    )
 
 
 class Category(Base):
@@ -269,7 +308,9 @@ class Document(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    group_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
+    group_id = Column(
+        Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False
+    )
 
     uploader_user_id = Column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
@@ -299,9 +340,13 @@ class Document(Base):
     deleted_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
 
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
-    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
 
-    owner = relationship("User", foreign_keys=[uploader_user_id], back_populates="documents")
+    owner = relationship(
+        "User", foreign_keys=[uploader_user_id], back_populates="documents"
+    )
 
     summary = relationship(
         "Summary",
@@ -326,7 +371,7 @@ class Document(Base):
     group = relationship("Group", back_populates="documents")
 
     deleted_by = relationship(
-       "User",
+        "User",
         foreign_keys=[deleted_by_user_id],
         back_populates="deleted_documents",
     )
@@ -359,7 +404,9 @@ class DocumentApproval(Base):
     reviewed_at = Column(DateTime)
 
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
-    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
 
     document = relationship("Document", back_populates="approval")
     reviewer = relationship("User", back_populates="reviewed_documents")
@@ -384,7 +431,9 @@ class Summary(Base):
     metadata_json = Column(Text)  # 판례/계약서 구조 데이터
 
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
-    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
 
     document = relationship("Document", back_populates="summary")
 
@@ -394,12 +443,16 @@ class ChatSession(Base):
 
     id = Column(Integer, primary_key=True)
 
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
 
     title = Column(String(255))
 
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
-    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
 
     user = relationship("User", back_populates="chat_sessions")
 
@@ -408,7 +461,6 @@ class ChatSession(Base):
         back_populates="session",
         cascade="all, delete-orphan",
     )
-
 
 
 class ChatMessage(Base):
@@ -499,6 +551,7 @@ class Notification(Base):
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
 
     user = relationship("User", foreign_keys=[user_id], back_populates="notifications")
-    actor = relationship("User", foreign_keys=[actor_user_id], back_populates="sent_notifications")
+    actor = relationship(
+        "User", foreign_keys=[actor_user_id], back_populates="sent_notifications"
+    )
     group = relationship("Group", back_populates="notifications")
-

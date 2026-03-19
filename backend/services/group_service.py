@@ -1,14 +1,15 @@
+from typing import Optional
+
 from errors import AppException, ErrorCode
-from models.model import MembershipRole, SubscriptionPlan, Subscription
+from models.model import MembershipRole, Subscription, SubscriptionPlan
 from repositories.group_repository import GroupRepository
 from schemas.group import GroupDetailResponse, GroupSummaryResponse
-from typing import Optional
+
 
 class GroupService:
     def __init__(self, repository: GroupRepository):
         self.repository = repository
 
-    
     def _check_premium(self, user_id: int):
         sub = (
             self.repository.db.query(Subscription)
@@ -18,10 +19,11 @@ class GroupService:
 
         if not sub or sub.plan != SubscriptionPlan.PREMIUM:
             raise AppException(ErrorCode.GROUP_NOT_PREMIUM)
-        
-        
+
     # 그룹 생성
-    def create_group(self, owner_user_id: int, name: str, description: Optional[str]) -> GroupDetailResponse:
+    def create_group(
+        self, owner_user_id: int, name: str, description: Optional[str]
+    ) -> GroupDetailResponse:
         self._check_premium(owner_user_id)
 
         if self.repository.count_active_owner_groups(owner_user_id) >= 1:
@@ -44,7 +46,6 @@ class GroupService:
             updated_at=group.updated_at,
         )
 
-
     # 내 목록 조회
     def get_my_groups(self, user_id: int) -> list[GroupSummaryResponse]:
         rows = self.repository.get_my_groups(user_id)
@@ -64,7 +65,6 @@ class GroupService:
             )
             for group, role in rows
         ]
-    
 
     # 상세 조회
     def get_group_detail(self, user_id: int, group_id: int) -> GroupDetailResponse:
