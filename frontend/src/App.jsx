@@ -8,6 +8,7 @@ import LandingPage from './pages/Landing/index.jsx'
 import MypagePage from './pages/Mypage/index.jsx'
 import UploadPage from './pages/Upload/index.jsx'
 import WorkspacePage from './pages/Workspace/index.jsx'
+import GroupDetailPage from './pages/Workspace/GroupDetailPage.jsx'
 
 export default function App() {
   return (
@@ -29,7 +30,7 @@ export default function App() {
             path="/workspace/:group_id"
             element={
               <ProtectedRoute>
-                <WorkspacePage />
+                <GroupDetailPage />
               </ProtectedRoute>
             }
           />
