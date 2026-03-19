@@ -205,7 +205,7 @@ class ProcessService:
             document = repository.get_detail(document_id)
             if document:
                 self.upload_session_service.mark_document_done(
-                    document.user_id,
+                    document.uploader_user_id,
                     document_id,
                     {
                         "case_number": summary_data.get("case_number") or "-",
@@ -233,7 +233,7 @@ class ProcessService:
             )
             if document:
                 self.upload_session_service.mark_document_failed(
-                    document.user_id,
+                    document.uploader_user_id,
                     document_id,
                     error_message,
                 )

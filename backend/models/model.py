@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from sqlalchemy import (
     Boolean,
     Column,
-    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -12,6 +11,7 @@ from sqlalchemy import (
     String,
     Table,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -26,6 +26,26 @@ class UserRole(enum.Enum):
     ADMIN = "ADMIN"
     GENERAL = "GENERAL"
 
+class SubscriptionStatus(enum.Enum):
+    ACTIVE = "ACTIVE"
+    CANCELED = "CANCELED"
+    EXPIRED = "EXPIRED"
+
+class MembershipRole(enum.Enum):
+    OWNER = "OWNER" 
+    ADMIN = "ADMIN"
+    EDITOR = "EDITOR"
+    VIEWER = "VIEWER"
+
+class MembershipStatus(enum.Enum):
+    INVITED = "INVITED" 
+    ACTIVE = "ACTIVE"
+    REMOVED = "REMOVED"
+
+class GroupStatus(enum.Enum):
+    ACTIVE = "ACTIVE" 
+    DELETE_PENDING = "DELETE_PENDING"
+    DELETED = "DELETED"
 
 class DocumentStatus(enum.Enum):
     PENDING = "PENDING"
@@ -33,21 +53,36 @@ class DocumentStatus(enum.Enum):
     DONE = "DONE"
     FAILED = "FAILED"
 
+class ReviewStatus(enum.Enum):
+    PENDING_REVIEW = "PENDING_REVIEW" 
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+class DocumentLifecycleStatus(enum.Enum):
+    ACTIVE = "ACTIVE" 
+    DELETE_PENDING = "DELETE_PENDING"
+    DELETED = "DELETED"
+
+
+class ChatMessageRole(enum.Enum):
+    USER = "USER"
+    ASSISTANT = "ASSISTANT"
+
+
+class NotificationType(enum.Enum):
+    GROUP_DELETE_REQUESTED = "GROUP_DELETE_REQUESTED" 
+    GROUP_DELETE_CANCELED = "GROUP_DELETE_CANCELED"
+    DOCUMENT_DELETE_REQUESTED = "DOCUMENT_DELETE_REQUESTED"
+    DOCUMENT_RESTORED = "DOCUMENT_RESTORED"
+    MEMBER_INVITED = "MEMBER_INVITED"
+    MEMBER_ROLE_CHANGED = "MEMBER_ROLE_CHANGED"
+    MEMBER_REMOVED = "MEMBER_REMOVED"
+    SYSTEM = "SYSTEM"
+
 
 class SubscriptionPlan(enum.Enum):
     FREE = "FREE"
     PREMIUM = "PREMIUM"
-
-
-class SubscriptionStatus(enum.Enum):
-    ACTIVE = "ACTIVE"
-    INACTIVE = "INACTIVE"
-    CANCELLED = "CANCELLED"
-
-
-class GroupStatus(enum.Enum):
-    ACTIVE = "ACTIVE"
-    INACTIVE = "INACTIVE"
 
 
 document_categories = Table(
@@ -86,7 +121,9 @@ class User(Base):
     )
 
     documents = relationship(
-        "Document", back_populates="owner", cascade="all, delete-orphan"
+        "Document",
+        foreign_keys="Document.uploader_user_id",
+        back_populates="owner",
     )
     # cascade 제거 — FK가 SET NULL이므로 ORM이 row를 삭제하면 안 됨
     precedents = relationship(
@@ -98,9 +135,122 @@ class User(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
-    group_memberships = relationship(
-        "GroupMember", back_populates="user", cascade="all, delete-orphan"
+
+    owned_groups = relationship("Group", back_populates="owner")
+    
+    memberships = relationship(
+        "GroupMember",
+        foreign_keys="GroupMember.user_id",
+        back_populates="user",
     )
+
+    invited_members = relationship(
+        "GroupMember",
+        foreign_keys="GroupMember.invited_by_user_id",
+        back_populates="invited_by",
+    )
+
+    chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
+    
+    notifications = relationship(
+        "Notification",
+        foreign_keys="Notification.user_id",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    sent_notifications = relationship(
+        "Notification",
+        foreign_keys="Notification.actor_user_id",
+        back_populates="actor",
+    )
+
+    reviewed_documents = relationship(
+       "DocumentApproval",
+       foreign_keys="DocumentApproval.reviewer_user_id",
+       back_populates="reviewer",
+    )
+
+    deleted_documents = relationship(
+        "Document",
+        foreign_keys="Document.deleted_by_user_id",
+        back_populates="deleted_by",
+    )
+
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    plan = Column(Enum(SubscriptionPlan, native_enum=False), default=SubscriptionPlan.FREE, nullable=False)
+    status = Column(Enum(SubscriptionStatus, native_enum=False), default=SubscriptionStatus.ACTIVE, nullable=False)
+
+    started_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    ended_at = Column(DateTime)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+
+    user = relationship("User", back_populates="subscription")
+
+
+class Group(Base):
+    __tablename__ = "groups"
+
+    id = Column(Integer, primary_key=True)
+    owner_user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    name = Column(String(100), nullable=False)
+    description = Column(Text)
+    status = Column(Enum(GroupStatus, native_enum=False), default=GroupStatus.ACTIVE, nullable=False)
+
+    delete_requested_at = Column(DateTime)
+    delete_scheduled_at = Column(DateTime)
+    deleted_at = Column(DateTime)
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+
+    owner = relationship("User", back_populates="owned_groups")
+    members = relationship("GroupMember", back_populates="group", cascade="all, delete-orphan")
+    documents = relationship(
+        "Document",
+        back_populates="group",
+        cascade="all, delete-orphan",
+    )
+
+    notifications = relationship(
+       "Notification",
+        back_populates="group",
+        cascade="all, delete-orphan",
+    )
+
+
+class GroupMember(Base):
+    __tablename__ = "group_members"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    group_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
+    role = Column(Enum(MembershipRole, native_enum=False), nullable=False)
+    status = Column(Enum(MembershipStatus, native_enum=False), default=MembershipStatus.ACTIVE, nullable=False)
+
+    invited_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    invited_at = Column(DateTime, nullable=True)
+    joined_at = Column(DateTime)
+    removed_at = Column(DateTime)
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "group_id", name="uq_user_group"),
+    )
+
+    user = relationship("User", foreign_keys=[user_id], back_populates="memberships")
+    group = relationship("Group", back_populates="members")
+    invited_by = relationship("User", foreign_keys=[invited_by_user_id], back_populates="invited_members")
+
 
 
 class Category(Base):
@@ -119,34 +269,74 @@ class Document(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    user_id = Column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    group_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
+
+    uploader_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
-    document_url = Column(String(1024), nullable=False, unique=True)
-    status = Column(
+    original_filename = Column(String(255), nullable=False)
+    stored_path = Column(String(1024), nullable=False, unique=True)
+
+    title = Column(String(255))
+    document_type = Column(String(50))
+
+    processing_status = Column(
         Enum(DocumentStatus, native_enum=False),
         default=DocumentStatus.PENDING,
         nullable=False,
     )
-    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
 
-    owner = relationship("User", back_populates="documents")
+    lifecycle_status = Column(
+        Enum(DocumentLifecycleStatus, native_enum=False),
+        default=DocumentLifecycleStatus.ACTIVE,
+        nullable=False,
+    )
+
+    delete_requested_at = Column(DateTime)
+    delete_scheduled_at = Column(DateTime)
+    deleted_at = Column(DateTime)
+    deleted_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+
+    owner = relationship("User", foreign_keys=[uploader_user_id], back_populates="documents")
+
     summary = relationship(
         "Summary",
         back_populates="document",
         uselist=False,
         cascade="all, delete-orphan",
     )
+
+    approval = relationship(
+        "DocumentApproval",
+        back_populates="document",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
     categories = relationship(
-        "Category", secondary=document_categories, back_populates="documents"
+        "Category",
+        secondary=document_categories,
+        back_populates="documents",
+    )
+
+    group = relationship("Group", back_populates="documents")
+
+    deleted_by = relationship(
+       "User",
+        foreign_keys=[deleted_by_user_id],
+        back_populates="deleted_documents",
     )
 
 
-class Summary(Base):
-    __tablename__ = "summaries"
+class DocumentApproval(Base):
+    __tablename__ = "document_approvals"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
+
     document_id = Column(
         Integer,
         ForeignKey("documents.id", ondelete="CASCADE"),
@@ -154,22 +344,94 @@ class Summary(Base):
         nullable=False,
     )
 
-    case_number = Column(String(100))
-    case_name = Column(String(255))
-    court_name = Column(String(100))
-    judgment_date = Column(Date)
+    reviewer_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+    )
+
+    status = Column(
+        Enum(ReviewStatus, native_enum=False),
+        default=ReviewStatus.PENDING_REVIEW,
+        nullable=False,
+    )
+
+    feedback = Column(Text)
+    reviewed_at = Column(DateTime)
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+
+    document = relationship("Document", back_populates="approval")
+    reviewer = relationship("User", back_populates="reviewed_documents")
+
+
+class Summary(Base):
+    __tablename__ = "summaries"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    document_id = Column(
+        Integer,
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+
     summary_title = Column(String(255))
-    summary_main = Column(Text)
-    plaintiff = Column(Text)
-    defendant = Column(Text)
-    facts = Column(Text)
-    judgment_order = Column(Text)
-    judgment_reason = Column(Text)
-    related_laws = Column(Text)
+    summary_text = Column(Text)
+    key_points = Column(Text)
+
+    metadata_json = Column(Text)  # 판례/계약서 구조 데이터
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+
+    document = relationship("Document", back_populates="summary")
+
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id = Column(Integer, primary_key=True)
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    title = Column(String(255))
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+
+    user = relationship("User", back_populates="chat_sessions")
+
+    messages = relationship(
+        "ChatMessage",
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True)
+
+    session_id = Column(
+        Integer,
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    role = Column(
+        Enum(ChatMessageRole, native_enum=False),
+        nullable=False,
+    )
+
+    content = Column(Text, nullable=False)
 
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
 
-    document = relationship("Document", back_populates="summary")
+    session = relationship("ChatSession", back_populates="messages")
 
 
 class Precedent(Base):
@@ -198,75 +460,44 @@ class Precedent(Base):
     uploaded_by_admin = relationship("User", back_populates="precedents")
 
 
-class Subscription(Base):
-    """사용자 구독 플랜 — premium_users/conversion_rate 집계 기준"""
+class Notification(Base):
+    __tablename__ = "notifications"
 
-    __tablename__ = "subscriptions"
+    id = Column(Integer, primary_key=True)
 
-    id = Column(Integer, primary_key=True, index=True)
     user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
-        unique=True,
-        nullable=False,
-        index=True,
-    )
-    plan = Column(
-        Enum(SubscriptionPlan, native_enum=False),
-        default=SubscriptionPlan.FREE,
         nullable=False,
     )
-    status = Column(
-        Enum(SubscriptionStatus, native_enum=False),
-        default=SubscriptionStatus.ACTIVE,
-        nullable=False,
-    )
-    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
-    updated_at = Column(
-        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+
+    actor_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
     )
 
-    user = relationship("User", back_populates="subscription")
-
-
-class Group(Base):
-    """워크스페이스(그룹) — active_groups/active_group_count 집계 기준"""
-
-    __tablename__ = "groups"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    owner_id = Column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    status = Column(
-        Enum(GroupStatus, native_enum=False),
-        default=GroupStatus.ACTIVE,
-        nullable=False,
-    )
-    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
-    updated_at = Column(
-        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
-    )
-
-    members = relationship(
-        "GroupMember", back_populates="group", cascade="all, delete-orphan"
-    )
-
-
-class GroupMember(Base):
-    """그룹 멤버십 — 사용자별 활성 그룹 수 집계용"""
-
-    __tablename__ = "group_members"
-
-    id = Column(Integer, primary_key=True, index=True)
     group_id = Column(
-        Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer,
+        ForeignKey("groups.id", ondelete="CASCADE"),
     )
-    user_id = Column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+
+    type = Column(
+        Enum(NotificationType, native_enum=False),
+        nullable=False,
     )
+
+    title = Column(String(255), nullable=False)
+    body = Column(Text)
+
+    is_read = Column(Boolean, default=False, nullable=False)
+    read_at = Column(DateTime)
+
+    target_type = Column(String(50))
+    target_id = Column(Integer)
+
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
 
-    group = relationship("Group", back_populates="members")
-    user = relationship("User", back_populates="group_memberships")
+    user = relationship("User", foreign_keys=[user_id], back_populates="notifications")
+    actor = relationship("User", foreign_keys=[actor_user_id], back_populates="sent_notifications")
+    group = relationship("Group", back_populates="notifications")
+
