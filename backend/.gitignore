@@ -17,4 +17,5 @@ uploads/
 *_ex.py
 
 # RAG 벡터 데이터
+.model_cache/
 services/rag/chroma_data/

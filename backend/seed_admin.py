@@ -43,8 +43,8 @@ from services.auth_service import hash_password
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 
 SEED_EMAIL_DOMAIN = "@seed.test"
-ADMIN_EMAIL = "admin@seed.test"
-ADMIN_PASSWORD = "Admin1234!"
+ADMIN_EMAIL = "admin@test.com"
+ADMIN_PASSWORD = "test1234"
 
 
 # 최근 7일 날짜 헬퍼

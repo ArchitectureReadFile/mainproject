@@ -1,3 +1,26 @@
+x-backend-common: &backend-common
+  image: python:3.11-slim
+  restart: unless-stopped
+  working_dir: /app
+  volumes:
+    - ./backend:/app
+    - backend_pip_cache:/root/.cache/pip
+  env_file:
+    - ./backend/.env
+  environment:
+    - OLLAMA_HOST=http://ollama:11434
+    - REDIS_HOST=redis
+    - QDRANT_HOST=qdrant
+    - QDRANT_PORT=6333
+    - TZ=UTC
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_started
+    qdrant:
+      condition: service_started
+
 services:
   frontend:
     image: node:20-alpine
@@ -16,27 +39,11 @@ services:
     command: sh -c "npm ci --legacy-peer-deps || npm install --legacy-peer-deps; npm run dev -- --host"
 
   backend:
-    image: python:3.11-slim
+    <<: *backend-common
     container_name: backend_container
-    restart: unless-stopped
-    working_dir: /app
-    volumes:
-      - ./backend:/app
-      - backend_pip_cache:/root/.cache/pip
     ports:
       - "8000:8000"
-    env_file:
-      - ./backend/.env
-    environment:
-      - OLLAMA_HOST=http://ollama:11434
-      - REDIS_HOST=redis
-      - TZ=UTC
     command: sh -c "apt-get update && apt-get install -y --no-install-recommends poppler-utils libgomp1 libglib2.0-0 libgl1 && pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
 
   db:
     image: mariadb:10.11
@@ -76,6 +83,18 @@ services:
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.2
+    container_name: qdrant_container
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
 
   phpmyadmin:
     image: phpmyadmin:5.2
@@ -121,31 +140,16 @@ services:
         max-file: "3"
 
   celery_worker:
-    image: python:3.11-slim
+    <<: *backend-common
     container_name: celery_worker_container
-    restart: unless-stopped
-    working_dir: /app
-    volumes:
-      - ./backend:/app
-      - backend_pip_cache:/root/.cache/pip
-    env_file:
-      - ./backend/.env
-    environment:
-      - OLLAMA_HOST=http://ollama:11434
-      - REDIS_HOST=redis
-      - TZ=UTC
     command: sh -c "apt-get update && apt-get install -y --no-install-recommends poppler-utils libgomp1 libglib2.0-0 libgl1 && pip install -r requirements.txt && celery -A celery_app worker --loglevel=info --concurrency=1"
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
 
 
 volumes:
   ollama_data:
   mariadb_data:
   redis_data:
+  qdrant_data:
   frontend_node_modules:
   frontend_npm_cache:
   backend_pip_cache:
