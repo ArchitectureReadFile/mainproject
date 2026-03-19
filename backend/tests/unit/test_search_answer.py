@@ -157,3 +157,18 @@ def test_rag_answer_service_fallback_on_llm_error():
             "score": 0.77,
         }
     ]
+
+
+def test_rag_answer_service_sanitizes_internal_tokens():
+    from services.rag.answer_service import RagAnswerService
+
+    service = RagAnswerService()
+
+    cleaned = service._sanitize_answer(
+        "주식매수선택권 행사이익은 시가 기준으로 판단할 수 있습니다. precedent_id: 480 source_url: https://example.com score: 0.88"
+    )
+
+    assert "precedent_id" not in cleaned
+    assert "source_url" not in cleaned
+    assert "score:" not in cleaned
+    assert "주식매수선택권 행사이익은 시가 기준으로 판단할 수 있습니다." in cleaned

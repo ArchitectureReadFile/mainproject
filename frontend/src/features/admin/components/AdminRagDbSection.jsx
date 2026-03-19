@@ -3,17 +3,10 @@ import { ERROR_CODE, getErrorMessageByCode } from "@/lib/errors";
 import { useState } from "react";
 
 export default function AdminRagDbSection({ precedents, onRefetch }) {
-  const { summary, items } = precedents;
+  const { summary, failed_items, pending_items, recent_items } = precedents;
   const [newUrl, setNewUrl] = useState("");
   const [actionError, setActionError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
-
-  const failed = items.filter((i) => i.processing_status === "FAILED");
-  const pending = items.filter((i) => i.processing_status === "PENDING" || i.processing_status === "PROCESSING");
-  const recent = items
-    .filter((i) => i.processing_status === "DONE")
-    .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
-    .slice(0, 5);
 
   const withAction = async (fn) => {
     setActionError(null);
@@ -96,8 +89,8 @@ export default function AdminRagDbSection({ precedents, onRefetch }) {
       {/* 패널 3개 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Panel title="실패 항목">
-          {failed.length === 0 && <EmptyRow />}
-          {failed.map((item) => (
+          {failed_items.length === 0 && <EmptyRow />}
+          {failed_items.map((item) => (
             <div key={item.id} className="flex justify-between items-start py-2 border-b text-sm gap-2">
               <div className="min-w-0">
                 <p className="text-gray-700 truncate" title={item.title ?? item.source_url}>
@@ -118,8 +111,8 @@ export default function AdminRagDbSection({ precedents, onRefetch }) {
         </Panel>
 
         <Panel title="대기 / 처리 중">
-          {pending.length === 0 && <EmptyRow />}
-          {pending.map((item) => (
+          {pending_items.length === 0 && <EmptyRow />}
+          {pending_items.map((item) => (
             <div key={item.id} className="py-2 border-b text-sm">
               <p className="text-gray-700 truncate" title={item.title ?? item.source_url}>
                 {item.title ?? item.source_url}
@@ -130,8 +123,8 @@ export default function AdminRagDbSection({ precedents, onRefetch }) {
         </Panel>
 
         <Panel title="최근 등록">
-          {recent.length === 0 && <EmptyRow />}
-          {recent.map((item) => (
+          {recent_items.length === 0 && <EmptyRow />}
+          {recent_items.map((item) => (
             <div key={item.id} className="py-2 border-b text-sm">
               <p className="text-gray-700 truncate" title={item.title ?? item.source_url}>
                 {item.title ?? item.source_url}

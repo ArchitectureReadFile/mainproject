@@ -198,7 +198,40 @@ class TestAdminPrecedents:
         data = res.json()
         assert data["total"] == 0
         assert data["items"] == []
+        assert data["failed_items"] == []
+        assert data["pending_items"] == []
+        assert data["recent_items"] == []
         assert data["summary"]["total"] == 0
+
+    def test_list_includes_panel_items_outside_default_page(
+        self, admin_client, db_session, admin_user
+    ):
+        for i in range(25):
+            db_session.add(
+                Precedent(
+                    source_url=f"https://taxlaw.nts.go.kr/pd/ok-{i}",
+                    title=f"정상 {i}",
+                    processing_status=DocumentStatus.DONE,
+                    uploaded_by_admin_id=admin_user.id,
+                )
+            )
+        failed = Precedent(
+            source_url="https://taxlaw.nts.go.kr/pd/failed-1",
+            title="실패 판례",
+            processing_status=DocumentStatus.FAILED,
+            error_message="파싱 실패",
+            uploaded_by_admin_id=admin_user.id,
+        )
+        db_session.add(failed)
+        db_session.commit()
+
+        res = admin_client.get("/api/admin/precedents")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["summary"]["failed"] == 1
+        assert len(data["items"]) == 20
+        assert len(data["failed_items"]) == 1
+        assert data["failed_items"][0]["title"] == "실패 판례"
 
     def test_create_success(self, admin_client):
         res = admin_client.post(

@@ -1,20 +1,12 @@
 """
-seed_admin.py — admin 화면 테스트용 더미 데이터 생성 스크립트
+seed_admin.py — admin 화면 테스트용 + 실제 판례 URL 기반 초기 데이터 주입 스크립트
 
 실행 방법:
     cd backend
     python seed_admin.py
-
-    # ADMIN 계정도 함께 생성하고 싶을 때:
     python seed_admin.py --with-admin
-
-    # 기존 seed 데이터 초기화 후 재생성:
-    python seed_admin.py --reset
-
-idempotent 전략:
-    - User/Precedent: email/source_url 기준으로 이미 있으면 skip
-    - Subscription/Group/GroupMember/Document: 소유 user 기준으로 없을 때만 생성
-    - --reset 플래그 사용 시 seed 이메일 도메인(@seed.test) 기준으로 관련 데이터 삭제 후 재생성
+    python seed_admin.py --with-admin --seed-precedents
+    python seed_admin.py --reset --with-admin --seed-precedents
 """
 
 import argparse
@@ -22,9 +14,12 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import delete
+
 sys.path.insert(0, os.path.dirname(__file__))
 
-from database import SessionLocal, init_db
+from database import Base, SessionLocal, init_db
+from errors import AppException, ErrorCode
 from models.model import (
     Document,
     DocumentLifecycleStatus,
@@ -34,14 +29,19 @@ from models.model import (
     GroupStatus,
     MembershipRole,
     MembershipStatus,
-    Precedent,
     Subscription,
     SubscriptionPlan,
     SubscriptionStatus,
     User,
     UserRole,
 )
+from services import admin_service
 from services.auth_service import hash_password
+
+try:
+    from seed_data.precedent_sources import SEED_PRECEDENT_SOURCES
+except ImportError:
+    SEED_PRECEDENT_SOURCES = None
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 
@@ -50,7 +50,6 @@ ADMIN_EMAIL = "admin@test.com"
 ADMIN_PASSWORD = "test1234"
 
 
-# 최근 7일 날짜 헬퍼
 def _days_ago(n: int) -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=n)
 
@@ -125,19 +124,9 @@ SEED_SUBSCRIPTIONS = [
     (f"kim{SEED_EMAIL_DOMAIN}", "PREMIUM", "ACTIVE", 28),
     (f"lee{SEED_EMAIL_DOMAIN}", "PREMIUM", "ACTIVE", 23),
     (f"park{SEED_EMAIL_DOMAIN}", "PREMIUM", "ACTIVE", 18),
-    (
-        f"choi{SEED_EMAIL_DOMAIN}",
-        "PREMIUM",
-        "EXPIRED",
-        16,
-    ),  # 비활성 PREMIUM → FREE로 표시
+    (f"choi{SEED_EMAIL_DOMAIN}", "PREMIUM", "EXPIRED", 16),
     (f"jung{SEED_EMAIL_DOMAIN}", "FREE", "ACTIVE", 14),
-    (
-        f"han{SEED_EMAIL_DOMAIN}",
-        "PREMIUM",
-        "CANCELED",
-        10,
-    ),  # 취소 PREMIUM → FREE로 표시
+    (f"han{SEED_EMAIL_DOMAIN}", "PREMIUM", "CANCELED", 10),
     (f"kwon{SEED_EMAIL_DOMAIN}", "FREE", "ACTIVE", 4),
     (f"shin{SEED_EMAIL_DOMAIN}", "PREMIUM", "ACTIVE", 2),
 ]
@@ -151,7 +140,7 @@ SEED_GROUPS = [
     ("구 한변리 사무소", f"han{SEED_EMAIL_DOMAIN}", "DELETE_PENDING"),
 ]
 
-# (group_name, member_emails) — 그룹에 추가할 멤버
+# (group_name, member_emails)
 SEED_GROUP_MEMBERS = [
     ("법무법인 알파", [f"lee{SEED_EMAIL_DOMAIN}", f"jung{SEED_EMAIL_DOMAIN}"]),
     ("변호사 이팀", [f"park{SEED_EMAIL_DOMAIN}", f"kwon{SEED_EMAIL_DOMAIN}"]),
@@ -159,265 +148,180 @@ SEED_GROUP_MEMBERS = [
     ("최팀장 그룹", [f"jung{SEED_EMAIL_DOMAIN}", f"han{SEED_EMAIL_DOMAIN}"]),
 ]
 
-# 최근 7일 문서 분산 — (user_email, status, days_ago) * N
+# (user_email, processing_status, days_ago)
 SEED_DOCUMENTS = [
-    # 오늘 ~ 1일 전
     (f"kim{SEED_EMAIL_DOMAIN}", "DONE", 0),
     (f"lee{SEED_EMAIL_DOMAIN}", "DONE", 0),
     (f"park{SEED_EMAIL_DOMAIN}", "PROCESSING", 0),
     (f"choi{SEED_EMAIL_DOMAIN}", "FAILED", 0),
-    # 2일 전
     (f"kim{SEED_EMAIL_DOMAIN}", "DONE", 1),
     (f"lee{SEED_EMAIL_DOMAIN}", "DONE", 1),
     (f"jung{SEED_EMAIL_DOMAIN}", "DONE", 1),
     (f"han{SEED_EMAIL_DOMAIN}", "FAILED", 1),
-    # 3일 전
-    (f"park{SEED_EMAIL_DOMAIN}", "DONE", 2),
-    (f"kwon{SEED_EMAIL_DOMAIN}", "DONE", 2),
-    (f"shin{SEED_EMAIL_DOMAIN}", "PROCESSING", 2),
-    (f"kim{SEED_EMAIL_DOMAIN}", "DONE", 2),
-    # 4일 전
-    (f"lee{SEED_EMAIL_DOMAIN}", "DONE", 3),
-    (f"park{SEED_EMAIL_DOMAIN}", "FAILED", 3),
-    (f"choi{SEED_EMAIL_DOMAIN}", "DONE", 3),
-    # 5일 전
-    (f"jung{SEED_EMAIL_DOMAIN}", "DONE", 4),
-    (f"han{SEED_EMAIL_DOMAIN}", "DONE", 4),
-    (f"kwon{SEED_EMAIL_DOMAIN}", "DONE", 4),
-    (f"shin{SEED_EMAIL_DOMAIN}", "FAILED", 4),
-    # 6일 전
-    (f"kim{SEED_EMAIL_DOMAIN}", "DONE", 5),
-    (f"lee{SEED_EMAIL_DOMAIN}", "DONE", 5),
-    (f"park{SEED_EMAIL_DOMAIN}", "DONE", 5),
-    # 7일 전
-    (f"choi{SEED_EMAIL_DOMAIN}", "DONE", 6),
-    (f"jung{SEED_EMAIL_DOMAIN}", "DONE", 6),
-    (f"han{SEED_EMAIL_DOMAIN}", "DONE", 6),
-    (f"kwon{SEED_EMAIL_DOMAIN}", "PROCESSING", 6),
 ]
 
-SEED_PRECEDENTS = [
-    # DONE — 최근 등록 패널에 보임
+# 실제 판례 URL 기반 seed fallback
+# topic/notes 는 seed 관리용 메타 정보이며 DB에 저장하지 않음
+FALLBACK_PRECEDENT_SOURCES = [
     {
-        "source_url": "https://www.law.go.kr/cases/seed/001",
-        "title": "대법원 2024다11001 손해배상(기)",
-        "status": "DONE",
-        "error": None,
-        "created_days_ago": 6,
-        "updated_days_ago": 5,
+        "topic": "소득세/주거용건물개발공급업",
+        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018971",
+        "notes": "오피스텔이 주거용 건물에 해당하는지, 경비율 적용",
     },
     {
-        "source_url": "https://www.law.go.kr/cases/seed/002",
-        "title": "서울고등법원 2024나22002 계약해지",
-        "status": "DONE",
-        "error": None,
-        "created_days_ago": 5,
-        "updated_days_ago": 4,
+        "topic": "조세소송/기판력",
+        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000019026",
+        "notes": "확정판결의 기판력이 후속 무효확인소송에 미치는지",
     },
     {
-        "source_url": "https://www.law.go.kr/cases/seed/003",
-        "title": "대법원 2023다33003 임금청구",
-        "status": "DONE",
-        "error": None,
-        "created_days_ago": 4,
-        "updated_days_ago": 3,
+        "topic": "부가가치세/세무조사",
+        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018968",
+        "notes": "거래상대방 재조사 관련 협력의무와 중복조사 여부",
     },
     {
-        "source_url": "https://www.law.go.kr/cases/seed/004",
-        "title": "부산지방법원 2024가단44004 소유권이전",
-        "status": "DONE",
-        "error": None,
-        "created_days_ago": 3,
-        "updated_days_ago": 2,
+        "topic": "소득세/주거용건물개발공급업",
+        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018996",
+        "notes": "오피스텔의 주거용 건물 해당 여부",
     },
     {
-        "source_url": "https://www.law.go.kr/cases/seed/005",
-        "title": "인천지방법원 2024나55005 불법행위",
-        "status": "DONE",
-        "error": None,
-        "created_days_ago": 2,
-        "updated_days_ago": 1,
+        "topic": "근로소득/주식매수선택권",
+        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018980",
+        "notes": "스톡옵션 행사이익 산정과 행사 시점의 시가",
     },
     {
-        "source_url": "https://www.law.go.kr/cases/seed/006",
-        "title": "대법원 2024다66006 배당이의",
-        "status": "DONE",
-        "error": None,
-        "created_days_ago": 1,
-        "updated_days_ago": 0,
+        "topic": "민사집행/사해행위취소",
+        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000019043",
+        "notes": "현금증여 사해행위 취소 시 지연배상금 기산점",
     },
     {
-        "source_url": "https://glaw.scourt.go.kr/cases/seed/001",
-        "title": "대법원 2023다77001 이혼 및 재산분할",
-        "status": "DONE",
-        "error": None,
-        "created_days_ago": 7,
-        "updated_days_ago": 6,
+        "topic": "행정소송/고유번호증",
+        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000019084",
+        "notes": "고유번호증 대표자 정정 발급의 처분성",
     },
     {
-        "source_url": "https://glaw.scourt.go.kr/cases/seed/002",
-        "title": "서울중앙지방법원 2024가합88002 어음금",
-        "status": "DONE",
-        "error": None,
-        "created_days_ago": 8,
-        "updated_days_ago": 7,
-    },
-    # PENDING — 대기 패널에 보임
-    {
-        "source_url": "https://www.law.go.kr/cases/seed/007",
-        "title": None,
-        "status": "PENDING",
-        "error": None,
-        "created_days_ago": 0,
-        "updated_days_ago": 0,
+        "topic": "법인세/부당행위·용역수수료",
+        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018840",
+        "notes": "과다 용역수수료의 손금 인정 여부",
     },
     {
-        "source_url": "https://www.law.go.kr/cases/seed/008",
-        "title": None,
-        "status": "PENDING",
-        "error": None,
-        "created_days_ago": 0,
-        "updated_days_ago": 0,
+        "topic": "양도소득세/비상장주식 대주주",
+        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018969",
+        "notes": "비상장주식 대주주 판단 기준의 유효성",
     },
     {
-        "source_url": "https://glaw.scourt.go.kr/cases/seed/003",
-        "title": None,
-        "status": "PENDING",
-        "error": None,
-        "created_days_ago": 1,
-        "updated_days_ago": 1,
-    },
-    # PROCESSING — 대기/처리 중 패널에 보임
-    {
-        "source_url": "https://www.law.go.kr/cases/seed/009",
-        "title": "처리 중인 판례 A",
-        "status": "PROCESSING",
-        "error": None,
-        "created_days_ago": 0,
-        "updated_days_ago": 0,
+        "topic": "지방세·법인세/고유목적사업",
+        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000019024",
+        "notes": "고유목적사업 직접 사용과 비과세 예외 여부",
     },
     {
-        "source_url": "https://glaw.scourt.go.kr/cases/seed/004",
-        "title": "처리 중인 판례 B",
-        "status": "PROCESSING",
-        "error": None,
-        "created_days_ago": 1,
-        "updated_days_ago": 0,
-    },
-    # FAILED — 실패 패널에 보임
-    {
-        "source_url": "https://www.law.go.kr/cases/seed/010",
-        "title": "대법원 2024다10010 파싱실패케이스",
-        "status": "FAILED",
-        "error": "HTML 파싱 오류: 예상치 못한 태그 구조",
-        "created_days_ago": 3,
-        "updated_days_ago": 3,
+        "topic": "법인세/대손·회수불능채권",
+        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018930",
+        "notes": "채권 회수불능 판단 기준",
     },
     {
-        "source_url": "https://www.law.go.kr/cases/seed/011",
-        "title": "서울고등법원 2023나11011 타임아웃",
-        "status": "FAILED",
-        "error": "요청 타임아웃 (30s 초과)",
-        "created_days_ago": 4,
-        "updated_days_ago": 4,
-    },
-    {
-        "source_url": "https://glaw.scourt.go.kr/cases/seed/005",
-        "title": "대법원 2024다55005 인코딩 오류",
-        "status": "FAILED",
-        "error": "문서 인코딩 감지 실패 (EUC-KR)",
-        "created_days_ago": 5,
-        "updated_days_ago": 5,
-    },
-    {
-        "source_url": "https://casenote.kr/cases/seed/001",
-        "title": "casenote 수집 실패 케이스",
-        "status": "FAILED",
-        "error": "접근 차단 (403 Forbidden)",
-        "created_days_ago": 2,
-        "updated_days_ago": 2,
+        "topic": "민사소송/재심",
+        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018812",
+        "notes": "재심대상판결의 판단누락 여부",
     },
 ]
 
+if SEED_PRECEDENT_SOURCES is None:
+    SEED_PRECEDENT_SOURCES = FALLBACK_PRECEDENT_SOURCES
 
-# ── seed 실행 ─────────────────────────────────────────────────────────────────
+
+# ── reset ────────────────────────────────────────────────────────────────────
 
 
 def reset_seed_data(db):
-    """seed 이메일 도메인 기준으로 관련 데이터 전부 삭제"""
     print("  기존 seed 데이터 삭제 중...")
-    seed_users = db.query(User).filter(User.email.like(f"%{SEED_EMAIL_DOMAIN}")).all()
-    for user in seed_users:
-        db.delete(user)
+    _reset_rag_storage()
 
-    seed_precedents = (
-        db.query(Precedent).filter(Precedent.source_url.like("%/seed/%")).all()
-    )
-    for p in seed_precedents:
-        db.delete(p)
-
+    tables = [table for table in reversed(Base.metadata.sorted_tables)]
+    for table in tables:
+        db.execute(delete(table))
     db.commit()
     print("  삭제 완료")
 
 
+def _reset_rag_storage():
+    try:
+        from services.rag import bm25_store, vector_store
+
+        bm25_store.clear()
+        vector_store.clear()
+    except Exception as exc:
+        print(f"  [WARN] RAG 저장소 초기화 실패: {exc}")
+
+
+# ── users / subscriptions ────────────────────────────────────────────────────
+
+
 def seed_users(db) -> dict[str, User]:
-    """GENERAL 사용자 생성. 이미 있으면 skip. {email: user} 반환"""
-    user_map = {}
-    for u in SEED_USERS:
-        existing = db.query(User).filter(User.email == u["email"]).first()
+    user_map: dict[str, User] = {}
+
+    for item in SEED_USERS:
+        existing = db.query(User).filter(User.email == item["email"]).first()
         if existing:
-            print(f"  [SKIP] user {u['email']}")
-            user_map[u["email"]] = existing
+            print(f"  [SKIP] user {item['email']}")
+            user_map[item["email"]] = existing
             continue
 
         user = User(
-            email=u["email"],
-            username=u["username"],
+            email=item["email"],
+            username=item["username"],
             password=hash_password("Test1234!"),
             role=UserRole.GENERAL,
-            is_active=u["is_active"],
-            created_at=_days_ago(u["days_ago"]),
-            updated_at=_days_ago(u["days_ago"]),
+            is_active=item["is_active"],
+            created_at=_days_ago(item["days_ago"]),
+            updated_at=_days_ago(item["days_ago"]),
         )
         db.add(user)
         db.flush()
-        user_map[u["email"]] = user
-        print(f"  [OK]   user {u['email']} ({u['username']})")
+        user_map[item["email"]] = user
+        print(f"  [OK]   user {item['email']} ({item['username']})")
+
     db.commit()
     return user_map
 
 
-def seed_subscriptions(db, user_map: dict):
-    """구독 생성. 이미 있으면 skip."""
+def seed_subscriptions(db, user_map: dict[str, User]):
     for email, plan, status, days_ago in SEED_SUBSCRIPTIONS:
         user = user_map.get(email)
         if not user:
             continue
+
         existing = (
             db.query(Subscription).filter(Subscription.user_id == user.id).first()
         )
         if existing:
             print(f"  [SKIP] subscription {email}")
             continue
+
         sub = Subscription(
             user_id=user.id,
             plan=SubscriptionPlan(plan),
             status=SubscriptionStatus(status),
+            started_at=datetime.now(timezone.utc).replace(tzinfo=None),
             created_at=_days_ago(days_ago),
             updated_at=_days_ago(days_ago),
         )
         db.add(sub)
         print(f"  [OK]   subscription {email} → {plan}/{status}")
+
     db.commit()
 
 
-def seed_groups(db, user_map: dict) -> dict[str, "Group"]:
-    """그룹 생성. owner + name 조합으로 중복 체크."""
-    group_map = {}
+# ── groups ───────────────────────────────────────────────────────────────────
+
+
+def seed_groups(db, user_map: dict[str, User]) -> dict[str, Group]:
+    group_map: dict[str, Group] = {}
+
     for name, owner_email, status in SEED_GROUPS:
         owner = user_map.get(owner_email)
         if not owner:
             continue
+
         existing = (
             db.query(Group)
             .filter(Group.name == name, Group.owner_user_id == owner.id)
@@ -427,48 +331,54 @@ def seed_groups(db, user_map: dict) -> dict[str, "Group"]:
             print(f"  [SKIP] group '{name}'")
             group_map[name] = existing
             continue
+
         group = Group(
-            name=name,
             owner_user_id=owner.id,
+            name=name,
             status=GroupStatus(status),
         )
         db.add(group)
         db.flush()
-        db.add(
-            GroupMember(
-                group_id=group.id,
-                user_id=owner.id,
-                role=MembershipRole.OWNER,
-                status=MembershipStatus.ACTIVE,
-                joined_at=group.created_at or _days_ago(0),
-            )
+
+        owner_membership = GroupMember(
+            user_id=owner.id,
+            group_id=group.id,
+            role=MembershipRole.OWNER,
+            status=MembershipStatus.ACTIVE,
+            joined_at=group.created_at or _days_ago(0),
         )
+        db.add(owner_membership)
+
         group_map[name] = group
         print(f"  [OK]   group '{name}' ({status})")
+
     db.commit()
     return group_map
 
 
-def seed_group_members(db, user_map: dict, group_map: dict):
-    """그룹 멤버 추가. 이미 있으면 skip."""
+def seed_group_members(db, user_map: dict[str, User], group_map: dict[str, Group]):
     for group_name, member_emails in SEED_GROUP_MEMBERS:
         group = group_map.get(group_name)
         if not group:
             continue
+
         for email in member_emails:
             user = user_map.get(email)
             if not user:
                 continue
+
             existing = (
                 db.query(GroupMember)
                 .filter(
-                    GroupMember.group_id == group.id, GroupMember.user_id == user.id
+                    GroupMember.group_id == group.id,
+                    GroupMember.user_id == user.id,
                 )
                 .first()
             )
             if existing:
                 print(f"  [SKIP] member {email} → '{group_name}'")
                 continue
+
             db.add(
                 GroupMember(
                     group_id=group.id,
@@ -480,7 +390,11 @@ def seed_group_members(db, user_map: dict, group_map: dict):
                 )
             )
             print(f"  [OK]   member {email} → '{group_name}'")
+
     db.commit()
+
+
+# ── documents ────────────────────────────────────────────────────────────────
 
 
 def _pick_group_for_user(db, user_id: int) -> Group | None:
@@ -500,12 +414,12 @@ def _pick_group_for_user(db, user_id: int) -> Group | None:
     return db.query(Group).filter(Group.owner_user_id == user_id).first()
 
 
-def seed_documents(db, user_map: dict):
-    """문서 생성. stored_path로 중복 체크."""
+def seed_documents(db, user_map: dict[str, User]):
     for i, (email, status, days_ago) in enumerate(SEED_DOCUMENTS):
         user = user_map.get(email)
         if not user:
             continue
+
         group = _pick_group_for_user(db, user.id)
         if not group:
             print(f"  [SKIP] document seed_{i:03d} (group 없음: {email})")
@@ -519,7 +433,6 @@ def seed_documents(db, user_map: dict):
             print(f"  [SKIP] document seed_{i:03d}")
             continue
 
-        # created_at을 특정 시각으로 고정 — 그래프 분산 목적
         created = _days_ago(days_ago).replace(hour=9 + (i % 8), minute=i % 60)
         doc = Document(
             group_id=group.id,
@@ -534,42 +447,19 @@ def seed_documents(db, user_map: dict):
         )
         db.add(doc)
         print(f"  [OK]   document seed_{i:03d} ({status}, {days_ago}일 전)")
+
     db.commit()
 
 
-def seed_precedents(db, admin_id: int | None):
-    """판례 생성. source_url로 중복 체크."""
-    for p in SEED_PRECEDENTS:
-        existing = (
-            db.query(Precedent).filter(Precedent.source_url == p["source_url"]).first()
-        )
-        if existing:
-            print(f"  [SKIP] precedent {p['source_url']}")
-            continue
-
-        created_at = _days_ago(p["created_days_ago"])
-        updated_at = _days_ago(p["updated_days_ago"])
-
-        precedent = Precedent(
-            source_url=p["source_url"],
-            title=p["title"],
-            processing_status=DocumentStatus(p["status"]),
-            error_message=p["error"],
-            uploaded_by_admin_id=admin_id,
-            created_at=created_at,
-            updated_at=updated_at,
-        )
-        db.add(precedent)
-        print(f"  [OK]   precedent {p['source_url']} ({p['status']})")
-    db.commit()
+# ── admin / precedents ───────────────────────────────────────────────────────
 
 
 def seed_admin(db) -> User | None:
-    """ADMIN 계정 생성. 이미 있으면 skip."""
     existing = db.query(User).filter(User.email == ADMIN_EMAIL).first()
     if existing:
         print(f"  [SKIP] admin {ADMIN_EMAIL}")
         return existing
+
     admin = User(
         email=ADMIN_EMAIL,
         username="시드관리자",
@@ -588,16 +478,78 @@ def get_any_admin(db) -> User | None:
     return db.query(User).filter(User.role == UserRole.ADMIN).first()
 
 
-# ── 메인 ──────────────────────────────────────────────────────────────────────
+def _normalize_seed_precedent_sources() -> list[dict]:
+    normalized = []
+
+    for item in SEED_PRECEDENT_SOURCES:
+        topic = str(item.get("topic") or "").strip()
+        url = str(item.get("url") or "").strip()
+        notes = str(item.get("notes") or "").strip()
+
+        if not url:
+            continue
+
+        normalized.append(
+            {
+                "topic": topic or "미분류",
+                "url": url,
+                "notes": notes or None,
+            }
+        )
+
+    return normalized
+
+
+def seed_precedent_sources(db, admin: User | None):
+    sources = _normalize_seed_precedent_sources()
+
+    if not admin:
+        print("  [SKIP] precedent seed (admin 계정 없음)")
+        return
+
+    if not sources:
+        print("  [SKIP] precedent seed (등록된 실제 URL 없음)")
+        return
+
+    print("\n[ PRECEDENT SOURCES ]")
+
+    for item in sources:
+        topic = item["topic"]
+        url = item["url"]
+        notes = item["notes"]
+
+        try:
+            precedent = admin_service.create_precedent(db, admin, url)
+            extra = f" / {notes}" if notes else ""
+            print(
+                f"  [OK]   precedent [{topic}] {url} "
+                f"→ {precedent.processing_status.value}{extra}"
+            )
+        except AppException as exc:
+            if exc.code == ErrorCode.PRECEDENT_DUPLICATE_URL.code:
+                print(f"  [SKIP] precedent [{topic}] {url} (중복 URL)")
+                continue
+
+            print(f"  [FAIL] precedent [{topic}] {url} → {exc.code}: {exc.message}")
+        except Exception as exc:
+            print(f"  [FAIL] precedent [{topic}] {url} → {exc}")
+
+
+# ── main ─────────────────────────────────────────────────────────────────────
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Admin 화면 테스트용 seed 스크립트")
+    parser = argparse.ArgumentParser(description="Admin 초기 데이터 주입 스크립트")
     parser.add_argument(
         "--reset", action="store_true", help="기존 seed 데이터 삭제 후 재생성"
     )
     parser.add_argument(
         "--with-admin", action="store_true", help="ADMIN 계정도 함께 생성"
+    )
+    parser.add_argument(
+        "--seed-precedents",
+        action="store_true",
+        help="실제 판례 URL 기반 precedent 등록 수행",
     )
     args = parser.parse_args()
 
@@ -608,13 +560,6 @@ def main():
         if args.reset:
             print("\n[ RESET ]")
             reset_seed_data(db)
-
-        if args.with_admin:
-            print("\n[ ADMIN ]")
-            seed_admin(db)
-
-        admin = get_any_admin(db)
-        admin_id = admin.id if admin else None
 
         print("\n[ USERS ]")
         user_map = seed_users(db)
@@ -631,21 +576,17 @@ def main():
         print("\n[ DOCUMENTS ]")
         seed_documents(db, user_map)
 
-        print("\n[ PRECEDENTS ]")
-        seed_precedents(db, admin_id)
+        admin = None
+        if args.with_admin:
+            print("\n[ ADMIN ]")
+            admin = seed_admin(db)
+        else:
+            admin = get_any_admin(db)
 
-        print("\n✅  seed 완료")
-        print(f"    - 사용자: {len(user_map)}명")
-        print(f"    - 구독: {len(SEED_SUBSCRIPTIONS)}건")
-        print(f"    - 그룹: {len(SEED_GROUPS)}개")
-        print(f"    - 문서: {len(SEED_DOCUMENTS)}건 (최근 7일 분산)")
-        print(
-            f"    - 판례: {len(SEED_PRECEDENTS)}건 (DONE/PENDING/PROCESSING/FAILED 혼합)"
-        )
-        if admin_id is None:
-            print(
-                "\n⚠️  ADMIN 계정이 없습니다. --with-admin 플래그로 생성하거나 직접 등록해주세요."
-            )
+        if args.seed_precedents:
+            seed_precedent_sources(db, admin)
+
+        print("\n✅ seed 완료")
 
     finally:
         db.close()

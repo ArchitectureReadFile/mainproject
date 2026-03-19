@@ -154,3 +154,11 @@ def search(query: str, top_k: int = 5) -> list[dict]:
 def count() -> int:
     """Redis에 저장된 BM25 문서 수를 반환한다."""
     return _get_redis().llen(_IDS_KEY)
+
+
+def clear() -> None:
+    """BM25 저장 Redis 키를 비운다."""
+    r = _get_redis()
+    r.delete(_DOCS_KEY)
+    r.delete(_IDS_KEY)
+    logger.info("BM25 Redis 데이터 삭제 완료")

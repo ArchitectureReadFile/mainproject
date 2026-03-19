@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 
 from prompts.rag_answer_prompt import RAG_ANSWER_PROMPT
 from services.summary.llm_client import LLMClient
@@ -36,7 +37,7 @@ class RagAnswerService:
             )
             raw_response = self.client.call_json(prompt, num_predict=self.num_predict)
 
-            answer = str(raw_response.get("answer") or "").strip()
+            answer = self._sanitize_answer(raw_response.get("answer"))
             if not answer:
                 answer = _DEFAULT_FAILURE_ANSWER
 
@@ -78,6 +79,32 @@ class RagAnswerService:
                 )
             )
         return "\n\n".join(lines)
+
+    def _sanitize_answer(self, answer: object) -> str:
+        text = str(answer or "").strip()
+        if not text:
+            return ""
+
+        # 내부 식별자나 점수 같은 시스템용 표현이 사용자 답변에 노출되지 않게 막는다.
+        text = re.sub(r"\bprecedent_id\s*:\s*\d+\b", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bsource_url\s*:\s*\S+\b", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bscore\s*:\s*[-+]?\d*\.?\d+\b", "", text, flags=re.IGNORECASE)
+        text = re.sub(
+            r"관련된 판례는\s*[\d,\s번호와및]+입니다\.?",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+        text = re.sub(
+            r"판례는\s*[\d,\s번호와및]+입니다\.?",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+        text = re.sub(r"\s{2,}", " ", text)
+        text = re.sub(r"\s+([,.])", r"\1", text)
+        text = re.sub(r"\.\s*\.", ".", text)
+        return text.strip()
 
     def _normalize_citation_ids(self, citation_ids: object) -> list[int]:
         if not isinstance(citation_ids, list):
