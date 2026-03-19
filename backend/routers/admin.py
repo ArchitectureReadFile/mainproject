@@ -67,7 +67,12 @@ def create_precedent(
     current_user: User = Depends(require_admin),
 ):
     precedent = admin_service.create_precedent(db, current_user, payload.source_url)
-    return {"id": precedent.id, "source_url": precedent.source_url}
+    return {
+        "id": precedent.id,
+        "source_url": precedent.source_url,
+        "processing_status": precedent.processing_status.value,
+        "error_message": precedent.error_message,
+    }
 
 
 @router.post("/precedents/reindex", status_code=status.HTTP_202_ACCEPTED)
@@ -85,7 +90,11 @@ def retry_precedent(
     _: User = Depends(require_admin),
 ):
     precedent = admin_service.retry_precedent(db, precedent_id)
-    return {"id": precedent.id, "processing_status": precedent.processing_status.value}
+    return {
+        "id": precedent.id,
+        "processing_status": precedent.processing_status.value,
+        "error_message": precedent.error_message,
+    }
 
 
 # ── 회원 ──────────────────────────────────────────────────────────────────────
