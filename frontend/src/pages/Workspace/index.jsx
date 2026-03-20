@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createGroup, getMyGroups } from '../../api/groups'
 
+
 // 역할 배지
 const ROLE_STYLE = {
   OWNER:  { label: 'OWNER',   variant: 'default' },
@@ -23,10 +24,19 @@ function RoleBadge({ role }) {
   return <Badge variant={variant}>{label}</Badge>
 }
 
+
+function calcDday(isoDate) {
+    if (!isoDate) return null
+    const diff = Math.ceil((new Date(isoDate) - new Date()) / (1000 * 60 * 60 * 24))
+    return diff <= 0 ? 'D-0' : `D-${diff}`
+}
+
+
 // 상태 배지
-function StatusBadge({ status }) {
+function StatusBadge({ status, scheduledAt }) {
   if (status === 'ACTIVE') return null
-  return <Badge variant="destructive">삭제 예정</Badge>
+  const dday = calcDday(scheduledAt)
+  return <Badge variant="destructive">삭제 예정 {dday}</Badge>
 }
 
 
@@ -49,7 +59,7 @@ function GroupCard({ group, onClick }) {
             <p className="mt-0.5 text-xs text-muted-foreground">OWNER: {group.owner_username}</p>
           </div>
           <div className="flex shrink-0 gap-1.5">
-            <StatusBadge status={group.status} />
+            <StatusBadge status={group.status} scheduledAt={group.delete_scheduled_at} />
             <RoleBadge role={group.my_role} />
           </div>
         </div>
