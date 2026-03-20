@@ -1,10 +1,15 @@
 from typing import Optional
 
 from errors import AppException, ErrorCode
-from models.model import MembershipRole, Subscription, SubscriptionPlan, Group, GroupStatus
+from models.model import MembershipRole, Group, GroupStatus
 from repositories.group_repository import GroupRepository
-from schemas.group import GroupDetailResponse, GroupSummaryResponse
-
+from schemas.group import (
+    GroupDetailResponse,
+    GroupSummaryResponse,
+    InvitedMemberResponse,
+    MemberListResponse,
+    MemberResponse,
+)
 
 class GroupService:
     def __init__(self, repository: GroupRepository):
@@ -12,19 +17,24 @@ class GroupService:
 
     # PREMIUM 플랜 체크
     def _check_premium(self, user_id: int):
-        sub = (
-            self.repository.db.query(Subscription)
-            .filter(Subscription.user_id == user_id)
-            .first()
-        )
-
-        if not sub or sub.plan != SubscriptionPlan.PREMIUM:
+        if not self.repository.is_premium(user_id):
             raise AppException(ErrorCode.GROUP_NOT_PREMIUM)
 
     # OWNER 권한 체크
-    def _check_owner(self, user_id: int, group: Group):
+    def _check_owner(self, user_id: int, group_id: int) -> Group:
+        group = self.repository.get_group_by_id(group_id)
+        if not group:
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
         if group.owner_user_id != user_id:
             raise AppException(ErrorCode.GROUP_NOT_OWNER)
+        return group
+        
+    # OWNER/ADMIN 권한 체크
+    def _check_owner_or_admin(self, user_id: int, group_id: int):
+        member = self.repository.get_active_member(group_id, user_id)
+        if not member or member.role not in (MembershipRole.OWNER, MembershipRole.ADMIN):
+            raise AppException(ErrorCode.GROUP_NOT_ADMIN_OR_OWNER)
+        return member     
 
 
     # 그룹 생성
@@ -98,13 +108,8 @@ class GroupService:
 
 
     # 그룹 삭제
-    def request_delete_group(self, user_id: int, group_id: int) -> GroupDetailResponse:
-        group = self.repository.get_group_by_id(group_id)
-
-        if not group:
-            raise AppException(ErrorCode.GROUP_NOT_FOUND)
-        
-        self._check_owner(user_id, group)
+    def request_delete_group(self, user_id: int, group_id: int):
+        group = self._check_owner(user_id, group_id)
 
         if group.status == GroupStatus.DELETE_PENDING:
             raise AppException(ErrorCode.GROUP_ALREADY_DELETE_PENDING)
@@ -129,12 +134,7 @@ class GroupService:
 
     # 그룹 삭제 취소 
     def cancel_delete_group(self, user_id: int, group_id: int) -> GroupDetailResponse:
-        group = self.repository.get_group_by_id(group_id)
-
-        if not group:
-            raise AppException(ErrorCode.GROUP_NOT_FOUND)
-        
-        self._check_owner(user_id, group)
+        self._check_owner(user_id, group_id)
 
         if group.status != GroupStatus.DELETE_PENDING:
             raise AppException(ErrorCode.GROUP_NOT_DELETE_PENDING)
@@ -158,6 +158,37 @@ class GroupService:
             created_at=group.created_at,
             updated_at=group.updated_at,
         )
+    
+    # 멤버 목록 조회 
+    def get_members(self, user_id, group_id):
+        if not self.repository.get_active_member(user_id, group_id):
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
+        if not self._check_owner_or_admin(user_id, group_id):
+            raise AppException(ErrorCode.GROUP_NOT_ADMIN_OR_OWNER)
+        
+        rows = self.repository.get_members(group_id)
+
+        members = [
+            MemberResponse(
+                
+
+            )
+        ]
+
+
+    # 멤버 초대
+
+
+    # 수락 거절
+
+
+    # 멤버 삭제
+
+
+    # 멤버 권한 변경 
+
+
+    # 오너 양도
 
         
