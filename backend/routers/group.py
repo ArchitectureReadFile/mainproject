@@ -48,3 +48,31 @@ def get_group_detail(
     service: GroupService = Depends(get_group_service),
 ):
     return service.get_group_detail(current_user.id, group_id)
+
+
+# 그룹 삭제 요청
+@router.delete("/{group_id}", response_model=GroupDetailResponse)
+def request_delete_group(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    result = service.request_delete_group(current_user.id, group_id)
+    db.commit()
+
+    return result
+
+
+# 그룹 삭제 취소
+@router.post("/{group_id}/cancel-delete", response_model=GroupDetailResponse)
+def cancel_delete_group(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    result = service.cancel_delete_group(current_user.id, group_id)
+    db.commit()
+    
+    return result
