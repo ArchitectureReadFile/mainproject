@@ -76,6 +76,7 @@ class GroupRepository:
         return (
             self.db.query(Group, GroupMember.role)
             .join(GroupMember, GroupMember.group_id == Group.id)
+            .join(Group.owner)
             .filter(
                 Group.id == group_id,
                 GroupMember.user_id == user_id,
