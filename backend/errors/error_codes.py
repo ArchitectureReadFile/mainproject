@@ -132,7 +132,7 @@ class ErrorCode(Enum):
     GROUP_MEMBER_ALREADY_EXISTS = ("GROUP_009", 409, "이미 그룹에 속한 사용자입니다.")
     GROUP_CANNOT_CHANGE_OWNER_ROLE = ("GROUP_010", 403, "OWNER 권한은 오너 양도를 통해서만 변경할 수 있습니다.")
     GROUP_CANNOT_REMOVE_OWNER = ("GROUP_011", 403, "OWNER는 추방할 수 없습니다.")
-    GROUP_TRANSFER_TO_SELF = ("GROUP_012", 400, "자기 자신에게 오너를 양도할 수 없습니다.")
+    GROUP_TRANSFER_TO_SELF = ("GROUP_012", 400, "본인에게는 해당 작업을 수행할 수 없습니다.")
     GROUP_NOT_ADMIN_OR_OWNER = ("GROUP_013", 403, "OWNER 또는 ADMIN만 가능합니다.")
     GROUP_CANNOT_CHANGE_SELF_ROLE = ("GROUP_014", 400, "본인의 권한은 변경할 수 없습니다.")
     GROUP_ADMIN_CANNOT_PROMOTE = ("GROUP_015", 403, "ADMIN은 ADMIN 이상의 권한을 부여할 수 없습니다.")

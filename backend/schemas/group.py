@@ -76,11 +76,7 @@ class MemberListResponse(BaseModel):
 
 class MemberInviteRequest(BaseModel):
     username: str = Field(..., min_length=1, max_length=20)
-
-
-class InviteActionRequest(BaseModel):
-    """초대 수락/거절"""
-    accept: bool
+    role: MembershipRole = MembershipRole.VIEWER
 
 
 class MemberRoleChangeRequest(BaseModel):
