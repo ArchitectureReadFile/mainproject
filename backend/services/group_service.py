@@ -1,7 +1,13 @@
 from typing import Optional
 
 from errors import AppException, ErrorCode
-from models.model import Group, GroupStatus, MembershipRole, MembershipStatus, utc_now_naive
+from models.model import (
+    Group,
+    GroupStatus,
+    MembershipRole,
+    MembershipStatus,
+    utc_now_naive,
+)
 from repositories.group_repository import GroupRepository
 from schemas.group import (
     GroupDetailResponse,

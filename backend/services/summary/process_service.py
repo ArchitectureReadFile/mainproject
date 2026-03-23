@@ -16,8 +16,6 @@ from models.model import DocumentStatus
 from repositories.document_repository import DocumentRepository
 from repositories.summary_repository import SummaryRepository
 from services.summary.llm_service import LLMService
-from services.summary.summary_mapper import build_upload_session_summary
-from services.upload.session_service import UploadSessionService
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +36,6 @@ def _get_ocr_instance() -> PaddleOCR:
 class ProcessService:
     def __init__(self):
         self.llm = LLMService()
-        self.upload_session_service = UploadSessionService()
 
     def extract_pages_from_bytes(self, file_bytes: bytes) -> list[str]:
         ocr = _get_ocr_instance()
@@ -125,13 +122,16 @@ class ProcessService:
                 normalized[key] = value
         return normalized
 
-    def process_file(self, file_path: str, document_id: int):
+    def process_file(
+        self, file_path: str, document_id: int, *, mark_processing: bool = True
+    ):
         db = SessionLocal()
         repository = DocumentRepository(db)
 
         try:
-            repository.update_status(document_id, DocumentStatus.PROCESSING)
-            db.commit()
+            if mark_processing:
+                repository.update_status(document_id, DocumentStatus.PROCESSING)
+                db.commit()
 
             with open(file_path, "rb") as f:
                 file_bytes = f.read()
@@ -169,14 +169,6 @@ class ProcessService:
             repository.update_status(document_id, DocumentStatus.DONE)
             db.commit()
 
-            document = repository.get_detail(document_id)
-            if document:
-                self.upload_session_service.mark_document_done(
-                    document.uploader_user_id,
-                    document_id,
-                    build_upload_session_summary(summary_data),
-                )
-
         except Exception as e:
             db.rollback()
             self.llm.release_resources()
@@ -185,19 +177,6 @@ class ProcessService:
             )
             repository.update_status(document_id, DocumentStatus.FAILED)
             db.commit()
-
-            document = repository.get_detail(document_id)
-            error_message = (
-                e.message
-                if isinstance(e, AppException)
-                else "서버에서 처리에 실패했습니다."
-            )
-            if document:
-                self.upload_session_service.mark_document_failed(
-                    document.uploader_user_id,
-                    document_id,
-                    error_message,
-                )
             if os.path.exists(file_path):
                 try:
                     os.remove(file_path)

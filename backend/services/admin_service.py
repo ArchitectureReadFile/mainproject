@@ -53,7 +53,7 @@ from schemas.admin import (
     ServiceUsage,
     StorageInfo,
 )
-from services.precedent import OptionalPrecedentMetadataParser
+from services.precedent.metadata_parser import OptionalPrecedentMetadataParser
 
 logger = logging.getLogger(__name__)
 

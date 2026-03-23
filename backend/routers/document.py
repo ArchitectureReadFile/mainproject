@@ -8,11 +8,9 @@ from repositories.document_repository import DocumentRepository
 from routers.auth import get_current_user
 from routers.group import get_group_service
 from schemas.document import DocumentDetailResponse
-from schemas.upload_session import UploadSessionCreateRequest, UploadSessionResponse
 from services.document_service import DocumentService
 from services.group_service import GroupService
 from services.upload.service import UploadService
-from services.upload.session_service import UploadSessionService
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -23,76 +21,6 @@ ALLOWED_CONTENT_TYPES = {"application/pdf"}
 
 def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
     return DocumentService(DocumentRepository(db))
-
-
-def _to_upload_session_response(payload: dict) -> dict:
-    items = payload.get("items", [])
-    return {
-        "items": items,
-        "is_running": any(item["status"] == "processing" for item in items),
-        "started_at": payload.get("started_at"),
-        "abandoned_at": payload.get("abandoned_at"),
-    }
-
-
-@router.post("/upload-session", response_model=UploadSessionResponse)
-def create_upload_session(
-    payload: UploadSessionCreateRequest,
-    current_user: User = Depends(get_current_user),
-):
-    service = UploadSessionService()
-    session = service.create_session(current_user.id, payload.file_names)
-    return _to_upload_session_response(session)
-
-
-@router.get("/upload-session", response_model=UploadSessionResponse)
-def get_upload_session(current_user: User = Depends(get_current_user)):
-    service = UploadSessionService()
-    session = service.get_session(current_user.id)
-    return _to_upload_session_response(session)
-
-
-@router.post("/upload-session/abandon", response_model=UploadSessionResponse)
-def abandon_upload_session(current_user: User = Depends(get_current_user)):
-    service = UploadSessionService()
-    session = service.abandon_session(current_user.id)
-    return _to_upload_session_response(session)
-
-
-@router.delete("/upload-session", status_code=status.HTTP_204_NO_CONTENT)
-def clear_upload_session(current_user: User = Depends(get_current_user)):
-    service = UploadSessionService()
-    service.clear_session(current_user.id)
-
-
-@router.delete("/upload-session/item/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
-def cancel_upload_item(
-    doc_id: int,
-    current_user: User = Depends(get_current_user),
-):
-    """개별 파일 업로드 취소 — Celery 태스크 강제 중단"""
-    import os
-
-    import redis as redis_lib
-
-    from celery_app import celery_app
-
-    REDIS_HOST = os.getenv("REDIS_HOST", "redis")
-    r = redis_lib.Redis(host=REDIS_HOST, port=6379, db=0, decode_responses=True)
-
-    # 해당 doc_id의 task_id 조회 후 revoke
-    task_id_key = f"upload_task:{current_user.id}:{doc_id}"
-    task_id = r.get(task_id_key)
-    if task_id:
-        celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
-        r.delete(task_id_key)
-    r.close()
-
-    # 세션에서도 실패 처리
-    session_service = UploadSessionService()
-    session_service.mark_document_failed(
-        current_user.id, doc_id, "사용자가 취소했습니다."
-    )
 
 
 @router.post("/upload")
@@ -125,9 +53,14 @@ def list_documents(
     status: str = "",
     view_type: str = "my",
     category: str = "전체",
+    group_id: int | None = None,
     service: DocumentService = Depends(get_document_service),
     current_user: User = Depends(get_current_user),
+    group_service: GroupService = Depends(get_group_service),
 ):
+    if group_id is not None:
+        group_service.assert_upload_permission(current_user.id, group_id)
+
     items, total = service.get_list(
         skip,
         limit,
@@ -137,6 +70,7 @@ def list_documents(
         user_role=current_user.role.value,
         view_type=view_type,
         category=category,
+        group_id=group_id,
     )
     return {"items": items, "total": total}
 

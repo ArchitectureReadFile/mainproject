@@ -1,57 +1,114 @@
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { FileText, X } from 'lucide-react'
+import { fetchDocuments } from '@/api/documents.js'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import FileDropzone from '../../features/upload/components/FileDropzone.jsx'
-import FileStatusItem from '../../features/upload/components/FileStatusItem.jsx'
-import FlowSteps from '../../features/upload/components/FlowSteps.jsx'
+import UploadProgressDialog from '../../features/upload/components/UploadProgressDialog.jsx'
+import UploadSummaryCards from '../../features/upload/components/UploadSummaryCards.jsx'
+import UploadWaitingList from '../../features/upload/components/UploadWaitingList.jsx'
 import { UploadProvider, useUpload } from '../../features/upload/context/UploadContext.jsx'
+import { MAX_FILES } from '../../features/upload/uploadState.js'
 
 function UploadPageInner() {
   const {
+    groupId,
     fileInputRef,
     isDragOver,
     waitingItems,
-    processingItems,
+    uploadItems,
+    isUploadingFiles,
     handleFileChange,
     handleDrop,
     handleDragOver,
     handleDragLeave,
     openFilePicker,
     removeItem,
-    cancelItem,
-    toggleExpand,
     handleUpload,
+    cancelUploadsAndReset,
+    resetUploadState,
   } = useUpload()
+  const [uploadModalOpen, setUploadModalOpen] = useState(false)
+  const [statusCounts, setStatusCounts] = useState({
+    inProgress: 0,
+    done: 0,
+    failed: 0,
+  })
 
-  // 진행중(queued or processing) 항목이 하나라도 있으면 잠금
-  const hasActiveItems = processingItems.some(
-    (it) => it.status === 'queued' || it.status === 'processing'
-  )
+  const activeCount = statusCounts.inProgress
+  const isUploadLocked = activeCount >= MAX_FILES
+  const hasWaitingItems = waitingItems.length > 0
+  const showDropzone = !isUploadLocked
+  const loadStatusCounts = useCallback(async () => {
+    if (!groupId) return
+
+    const [pendingRes, processingRes, doneRes, failedRes] = await Promise.all([
+      fetchDocuments({ skip: 0, limit: 1, status: 'PENDING', viewType: 'my', groupId }),
+      fetchDocuments({ skip: 0, limit: 1, status: 'PROCESSING', viewType: 'my', groupId }),
+      fetchDocuments({ skip: 0, limit: 1, status: 'DONE', viewType: 'my', groupId }),
+      fetchDocuments({ skip: 0, limit: 1, status: 'FAILED', viewType: 'my', groupId }),
+    ])
+
+    setStatusCounts({
+      inProgress: pendingRes.total + processingRes.total,
+      done: doneRes.total,
+      failed: failedRes.total,
+    })
+  }, [groupId])
+
+  useEffect(() => {
+    loadStatusCounts()
+  }, [loadStatusCounts])
+
+  useEffect(() => {
+    if (!groupId) return
+
+    const timer = setInterval(() => {
+      loadStatusCounts()
+    }, 3000)
+
+    return () => clearInterval(timer)
+  }, [groupId, loadStatusCounts])
+
+  const handleStartUpload = async () => {
+    setUploadModalOpen(true)
+    await handleUpload()
+  }
+
+  const handleCloseUploadModal = () => {
+    setUploadModalOpen(false)
+    if (isUploadingFiles || waitingItems.length > 0) {
+      cancelUploadsAndReset()
+      return
+    }
+    resetUploadState()
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10 flex flex-col gap-6">
 
       <section className="text-center flex flex-col gap-2">
-        <h1 className="text-2xl font-bold">판례 업로드</h1>
+        <h1 className="text-2xl font-bold">그룹 문서 업로드</h1>
         <p className="text-sm text-muted-foreground">
-          판례 PDF를 업로드하면 AI가 자동으로 요약하고 데이터베이스에 저장합니다.
+          그룹 문서 PDF를 먼저 업로드하고, AI 요약은 서버에서 순차적으로 처리합니다.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          아래 상태는 이 그룹에 내가 업로드한 문서 기준으로 집계됩니다.
         </p>
       </section>
 
       <Card className="p-6 flex flex-col gap-4">
         <div>
-          <h2 className="text-base font-semibold">PDF 파일 선택</h2>
+          <h2 className="text-base font-semibold">문서 업로드</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            파일을 드래그 앤 드롭하거나 클릭하여 선택하세요. (최대 5개)
+            파일 업로드는 즉시 처리되고, AI 요약 대기/처리 문서는 최대 {MAX_FILES}개까지 유지됩니다.
           </p>
         </div>
 
-        {/* 드롭존 — 진행중이면 숨김 */}
-        {!hasActiveItems && (
+        {showDropzone && (
           <FileDropzone
             fileInputRef={fileInputRef}
-            isUploading={false}
+            isUploading={isUploadLocked}
             isDragOver={isDragOver}
             onOpenPicker={openFilePicker}
             onFileChange={handleFileChange}
@@ -61,58 +118,40 @@ function UploadPageInner() {
           />
         )}
 
-        {/* 대기 파일 목록 — 진행중이 아닐 때만 */}
-        {!hasActiveItems && waitingItems.length > 0 && (
-          <ul className="flex flex-col gap-1.5">
-            {waitingItems.map((it) => (
-              <li
-                key={it.file.name}
-                className="flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-sm"
-              >
-                <FileText size={15} className="text-muted-foreground shrink-0" />
-                <span className="flex-1 truncate">{it.file.name}</span>
-                <span className="text-xs text-muted-foreground">대기 중</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                  onClick={() => removeItem(it.file)}
-                >
-                  <X size={13} />
-                </Button>
-              </li>
-            ))}
-          </ul>
+        {!showDropzone && (
+          <div className="rounded-xl border border-dashed px-6 py-6 text-center text-sm text-muted-foreground">
+            AI 요약 대기/처리 중인 문서가 {MAX_FILES}개입니다. 완료 또는 실패 후 다시 업로드할 수 있습니다.
+          </div>
         )}
 
+        <UploadWaitingList items={waitingItems} onRemove={removeItem} />
+
         <Button
-          onClick={handleUpload}
-          disabled={waitingItems.length === 0 || hasActiveItems}
+          onClick={handleStartUpload}
+          disabled={waitingItems.length === 0}
           className="w-full"
         >
-          {hasActiveItems ? '처리 중...' : '업로드 및 요약 생성'}
+          {hasWaitingItems ? '파일 업로드 시작' : '업로드할 파일을 선택하세요'}
         </Button>
       </Card>
 
-      {/* 처리 현황 */}
-      {processingItems.length > 0 && (
-        <Card className="p-6 flex flex-col gap-3">
-          <h3 className="text-base font-semibold">처리 현황</h3>
-          <ul className="flex flex-col gap-2">
-            {processingItems.map((it) => (
-              <FileStatusItem
-                key={it.file.name + '-' + it.status}
-                it={it}
-                file={it.file}
-                onToggle={toggleExpand}
-                onCancel={cancelItem}
-              />
-            ))}
-          </ul>
-        </Card>
-      )}
+      <section className="flex flex-col gap-3">
+        <div>
+          <h2 className="text-base font-semibold">AI 요약 현황</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            업로드가 끝난 문서의 요약 처리 상태를 확인할 수 있습니다.
+          </p>
+        </div>
 
-      <FlowSteps />
+        <UploadSummaryCards counts={statusCounts} />
+      </section>
+
+      <UploadProgressDialog
+        open={uploadModalOpen}
+        items={uploadItems}
+        canCancel={isUploadingFiles || waitingItems.length > 0}
+        onClose={handleCloseUploadModal}
+      />
     </div>
   )
 }

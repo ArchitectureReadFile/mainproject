@@ -10,7 +10,7 @@ import logging
 from celery_app import celery_app
 from database import SessionLocal
 from models.model import DocumentStatus, Precedent
-from services.precedent import OptionalPrecedentMetadataParser
+from services.precedent.metadata_parser import OptionalPrecedentMetadataParser
 from services.rag import bm25_store, vector_store
 from services.rag.embedding_service import embed_passage
 

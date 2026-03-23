@@ -1,1 +1,1 @@
-__all__ = []
+"""Upload domain package."""

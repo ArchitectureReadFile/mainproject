@@ -50,7 +50,7 @@ export default function FileDropzone({
         )}
       />
       <div className="text-center">
-        <p className="text-sm font-medium">클릭하여 PDF 파일 선택</p>
+        <p className="text-sm font-medium">클릭하여 업로드할 PDF 선택</p>
         <p className="text-xs text-muted-foreground mt-1">또는 파일을 드래그 앤 드롭하세요</p>
       </div>
     </div>
