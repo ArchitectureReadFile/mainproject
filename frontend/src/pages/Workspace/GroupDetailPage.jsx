@@ -1,14 +1,16 @@
-import { getGroupDetail, requestDeleteGroup, cancelDeleteGroup } from '@/api/groups'
+import { getGroupDetail, requestDeleteGroup, cancelDeleteGroup, getMembers } from '@/api/groups'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import {
     AlertTriangle, FileText, Home, Loader2,
-    Trash2, Undo2, Users,
+    Trash2, Undo2, Users, ArrowLeft,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import UploadPage from '@/pages/Upload/index'
 import { Badge } from '@/components/ui/Badge'
-import { getMembers } from '@/api/groups'
+import { useAuth } from '@/features/auth/index'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/Button'
 
 
 // 역할별 허용 탭
@@ -16,7 +18,7 @@ const TABS = [
     { key: 'upload', label: '업로드', roles: ['OWNER', 'ADMIN', 'EDITOR'], hideOnPending: true},
     { key: 'documents', label: '문서', roles: ['OWNER', 'ADMIN', 'EDITOR', 'VIEWER'] },
     { key: 'trash', label: '휴지통', roles: ['OWNER', 'ADMIN', 'EDITOR'] },
-    { key: 'members', label: '멤버', roles: ['OWNER', 'ADMIN'], hideOnPending: true },
+    { key: 'members', label: '멤버', roles: ['OWNER', 'ADMIN', 'EDITOR', 'VIEWER'], hideOnPending: true },
     { key: 'workspace', label: '워크스페이스', roles: ['OWNER', 'ADMIN', 'EDITOR', 'VIEWER'] },
 ]
 
@@ -61,15 +63,143 @@ function RoleBadge({ role }) {
 
 
 function MembersTab({ group }) {
+    const { user } = useAuth()
+
     const [data, setData] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [search, setSearch] = useState('')
+    const [query, setQuery] = useState('') 
+
+    const rolePriority = {
+    OWNER: 1,
+    ADMIN: 2,
+    EDITOR: 3,
+    VIEWER: 4
+    }
+    
 
     useEffect(() => {
         setLoading(true)
-        getMembers
+        getMembers(group.id)
+            .then(setData)
+            .catch((e) => setError(e.message ?? "멤버 목록을 불러오지 못했습니다."))
+            .finally(() => setLoading(false))
+    }, [group.id])
+
+    if (loading) return (
+        <div className="flex justify-center py-20">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground"/>
+        </div>
+    )
+
+    if (error) return (
+        <div className="py-20 text-center text-sm text-destructive">{error}</div>
+    )
+
+    const { members = [], invited = [] } = data
+    const handleSearch = () => setQuery(search.trim().toLowerCase())
+
+    const sortedMembers = [...members].sort((a, b) => {
+        if (a.user_id === user?.id) return -1
+        if (b.user_id === user?.id) return 1
+        return rolePriority[a.role] - rolePriority[b.role]
     })
+
+    const filteredMembers = query
+        ? sortedMembers.filter((m) => m.username.toLowerCase().includes(query))
+        : sortedMembers
+    const filteredInvited = query
+        ? invited.filter((m) => m.username.toLowerCase().includes(query))
+        : invited
+
+    const canSeeInvited = group.my_role === 'OWNER' || group.my_role === 'ADMIN'
+
+    return (
+        <div className="space-y-6 max-w-3xl mx-auto">
+            {/* 검색 */}
+            <div className="flex gap-2">
+                <input
+                    type="text"
+                    placeholder="유저명으로 검색"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    className="flex-1 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <button
+                    onClick={handleSearch}
+                    className="rounded-md border px-4 py-2 text-sm hover:bg-muted transition-colors"
+                >
+                검색
+                </button>
+            </div>
+
+            {/* ACTIVE 멤버 */}
+            <div className="rounded-lg border">
+                <div className="px-5 py-4 border-b">
+                    <h3 className="font-semibold">
+                        멤버{' '}
+                        <span className="text-muted-foreground font-normal text-sm">
+                            {filteredMembers.length}명
+                        </span>
+                    </h3>
+                </div>
+                {filteredMembers.length === 0 ? (
+                    <p className="px-5 py-6 text-sm text-muted-foreground text-center">검색 결과가 없습니다.</p>
+                ) : (
+                    <ul>
+                        {filteredMembers.map((m) => (
+                            <li key={m.user_id} className="flex items-center justify-between px-5 py-3">
+                                <div>
+                                    <p className="text-sm font-medium">
+                                        {m.username}
+                                        {m.user_id === user?.id && (
+                                            <span className="ml-1.5 text-xs text-muted-foreground font-normal">(나)</span>
+                                        )}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">{m.email}</p>
+                                </div>
+                                <RoleBadge role={m.role} />
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+
+            {/* INVITED 멤버 */}
+            {(canSeeInvited && (invited.length > 0 || filteredInvited.length > 0)) && (
+                <div className="rounded-lg border">
+                    <div className="px-5 py-4 border-b">
+                        <h3 className="font-semibold">
+                            초대 대기 중{' '}
+                            <span className="text-muted-foreground font-normal text-sm">
+                                {filteredInvited.length}명
+                            </span>
+                        </h3>
+                    </div>
+                    {filteredInvited.length === 0 ? (
+                        <p className="px-5 py-6 text-sm text-muted-foreground text-center">검색 결과가 없습니다.</p>
+                    ) : (
+                        <ul className="divide-y">
+                            {filteredInvited.map((m) => (
+                                <li key={m.user_id} className="flex items-center justify-between px-5 py-3">
+                                    <div>
+                                        <p className="text-sm font-medium">{m.username}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            초대일: {new Date(m.invited_at).toLocaleDateString('ko-KR')}
+                                        </p>
+                                    </div>
+                                    <RoleBadge role={m.role} />
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            )}
+        </div>
+    )
+
 }
 
 
@@ -95,8 +225,9 @@ function WorkspaceTab({ group, onUpdated }){
                 ? await requestDeleteGroup(group.id)
                 : await cancelDeleteGroup(group.id)
             onUpdated(updated)
+            toast.success(confirmType === "delete" ? "삭제 요청이 완료됐습니다." : "삭제가 취소됐습니다.")
         } catch (e) {
-            alert(e.message || "처리에 실패했습니다.")
+            toast.error(e.message || "처리에 실패했습니다.")
         } finally {
             setLoading(false)
             setConfirmType(null)
@@ -205,6 +336,7 @@ export default function GroupDetailPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [activeTab, setActiveTab] = useState('documents')
+    const navigate = useNavigate()
 
     useEffect(() => {
         setLoading(true)
@@ -246,6 +378,11 @@ export default function GroupDetailPage() {
 
         {/* 헤더 */}
         <div className="mb-6">
+            {/* 뒤로가기 버튼 */}
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1.5 mb-3 -ml-2">
+                <ArrowLeft size={15} />
+                뒤로 가기
+            </Button>
             <div className="flex items-center gap-2">
                 <Home className="h-8 w-8 "/>
                 <h1 className="text-2xl font-bold">{group.name}</h1>
@@ -290,7 +427,9 @@ export default function GroupDetailPage() {
         {activeTab === 'upload' && <UploadPage />}
         {activeTab === 'documents' && <div>문서 섹션</div>}
         {activeTab === 'trash'     && <div>휴지통 섹션</div>}
-        {activeTab === 'members'   && <div>멤버 섹션</div>}
+        {activeTab === 'members'   && (
+            <MembersTab group={group}/>
+        )}
         {activeTab === "workspace" && (
             <WorkspaceTab group={group} onUpdated={(updated) => setGroup(updated)} />
         )}

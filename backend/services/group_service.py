@@ -1,7 +1,7 @@
 from typing import Optional
 
 from errors import AppException, ErrorCode
-from models.model import Group, GroupStatus, MembershipRole, utc_now_naive
+from models.model import Group, GroupStatus, MembershipRole, MembershipStatus, utc_now_naive
 from repositories.group_repository import GroupRepository
 from schemas.group import (
     GroupDetailResponse,
@@ -9,7 +9,6 @@ from schemas.group import (
     InvitedMemberResponse,
     MemberListResponse,
     MemberResponse,
-    MembershipStatus,
 )
 
 
@@ -180,8 +179,6 @@ class GroupService:
 
     # 멤버 목록 조회
     def get_members(self, user_id: int, group_id: int) -> MemberListResponse:
-        self._check_owner_or_admin(user_id, group_id)
-
         active_rows = self.repository.get_members(group_id)
         invited_rows = self.repository.get_invited_members(group_id)
 
