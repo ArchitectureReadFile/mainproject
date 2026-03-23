@@ -1,13 +1,5 @@
 // TODO: 그룹/워크스페이스 API
 import client from "./client";
-
-
-// GET    /api/groups/:group_id/members 멤버 목록
-// POST   /api/groups/:group_id/members 멤버 초대(OWNER, ADMIN)
-// PATCH  /api/groups/:group_id/members/:user_id 권한 변경
-// DELETE /api/groups/:group_id/members/:user_id 멤버 추방
-
-
 // POST   /api/groups 그룹 생성
 export async function createGroup({ name, description }) {
     const { data } = await client.post("/groups", { name, description })
@@ -41,3 +33,47 @@ export async function cancelDeleteGroup(groupId) {
     const { data } = await client.post(`/groups/${groupId}/cancel-delete`)
     return data
 }
+
+
+// GET    /api/groups/:group_id/members 멤버 목록
+export async function getMembers(groupId) {
+    const { data } = await client.get(`/groups/${groupId}/members`)
+    return data
+}
+
+
+// POST   /api/groups/:group_id/members 멤버 초대(OWNER, ADMIN)
+export async function inviteMember(groupId, { username, role }) {
+    const { data } = await client.post(`/groups/${groupId}/members`, { username, role })
+    return data
+}
+
+
+// POST /api/groups/:group_id/members/accept 초대 수락
+export async function acceptInvite(groupId) {
+    await client.post(`/groups/${groupId}/members/accept`)
+}
+
+
+// POST /api/groups/:group_id/members/decline 초재 거절
+export async function declineInvite(groupId) {
+    await client.post(`/groups/${groupId}/members/decline`)
+}
+
+
+// DELETE /api/groups/:group_id/members/:user_id 멤버 추방
+export async function removeMember(groupId, targetId) {
+    await client.delete(`/groups/${groupId}/members/${targetId}`)
+}
+
+
+// PATCH  /api/groups/:group_id/members/:user_id 권한 변경
+export async function changeMemberRole(groupId, targetId, role) {
+    await client.patch(`/groups/${groupId}/members/${targetId}`, {role})
+}
+
+// POST /api/groups/:group_id/members/:target_id/transfer — 오너 양도
+export async function transferOwner(groupId, targetId) {
+    await client.post(`/groups/${groupId}/members/${targetId}/transfer`)
+}
+

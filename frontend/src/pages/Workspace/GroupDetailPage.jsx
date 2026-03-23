@@ -7,6 +7,8 @@ import {
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import UploadPage from '@/pages/Upload/index'
+import { Badge } from '@/components/ui/Badge'
+import { getMembers } from '@/api/groups'
 
 
 // 역할별 허용 탭
@@ -41,6 +43,33 @@ function DeletePendingBanner({ scheduledAt }){
             </span>  
         </div>
     )
+}
+
+
+const ROLE_STYLE = {
+    OWNER:  { label: 'OWNER',  variant: 'default' },
+    ADMIN:  { label: 'ADMIN',  variant: 'secondary' },
+    EDITOR: { label: 'EDITOR', variant: 'outline' },
+    VIEWER: { label: 'VIEWER', variant: 'outline' },
+}
+
+
+function RoleBadge({ role }) {
+    const { label, variant } = ROLE_STYLE[role] ?? { label: role, variant: 'outline' }
+    return <Badge variant={variant}>{label}</Badge>
+}
+
+
+function MembersTab({ group }) {
+    const [data, setData] = useState(null)
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(null)
+    const [search, setSearch] = useState('')
+
+    useEffect(() => {
+        setLoading(true)
+        getMembers
+    })
 }
 
 
