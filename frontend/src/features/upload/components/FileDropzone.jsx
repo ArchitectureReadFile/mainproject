@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { UploadCloud } from 'lucide-react'
+import { IoCloudUploadOutline } from 'react-icons/io5';
 
 export default function FileDropzone({
   fileInputRef,
@@ -42,7 +42,7 @@ export default function FileDropzone({
         disabled={isUploading}
         className="hidden"
       />
-      <UploadCloud
+      <IoCloudUploadOutline
         size={40}
         className={cn(
           'transition-colors',

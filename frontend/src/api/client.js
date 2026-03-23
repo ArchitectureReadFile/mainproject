@@ -1,19 +1,9 @@
 import axios from 'axios'
-import { getAccessToken } from '../features/auth/utils/authCookie'
 import { ERROR_CODE } from '../lib/errors'
 
 const client = axios.create({
   baseURL: `/api`,
   withCredentials: true,
-})
-
-// 요청 인터셉터: Access Token 자동 헤더 추가
-client.interceptors.request.use((config) => {
-  const token = getAccessToken()
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
 })
 
 const extractErrorCode = (error) => {

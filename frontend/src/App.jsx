@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom'
+import { Route, Routes, useLocation } from 'react-router-dom'
 import Footer from './components/layout/Footer.jsx'
 import Header from './components/layout/Header.jsx'
 import { ProtectedRoute } from './features/auth/index.js'
@@ -9,8 +9,12 @@ import MypagePage from './pages/Mypage/index.jsx'
 import UploadPage from './pages/Upload/index.jsx'
 import WorkspacePage from './pages/Workspace/index.jsx'
 import GroupDetailPage from './pages/Workspace/GroupDetailPage.jsx'
+import ChatWidget from './features/chat/components/ChatWidget.jsx'
 
 export default function App() {
+  const location = useLocation()
+  const hideChatWidget = location.pathname === '/'
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -68,6 +72,7 @@ export default function App() {
           />
         </Routes>
       </main>
+      {!hideChatWidget && <ChatWidget />}
       <Footer />
     </div>
   )
