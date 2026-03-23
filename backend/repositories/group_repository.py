@@ -211,6 +211,21 @@ class GroupRepository:
         self.db.add(membership)
         return membership
 
+    def get_my_invitations(self, user_id: int) -> list[tuple[GroupMember, Group]]:
+        """내가 INVITED 상태인 멤버십 목록"""
+        return (
+            self.db.query(GroupMember, Group)
+            .join(Group, Group.id == GroupMember.group_id)
+            .join(Group.owner)
+            .filter(
+                GroupMember.user_id == user_id,
+                GroupMember.status == MembershipStatus.INVITED,
+                Group.status == GroupStatus.ACTIVE,
+            )
+            .options(contains_eager(Group.owner))
+            .all()
+        )
+
     def accept_invite(self, membership: GroupMember) -> GroupMember:
         """초대 수락"""
         membership.status = MembershipStatus.ACTIVE

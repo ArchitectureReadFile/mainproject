@@ -14,6 +14,13 @@ export async function getMyGroups() {
 }
 
 
+// GET /groups/invitations — 내 초대 목록
+export async function getMyInvitations() {
+    const { data } = await client.get('/groups/invitations')
+    return data
+}
+
+
 // GET    /api/groups/:group_id 그룹 상세
 export async function getGroupDetail(groupId) {
     const { data } = await client.get(`/groups/${groupId}`)
