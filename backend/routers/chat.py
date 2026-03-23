@@ -1,17 +1,19 @@
-from fastapi import APIRouter, Depends, Form, UploadFile, File, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from database import SessionLocal, get_db
-from models.model import User, ChatSession, ChatMessage, ChatMessageRole
-from tasks.chat_task import process_chat_message
-from services.summary.process_service import ProcessService
+from database import get_db
+from models.model import ChatMessage, ChatMessageRole, ChatSession, User
 from routers.auth import get_current_user
+from services.summary.process_service import ProcessService
+from tasks.chat_task import process_chat_message
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+
 class RoomCreate(BaseModel):
     title: str
+
 
 @router.get("/rooms")
 def get_rooms(
@@ -109,7 +111,6 @@ def send_message(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-
 
     room = (
         db.query(ChatSession)

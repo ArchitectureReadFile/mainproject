@@ -424,7 +424,6 @@ class Summary(Base):
         nullable=False,
     )
 
-    summary_title = Column(String(255))
     summary_text = Column(Text)
     key_points = Column(Text)
 

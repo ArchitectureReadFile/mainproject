@@ -1,4 +1,4 @@
-from services.upload_session_service import (
+from services.upload.session_service import (
     ABANDONED_UPLOAD_MESSAGE,
     UploadSessionService,
 )
@@ -42,13 +42,15 @@ def test_mark_document_done_updates_summary(fake_redis):
         1,
         101,
         {
-            "case_number": "2024다12345",
-            "court": "대법원",
             "date": "2024-01-01",
             "content": "요약 본문",
+            "key_points": ["핵심 포인트 1", "핵심 포인트 2"],
         },
     )
 
     assert session["items"][0]["status"] == "done"
-    assert session["items"][0]["summary"]["court"] == "대법원"
     assert session["items"][0]["summary"]["content"] == "요약 본문"
+    assert session["items"][0]["summary"]["key_points"] == [
+        "핵심 포인트 1",
+        "핵심 포인트 2",
+    ]

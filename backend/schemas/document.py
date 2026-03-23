@@ -16,7 +16,7 @@ class DocumentListItemResponse(BaseModel):
     uploader: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class DocumentDetailResponse(BaseModel):
@@ -24,19 +24,17 @@ class DocumentDetailResponse(BaseModel):
     uploader: Optional[str] = None
     summary_id: Optional[int] = None
     status: str
+    document_type: Optional[str] = None
+    summary_text: Optional[str] = None
+    key_points: list[str] = []
+    metadata: dict = {}
     case_number: Optional[str] = None
     case_name: Optional[str] = None
     court_name: Optional[str] = None
     judgment_date: Optional[date] = None
-    summary_title: Optional[str] = None
-    summary_main: Optional[str] = None
     plaintiff: Optional[str] = None
     defendant: Optional[str] = None
-    facts: Optional[str] = None
-    judgment_order: Optional[str] = None
-    judgment_reason: Optional[str] = None
-    related_laws: Optional[str] = None
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True

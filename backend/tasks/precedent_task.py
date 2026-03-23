@@ -10,10 +10,12 @@ import logging
 from celery_app import celery_app
 from database import SessionLocal
 from models.model import DocumentStatus, Precedent
+from services.precedent import OptionalPrecedentMetadataParser
 from services.rag import bm25_store, vector_store
 from services.rag.embedding_service import embed_passage
 
 logger = logging.getLogger(__name__)
+_metadata_parser = OptionalPrecedentMetadataParser()
 
 
 @celery_app.task(
@@ -54,6 +56,7 @@ def index_precedent(self, precedent_id: int) -> dict:
         # Dense 임베딩 → Qdrant
         logger.info("임베딩 시작: precedent_id=%s", precedent_id)
         vector = embed_passage(precedent.text)
+        metadata = _metadata_parser.parse_text(precedent.text)
         vector_store.upsert(
             precedent_id=precedent.id,
             embedding=vector,
@@ -61,6 +64,7 @@ def index_precedent(self, precedent_id: int) -> dict:
                 "title": precedent.title or "",
                 "source_url": precedent.source_url or "",
                 "text": precedent.text,
+                **{k: v for k, v in metadata.items() if v},
             },
         )
 

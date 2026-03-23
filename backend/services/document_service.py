@@ -1,11 +1,32 @@
 from errors import AppException, ErrorCode
 from repositories.document_repository import DocumentRepository
 from schemas.document import DocumentDetailResponse, DocumentListItemResponse
+from services.summary.summary_mapper import (
+    SUMMARY_METADATA_FIELDS,
+    build_document_title,
+    build_summary_preview,
+    get_key_points,
+    get_summary_field,
+    parse_summary_metadata,
+)
 
 
 class DocumentService:
     def __init__(self, repository: DocumentRepository):
         self.repository = repository
+
+    @staticmethod
+    def _build_document_title(doc, summary) -> str:
+        fallback_title = getattr(doc, "original_filename", None) or "요약 대기중"
+        if not summary:
+            return fallback_title
+        return build_document_title(summary, fallback_title)
+
+    @staticmethod
+    def _build_preview(summary) -> str:
+        if not summary:
+            return ""
+        return build_summary_preview(summary)
 
     def get_list(
         self,
@@ -27,27 +48,8 @@ class DocumentService:
 
         for doc in documents:
             summary = getattr(doc, "summary", None)
-            title = doc.document_url or "요약 대기중"
-            preview = ""
-
-            if summary:
-                case_number = getattr(summary, "case_number", None)
-                case_name = getattr(summary, "case_name", None)
-
-                if case_number and case_name:
-                    title = f"{case_number} {case_name}"
-                elif case_name:
-                    title = case_name
-                elif case_number:
-                    title = case_number
-                else:
-                    title = getattr(summary, "summary_title", None) or title
-
-                main_text = getattr(summary, "summary_main", "")
-                if main_text:
-                    preview = (
-                        (main_text[:200] + "...") if len(main_text) > 200 else main_text
-                    )
+            title = self._build_document_title(doc, summary)
+            preview = self._build_preview(summary)
 
             results.append(
                 DocumentListItemResponse(
@@ -55,12 +57,12 @@ class DocumentService:
                     summary_id=summary.id if summary else None,
                     title=title,
                     preview=preview,
-                    status=doc.status.value,
+                    status=doc.processing_status.value,
                     created_at=doc.created_at,
-                    court_name=getattr(summary, "court_name", None)
+                    court_name=get_summary_field(summary, "court_name")
                     if summary
                     else None,
-                    judgment_date=getattr(summary, "judgment_date", None)
+                    judgment_date=get_summary_field(summary, "judgment_date")
                     if summary
                     else None,
                     uploader=doc.owner.username if doc.owner else None,
@@ -81,27 +83,18 @@ class DocumentService:
             "id": doc.id,
             "uploader": doc.owner.username if doc.owner else None,
             "summary_id": summary.id if summary else None,
-            "status": doc.status.value,
+            "status": doc.processing_status.value,
             "created_at": doc.created_at,
         }
 
         if summary:
-            summary_fields = [
-                "case_number",
-                "case_name",
-                "court_name",
-                "judgment_date",
-                "summary_title",
-                "summary_main",
-                "plaintiff",
-                "defendant",
-                "facts",
-                "judgment_order",
-                "judgment_reason",
-                "related_laws",
-            ]
-            for field in summary_fields:
-                response_data[field] = getattr(summary, field, None)
+            response_data["summary_text"] = get_summary_field(summary, "summary_text")
+            response_data["key_points"] = get_key_points(summary)
+            response_data["metadata"] = parse_summary_metadata(summary)
+            response_data["document_type"] = get_summary_field(summary, "document_type")
+
+            for field in SUMMARY_METADATA_FIELDS:
+                response_data[field] = get_summary_field(summary, field)
 
         return DocumentDetailResponse(**response_data)
 

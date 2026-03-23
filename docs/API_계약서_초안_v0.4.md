@@ -64,6 +64,49 @@
 | `DONE` | 작업 완료 |
 | `FAILED` | 작업 실패 |
 
+### 1-7. 업로드 파이프라인 구분
+
+업로드는 UI 상에서 비슷해 보여도 저장 위치, 권한, 후처리 목적이 다르므로 아래 3개 파이프라인으로 구분합니다.
+
+#### `group_document_upload`
+
+- 목적: 워크스페이스 문서를 영속 저장하고 요약을 생성합니다.
+- 인증: 로그인 + 그룹 업로드 권한 필요
+- 저장:
+  - 원본 파일 저장소
+  - `documents` row 생성
+  - `summaries` row 생성(비동기 완료 시)
+- 상태:
+  - `Document.processing_status`
+  - Redis `upload_session`
+- 비동기 처리:
+  - 업로드 요청은 파일 저장 + `PENDING` 생성까지만 수행
+  - OCR/요약은 Celery worker에서 수행
+
+#### `precedent_upload`
+
+- 목적: 판례 원문을 RAG 지식베이스에 반영합니다.
+- 인증: 관리자
+- 저장:
+  - `precedents` row 생성
+  - Dense/BM25 인덱스 반영
+- 상태:
+  - `Precedent.processing_status`
+- 비동기 처리:
+  - 판례 인덱싱은 Celery task로 수행
+
+#### `chat_temp_upload`
+
+- 목적: 채팅 답변 생성 시 일회성 참고 컨텍스트를 확보합니다.
+- 인증: 로그인
+- 저장:
+  - 임시 저장소 또는 메모리 기반 처리
+  - 영속 DB 저장 없음
+- 상태:
+  - 세션 범위 임시 상태만 관리
+- 비동기 처리:
+  - 별도 장기 보관/요약 파이프라인 없음
+
 ## 2. Auth API
 
 ### POST `/api/auth/signup`
@@ -297,14 +340,23 @@
 
 ### POST `/api/documents/upload`
 
-- 설명: PDF 1건 업로드 후 백그라운드 요약 시작
+- 설명: 워크스페이스 문서 PDF 1건 업로드 후 백그라운드 요약 시작
 - 인증: 필요
+- 권한:
+  - 그룹의 `OWNER`, `ADMIN`, `EDITOR`
 - 요청 형식: `multipart/form-data`
 - 필드:
   - `file`: PDF 파일 1개
+  - `group_id`: 업로드 대상 워크스페이스 ID
 - 제약:
   - `application/pdf`만 허용
   - 최대 20MB
+- 처리 순서:
+  1. 파일 저장
+  2. `documents` row를 `PENDING` 상태로 생성
+  3. 업로드 세션을 `processing`으로 갱신
+  4. Celery task enqueue
+  5. worker가 OCR/요약 후 `DONE` 또는 `FAILED` 반영
 - 성공 응답:
 
 ```json
@@ -313,6 +365,10 @@
   "document_ids": [101]
 }
 ```
+
+- 비고:
+  - 이 API는 `group_document_upload` 전용입니다.
+  - 채팅 임시 파일 업로드와 판례 업로드는 별도 파이프라인으로 관리합니다.
 
 ### GET `/api/documents`
 
@@ -358,18 +414,15 @@
   "uploader": "홍길동",
   "summary_id": 1,
   "status": "DONE",
-  "case_number": "2023다12345",
-  "case_name": "손해배상(기)",
-  "court_name": "대법원",
-  "judgment_date": "2023-10-01",
-  "summary_title": "손해배상 청구 사건 요약",
-  "summary_main": "본 사건은 ...",
-  "plaintiff": "홍길동",
-  "defendant": "김철수",
-  "facts": "사실관계 ...",
-  "judgment_order": "피고는 ...",
-  "judgment_reason": "증거에 따르면 ...",
-  "related_laws": "민법 제750조",
+  "document_type": "판결문",
+  "summary_text": "이 문서는 손해배상 청구 사건의 경과와 쟁점을 정리한 판결문이다.",
+  "key_points": [
+    "손해배상 책임 성립 여부가 핵심 쟁점이다.",
+    "증거 관계와 인과관계 판단이 중요하게 다뤄진다."
+  ],
+  "metadata": {
+    "source": "group_document_summary"
+  },
   "created_at": "2026-03-13T10:00:00"
 }
 ```

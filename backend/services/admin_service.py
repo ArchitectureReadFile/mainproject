@@ -53,11 +53,13 @@ from schemas.admin import (
     ServiceUsage,
     StorageInfo,
 )
+from services.precedent import OptionalPrecedentMetadataParser
 
 logger = logging.getLogger(__name__)
 
 _ALLOWED_SCHEMES = {"https"}
 _ALLOWED_DOMAINS = {"taxlaw.nts.go.kr"}
+_precedent_metadata_parser = OptionalPrecedentMetadataParser()
 
 
 # ── 통계 ──────────────────────────────────────────────────────────────────────
@@ -400,6 +402,8 @@ def _refresh_precedent_content(precedent: Precedent, log_context: str) -> None:
             precedent.processing_status = DocumentStatus.FAILED
             precedent.error_message = "본문 텍스트를 추출할 수 없습니다."
         else:
+            parsed_meta = _precedent_metadata_parser.parse_text(precedent.text)
+            precedent.title = _resolve_precedent_title(precedent.title, parsed_meta)
             precedent.processing_status = DocumentStatus.DONE
             precedent.error_message = None
 
@@ -407,6 +411,26 @@ def _refresh_precedent_content(precedent: Precedent, log_context: str) -> None:
         logger.error("판례 추출 실패: %s, error=%s", log_context, exc)
         precedent.processing_status = DocumentStatus.FAILED
         precedent.error_message = str(exc)
+
+
+def _resolve_precedent_title(raw_title: str | None, parsed_meta: dict) -> str | None:
+    """추출기 제목이 비어 있으면 판례 메타로 식별 가능한 제목을 만든다."""
+    if raw_title and str(raw_title).strip():
+        return str(raw_title).strip()
+
+    case_number = parsed_meta.get("case_number")
+    case_name = parsed_meta.get("case_name")
+    court_name = parsed_meta.get("court_name")
+
+    if case_number and case_name:
+        return f"{case_number} {case_name}"
+    if court_name and case_number:
+        return f"{court_name} {case_number}"
+    if case_name:
+        return case_name
+    if case_number:
+        return case_number
+    return raw_title
 
 
 def _sync_precedent_index(precedent: Precedent) -> None:
