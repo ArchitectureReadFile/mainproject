@@ -1,16 +1,19 @@
-import { getGroupDetail, requestDeleteGroup, cancelDeleteGroup, getMembers } from '@/api/groups'
+import { getGroupDetail, requestDeleteGroup, cancelDeleteGroup, getMembers, inviteMember } from '@/api/groups'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import {
     AlertTriangle, FileText, Home, Loader2,
     Trash2, Undo2, Users, ArrowLeft,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import UploadPage from '@/pages/Upload/index'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/features/auth/index'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
 
 
 // 역할별 허용 탭
@@ -70,6 +73,33 @@ function MembersTab({ group }) {
     const [error, setError] = useState(null)
     const [search, setSearch] = useState('')
     const [query, setQuery] = useState('') 
+    const [inviteUsername, setInviteUsername] = useState('')
+    const [inviteRole, setInviteRole] = useState('EDITOR')
+    const [inviteLoading, setInviteLoading] = useState(false)
+    const [inviteError, setInviteError] = useState('')
+
+    const handleInvite = async () => {
+        if(!inviteUsername.trim()) return
+        setInviteLoading(true)
+        setInviteError('')
+        try {
+            const newMember = await inviteMember(group.id, {
+                username: inviteUsername.trim(),
+                role: inviteRole,
+            })
+            setData((prev) => ({
+                ...prev,
+                invited: [...prev.invited, newMember],
+            }))
+            setInviteUsername('')
+            setInviteRole("EDITOR")
+            toast.success("초대에 성공했습니다.")
+        } catch (e) {
+            setInviteError(e.message || "초대에 실패했습니다.")
+        } finally {
+            setInviteLoading(false)
+        }
+    }
 
     const rolePriority = {
     OWNER: 1,
@@ -117,22 +147,56 @@ function MembersTab({ group }) {
 
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
+            {/* 초대(OWNER/ADMIN만) */}
+            {canSeeInvited && (
+                <div className="rounded-lg border p-4 space-y-3">
+                    <h3 className="font-semibold text-sm">멤버 초대</h3>
+                    <div className="flex gap-2">
+                        <Input 
+                            placeholder="유저명 입력"
+                            value={inviteUsername}
+                            onChange={(e) => setInviteUsername(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && handleInvite()}
+                        />
+                        <Select value={inviteRole} onValueChange={setInviteRole}>
+                            <SelectTrigger className="w-32">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ADMIN">ADMIN</SelectItem>
+                                <SelectItem value="EDITOR">EDITOR</SelectItem>
+                                <SelectItem value="VIEWER">VIEWER</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Button
+                            variant="outline"
+                            onClick={handleInvite}
+                            disabled={inviteLoading || !inviteUsername.trim()}
+                        >
+                            {inviteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : '초대'}
+                        </Button>
+                    </div>
+                    {inviteError && (
+                        <p className="text-xs text-destructive">{inviteError}</p>
+                    )}
+                </div>
+            )}
+
             {/* 검색 */}
             <div className="flex gap-2">
-                <input
-                    type="text"
+                <Input
                     placeholder="유저명으로 검색"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    className="flex-1 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="flex-1"
                 />
-                <button
+                <Button 
+                    variant="outline"
                     onClick={handleSearch}
-                    className="rounded-md border px-4 py-2 text-sm hover:bg-muted transition-colors"
                 >
                 검색
-                </button>
+                </Button>
             </div>
 
             {/* ACTIVE 멤버 */}
@@ -208,12 +272,12 @@ function WorkspaceTab({ group, onUpdated }){
     // 권한 체크 오너 어드민이면 이름 변경, 그룹 상세 정보, 전체 다운, 그룹 삭제
     // 에디터, 뷰어면 그룹 상세정보만
     const isOwner = group.my_role === "OWNER"
-    const isAdmin = group.my_role === "ADMIN"
+    //const isAdmin = group.my_role === "ADMIN"
     const isPending = group.status === "DELETE_PENDING"
 
     const canDelete = isOwner
-    const canRename = isOwner || isAdmin
-    const canDownload = isOwner || isAdmin
+    //const canRename = isOwner || isAdmin
+    //const canDownload = isOwner || isAdmin
 
     const [confirmType, setConfirmType] = useState(null)
     const [loading, setLoading] = useState(false)
@@ -289,21 +353,23 @@ function WorkspaceTab({ group, onUpdated }){
                         }
                     </p>
                     {!isPending ? (
-                        <button
+                        <Button
+                            variant="outline"
                             onClick={() => setConfirmType('delete')}
                             className="flex items-center gap-2 rounded-md border border-destructive px-3 py-1.5 text-sm text-destructive hover:bg-destructive/5 transition-colors"
                         >
                             <Trash2 className="h-4 w-4" />
                             워크스페이스 삭제 요청
-                        </button>
+                        </Button>
                     ) : (
-                        <button
+                        <Button
+                            variant="outline"
                             onClick={() => setConfirmType('cancel')}
                             className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-muted transition-colors"
                         >
                             <Undo2 className="h-4 w-4" />
                             삭제 취소
-                        </button>
+                        </Button>
                     )}
                 </div>
             )}
@@ -346,12 +412,14 @@ export default function GroupDetailPage() {
         .finally(() => setLoading(false))
     }, [group_id])
 
-    const visibleTabs = group
-        ? TABS.filter((t) => 
-            t.roles.includes(group.my_role) &&
-            ! (t.hideOnPending && group.status === "DELETE_PENDING")
-        )
-        : []
+    const visibleTabs = useMemo(() => 
+        group
+            ? TABS.filter((t) => 
+                t.roles.includes(group.my_role) &&
+                ! (t.hideOnPending && group.status === "DELETE_PENDING")
+            )
+            : []
+            ,[group])
 
     useEffect(() => {
         if (visibleTabs.length && !visibleTabs.find((t) => t.key === activeTab)) {
