@@ -14,6 +14,7 @@ class ErrorCode(Enum):
       SUM       : 요약 결과 조회
       FILE      : 파일 다운로드
       PRECEDENT : RAG 판례 관리
+      CHAT      : 채팅 세션 및 메시지 처리
     """
 
     # ── 인증 (AUTH) ──────────────────────────────────────────────────────────
@@ -72,6 +73,7 @@ class ErrorCode(Enum):
         "인증 코드가 만료되었거나 존재하지 않습니다.",
     )
     EMAIL_CODE_MISMATCH = ("EMAIL_003", 400, "인증 코드가 일치하지 않습니다.")
+    EMAIL_CONFIG_INVALID = ("EMAIL_004", 500, "서버의 이메일 설정이 올바르지 않습니다.")
 
     # ── 문서 (DOC) ───────────────────────────────────────────────────────────
     DOC_NOT_FOUND = ("DOC_001", 404, "문서를 찾을 수 없습니다.")
@@ -83,6 +85,7 @@ class ErrorCode(Enum):
     DOC_PDF_PARSE_FAILED = ("DOC_003", 422, "PDF 파일을 읽을 수 없습니다.")
     DOC_INVALID_FILE_TYPE = ("DOC_004", 415, "PDF 파일만 업로드 가능합니다.")
     DOC_FILE_TOO_LARGE = ("DOC_005", 413, "파일 크기는 20MB 이하여야 합니다.")
+    DOC_INTERNAL_PARSE_ERROR = ("DOC_006", 500, "문서 처리 중 서버 내부 오류가 발생했습니다.")
 
     # ── LLM 요약 (LLM) ───────────────────────────────────────────────────────
     LLM_EMPTY_PAGES = ("LLM_001", 422, "텍스트 추출 결과가 비어 있습니다.")
@@ -91,6 +94,8 @@ class ErrorCode(Enum):
         502,
         "Ollama 요약 요청이 모든 프로파일에서 실패했습니다.",
     )
+    LLM_CONNECT_FAILED = ("LLM_003", 503, "LLM 서버와 통신할 수 없습니다.")
+    LLM_PROCESS_TIMEOUT = ("LLM_004", 504, "LLM 처리 시간이 초과되었습니다.")
 
     # ── 요약 결과 (SUM) ──────────────────────────────────────────────────────
     SUM_NOT_FOUND = ("SUM_001", 404, "요약을 찾을 수 없습니다.")
@@ -108,6 +113,21 @@ class ErrorCode(Enum):
         "허용되지 않은 도메인입니다. 등록 가능한 판례 사이트의 URL만 입력해주세요.",
     )
 
+    # ── 채팅 (CHAT) ──────────────────────────────────────────────────────────
+    CHAT_ROOM_NOT_FOUND = ("CHAT_001", 404, "채팅방을 찾을 수 없습니다.")
+    CHAT_UNAUTHORIZED = ("CHAT_002", 403, "채팅방에 대한 접근 권한이 없습니다.")
+    CHAT_FILE_PARSE_FAILED = ("CHAT_003", 500, "채팅 파일 파싱 중 오류가 발생했습니다.")
+    CHAT_HISTORY_LOAD_FAILED = ("CHAT_004", 500, "대화 기록을 불러오는 중 오류가 발생했습니다.")
+
+    # ── 워크스페이스 (GROUP) ─────────────────────────────────────────────────
+    GROUP_NOT_FOUND = ("GROUP_001", 404, "워크스페이스를 찾을 수 없습니다.")
+    GROUP_OWNER_LIMIT = ("GROUP_002", 409, "이미 소유한 워크스페이스가 있습니다.")
+    GROUP_NOT_PREMIUM = ("GROUP_003", 403, "프리미엄 구독이 필요합니다.")
+    GROUP_NOT_OWNER = ("GROUP_004", 403, "워크스페이스 소유자만 가능합니다.")
+    GROUP_ALREADY_DELETE_PENDING = ("GROUP_005", 409, "이미 삭제 요청된 워크스페이스입니다.")
+    GROUP_NOT_DELETE_PENDING = ("GROUP_006", 400, "삭제 요청 상태가 아닙니다.")
+    GROUP_RESTORE_OWNER_LIMIT = ("GROUP_007", 409, "이미 소유한 활성 워크스페이스가 있어 복구할 수 없습니다.")
+
     @property
     def code(self) -> str:
         return self.value[0]
@@ -119,12 +139,3 @@ class ErrorCode(Enum):
     @property
     def message(self) -> str:
         return self.value[2]
-
-    # ── 워크스페이스 (GROUP) ─────────────────────────────────────────────────
-    GROUP_NOT_FOUND = ("GROUP_001", 404, "워크스페이스를 찾을 수 없습니다.")
-    GROUP_OWNER_LIMIT = ("GROUP_002", 409, "이미 소유한 워크스페이스가 있습니다.")
-    GROUP_NOT_PREMIUM = ("GROUP_003", 403, "프리미엄 구독이 필요합니다.")
-    GROUP_NOT_OWNER = ("GROUP_004", 403, "워크스페이스 소유자만 가능합니다.")
-    GROUP_ALREADY_DELETE_PENDING = ("GROUP_005", 409, "이미 삭제 요청된 워크스페이스입니다.")
-    GROUP_NOT_DELETE_PENDING = ("GROUP_006", 400, "삭제 요청 상태가 아닙니다.")
-    GROUP_RESTORE_OWNER_LIMIT = ("GROUP_007", 409, "이미 소유한 활성 워크스페이스가 있어 복구할 수 없습니다.")
