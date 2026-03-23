@@ -12,6 +12,10 @@ from models.model import (
     GroupStatus,
     MembershipRole,
     MembershipStatus,
+    Subscription,
+    SubscriptionPlan,
+    SubscriptionStatus,
+    User,
     utc_now_naive,
 )
 
@@ -49,7 +53,13 @@ class GroupRepository:
 
     def get_group_by_id(self, group_id:int) -> Optional[Group]:
         """그룹 단순 조회 (권한 체크 x)"""
-        return self.db.query(Group).filter(Group.id == group_id).first()
+        return (
+            self.db.query(Group)
+            .join(Group.owner)
+            .filter(Group.id == group_id)
+            .options(contains_eager(Group.owner))
+            .first()
+        )
     
 
     def get_my_groups(self, user_id: int) -> list[tuple[Group, MembershipRole]]:
@@ -143,3 +153,129 @@ class GroupRepository:
         group.delete_scheduled_at = None
 
         return group
+    
+
+
+    def get_members(self, group_id: int) -> list[tuple[GroupMember, User]]:
+        """ACTIVE 멤버 목록 조회(유저 정보 포함)"""
+        return (
+            self.db.query(GroupMember, User)
+            .join(User, User.id == GroupMember.user_id)
+            .filter(
+                GroupMember.group_id == group_id,
+                GroupMember.status == MembershipStatus.ACTIVE,
+            )
+            .order_by(GroupMember.joined_at.asc())
+            .all()
+        )
+    
+    
+    def get_active_member(self, user_id: int, group_id: int) -> Optional[GroupMember]:
+        """ACTIVE 멤버만 단건 조회 (권한 체크용)"""
+        return (
+            self.db.query(GroupMember)
+            .filter(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id == user_id,
+                GroupMember.status == MembershipStatus.ACTIVE,
+            )
+            .first()
+        )
+    
+
+    def get_invited_members(self, group_id: int) -> list[tuple[GroupMember, User]]:
+        """INVITED 멤버 목록 조회(유저 정보 포함)"""
+        return (
+            self.db.query(GroupMember, User)
+            .join(User, User.id == GroupMember.user_id)
+            .filter(
+                GroupMember.group_id == group_id,
+                GroupMember.status == MembershipStatus.INVITED,
+            )
+            .order_by(GroupMember.joined_at.asc())
+            .all()
+        )
+    
+
+    def get_invited_member(self, user_id: int, group_id: int) -> Optional[GroupMember]:
+        """INVITED 멤버 단건 조회"""
+        return (
+            self.db.query(GroupMember)
+            .filter(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id == user_id,
+                GroupMember.status == MembershipStatus.INVITED,
+            )
+            .first()
+        )
+    
+
+    def invite_member(self, user_id: int, group_id: int, inviter_id: int, role: MembershipRole) -> GroupMember:
+        """멤버 추가"""
+        membership = GroupMember(
+            user_id=user_id,
+            group_id=group_id,
+            role=role,
+            status=MembershipStatus.INVITED,
+            invited_by_user_id=inviter_id,
+            invited_at=utc_now_naive(),
+            joined_at=None,     
+        )
+        self.db.add(membership)
+        return membership
+
+
+    def accept_invite(self, membership: GroupMember) -> GroupMember:
+        """초대 수락"""
+        membership.status = MembershipStatus.ACTIVE
+        membership.joined_at = utc_now_naive()
+        return membership
+    
+
+    def decline_invite(self, membership: GroupMember) -> None:
+        """초대 거절"""
+        membership.status = MembershipStatus.REMOVED
+        membership.removed_at = utc_now_naive()
+
+
+    def is_premium(self, user_id: int) -> bool:
+        """프리미엄 플랜 체크"""
+        sub = (
+            self.db.query(Subscription)
+            .filter(
+                Subscription.user_id == user_id,
+                Subscription.plan == SubscriptionPlan.PREMIUM,
+                Subscription.status == SubscriptionStatus.ACTIVE,
+            )
+            .first()
+        )
+        return sub is not None
+
+
+    def remove_member(self, membership: GroupMember) -> None:
+        """멤버 삭제"""
+        membership.status = MembershipStatus.REMOVED
+        membership.removed_at = utc_now_naive()
+
+
+    def change_member_role(self, membership: GroupMember, role: MembershipRole) -> GroupMember:   
+        """권한 변경"""
+        membership.role = role
+        return membership
+
+
+    def get_user_by_username(self, username: str) -> Optional[User]:
+        """유저명으로 유저 조회"""
+        return self.db.query(User).filter(User.username == username).first()
+        
+
+    def get_member_any_status(self, user_id: int, group_id: int) -> Optional[GroupMember]:
+        """REMOVED 포함 모든 상태의 멤버십 조회 (재초대)"""
+        return (
+            self.db.query(GroupMember)
+            .filter(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id == user_id,
+            )
+            .first()
+        )
