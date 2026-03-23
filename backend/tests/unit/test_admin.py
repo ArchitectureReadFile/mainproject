@@ -36,7 +36,9 @@ from models.model import (
     User,
 )
 from routers.auth import get_current_user
-from services.auth_service import hash_password
+from services.auth_service import AuthService
+
+auth_service = AuthService()
 
 # ── 픽스처 ────────────────────────────────────────────────────────────────────
 
@@ -51,7 +53,7 @@ def _make_user(
     user = User(
         email=email,
         username=username,
-        password=hash_password("password123!"),
+        password=auth_service.hash_password("password123!"),
         role=role,
         is_active=is_active,
     )

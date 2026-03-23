@@ -16,7 +16,9 @@ from main import app
 from models.model import Document, Summary, User
 from redis_client import redis_client
 from routers.auth import get_current_user
-from services.auth_service import create_access_token, hash_password
+from services.auth_service import AuthService
+
+auth_service = AuthService()
 from tests.dummy_data import documents, summaries, users
 
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
@@ -64,12 +66,10 @@ def client(db_session):
     with TestClient(app, base_url="http://testserver") as test_client:
         yield test_client
     app.dependency_overrides.clear()
-
-
 @pytest.fixture
 def registered_user(db_session):
     user_data = users[0].copy()
-    user_data["password"] = hash_password(user_data["password"])
+    user_data["password"] = auth_service.hash_password(user_data["password"])
     user = User(**user_data)
     db_session.add(user)
     db_session.commit()
@@ -83,7 +83,7 @@ def authenticated_client(client, db_session):
     # 유저 등록
     for user_data in users:
         u = user_data.copy()
-        u["password"] = hash_password(u["password"])
+        u["password"] = auth_service.hash_password(u["password"])
         db_session.add(User(**u))
     # 문서 + 요약 삽입
     for d in documents:
@@ -92,7 +92,7 @@ def authenticated_client(client, db_session):
         db_session.add(Summary(**s))
     db_session.commit()
 
-    token = create_access_token(users[0]["email"])
+    token = auth_service.create_access_token(users[0]["email"])
     client.cookies.set("access_token", token)
     return client
 
@@ -100,7 +100,7 @@ def authenticated_client(client, db_session):
 @pytest.fixture
 def logged_in_user(request, db_session):
     user_data = request.param.copy()
-    user_data["password"] = hash_password(user_data["password"])
+    user_data["password"] = auth_service.hash_password(user_data["password"])
     user = User(**user_data)
     db_session.add(user)
     db_session.commit()
@@ -117,12 +117,13 @@ def logged_in_user(request, db_session):
 @pytest.fixture
 def registered_admin(db_session):
     user_data = users[1].copy()
-    user_data["password"] = hash_password(user_data["password"])
+    user_data["password"] = auth_service.hash_password(user_data["password"])
     user = User(**user_data)
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
     return user
+
 
 
 @pytest.fixture
