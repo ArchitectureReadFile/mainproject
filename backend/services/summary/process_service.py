@@ -16,25 +16,12 @@ from models.model import DocumentStatus
 from repositories.document_repository import DocumentRepository
 from repositories.summary_repository import SummaryRepository
 from services.summary.llm_service import LLMService
-from services.summary.metadata_parser import MetadataParser
-from services.upload_session_service import UploadSessionService
+from services.summary.summary_mapper import build_upload_session_summary
+from services.upload.session_service import UploadSessionService
 
 logger = logging.getLogger(__name__)
 
-_TEXT_FIELDS = {
-    "summary_main",
-    "facts",
-    "judgment_order",
-    "judgment_reason",
-}
-_META_FIELDS = (
-    "case_number",
-    "case_name",
-    "court_name",
-    "judgment_date",
-    "plaintiff",
-    "defendant",
-)
+_TEXT_FIELDS = {"summary_text", "document_type"}
 
 MIN_TEXT_LENGTH = 200
 
@@ -51,7 +38,6 @@ def _get_ocr_instance() -> PaddleOCR:
 class ProcessService:
     def __init__(self):
         self.llm = LLMService()
-        self.metadata_parser = MetadataParser()
         self.upload_session_service = UploadSessionService()
 
     def extract_pages_from_bytes(self, file_bytes: bytes) -> list[str]:
@@ -118,34 +104,23 @@ class ProcessService:
     def is_text_too_short(self, text: str) -> bool:
         return len(text.strip()) < MIN_TEXT_LENGTH
 
-    def _build_title(self, parsed_meta: dict, file_path: str) -> str:
-        """법원명 + 사건번호로 제목을 생성합니다. 없으면 파일명으로 대체합니다."""
-        court = parsed_meta.get("court_name")
-        case_number = parsed_meta.get("case_number")
-        if court and case_number:
-            return f"{court} {case_number}"
-        if case_number:
-            return case_number
-        return os.path.basename(file_path)
-
     def _normalize_summary_data(self, data: dict) -> dict:
         """LLM 응답의 타입을 DB 저장 가능한 형태로 정규화합니다."""
         normalized = {}
         for key, value in data.items():
             if value is None or value == "" or str(value).strip().lower() == "null":
                 normalized[key] = None
-            elif key == "related_laws":
-                normalized[key] = (
-                    ", ".join(str(v).strip() for v in value if v)
-                    if isinstance(value, list)
-                    else str(value).strip() or None
-                )
             elif key in _TEXT_FIELDS:
-                normalized[key] = (
-                    "\n".join(str(v).strip() for v in value if v)
-                    if isinstance(value, list)
-                    else str(value).strip() or None
-                )
+                normalized[key] = str(value).strip() or None
+            elif key == "key_points":
+                if isinstance(value, list):
+                    normalized[key] = [str(v).strip() for v in value if str(v).strip()]
+                else:
+                    normalized[key] = [
+                        line.strip().lstrip("-").lstrip("•").strip()
+                        for line in str(value).splitlines()
+                        if line.strip()
+                    ]
             else:
                 normalized[key] = value
         return normalized
@@ -172,31 +147,23 @@ class ProcessService:
             if self.is_text_too_short("\n".join(pages)):
                 raise AppException(ErrorCode.DOC_PDF_TEXT_TOO_SHORT)
 
-            parsed_meta = self.metadata_parser.parse(pages)
             raw_data = self.llm.summarize(pages)
             summary_data = self._normalize_summary_data(raw_data)
 
-            # MetadataParser 결과로 메타 필드 덮어쓰기 (2글자 미만 쓰레기값 스킵)
-            for field in _META_FIELDS:
-                parsed_value = parsed_meta.get(field)
-                if parsed_value is not None and len(str(parsed_value).strip()) >= 2:
-                    summary_data[field] = parsed_value
+            metadata = {"source": "group_document_summary"}
+            if summary_data.get("document_type"):
+                metadata["document_type"] = summary_data["document_type"]
 
             summary_repo = SummaryRepository(db)
             summary_repo.create_summary(
                 document_id=document_id,
-                title=self._build_title(parsed_meta, file_path),
-                case_number=summary_data.get("case_number"),
-                case_name=summary_data.get("case_name"),
-                court_name=summary_data.get("court_name"),
-                judgment_date=summary_data.get("judgment_date"),
-                summary_main=summary_data.get("summary_main"),
-                plaintiff=summary_data.get("plaintiff"),
-                defendant=summary_data.get("defendant"),
-                facts=summary_data.get("facts"),
-                judgment_order=summary_data.get("judgment_order"),
-                judgment_reason=summary_data.get("judgment_reason"),
-                related_laws=summary_data.get("related_laws"),
+                summary_text=summary_data.get("summary_text"),
+                key_points=(
+                    "\n".join(summary_data.get("key_points", []))
+                    if summary_data.get("key_points")
+                    else None
+                ),
+                metadata=metadata,
             )
 
             repository.update_status(document_id, DocumentStatus.DONE)
@@ -207,13 +174,7 @@ class ProcessService:
                 self.upload_session_service.mark_document_done(
                     document.uploader_user_id,
                     document_id,
-                    {
-                        "case_number": summary_data.get("case_number") or "-",
-                        "court": summary_data.get("court_name") or "-",
-                        "date": summary_data.get("judgment_date"),
-                        "content": summary_data.get("summary_main")
-                        or "요약 내용이 없습니다.",
-                    },
+                    build_upload_session_summary(summary_data),
                 )
 
         except Exception as e:

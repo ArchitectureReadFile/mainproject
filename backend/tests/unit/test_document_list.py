@@ -21,15 +21,17 @@ def test_list_documents_normal(client, logged_in_user, seed_documents):
 # TC-011-02 두 번째 페이지 조회(skip=5, limit=5)
 @pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
 def test_list_documents_second_page(client, db_session, logged_in_user, seed_documents):
-    # seed_documents: user_id=1 문서 1건 포함
-    # 추가 6건 삽입 → user_id=1 총 7건
+    # seed_documents: uploader_user_id=1 문서 1건 포함
+    # 추가 6건 삽입 → uploader_user_id=1 총 7건
     for i in range(6):
         db_session.add(
             Document(
                 id=200 + i,
-                user_id=logged_in_user.id,
-                document_url=f"https://s3.example.com/extra_{i}.pdf",
-                status=DocumentStatus.DONE,
+                group_id=1,
+                uploader_user_id=logged_in_user.id,
+                original_filename=f"extra_{i}.pdf",
+                stored_path=f"/tmp/test_docs/extra_{i}.pdf",
+                processing_status=DocumentStatus.DONE,
             )
         )
     db_session.commit()

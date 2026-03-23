@@ -14,13 +14,13 @@ import {
 
 export function useUploadQueue({
   fileInputRef,
+  groupId,
   items,
   setItems,
   isRunning,
   setIsRunning,
   setIsDragOver,
   stopRequestedRef,
-  pollingDocIdsRef,
   resetLocalState,
 }) {
   const updateItem = useCallback((file, patch) => {
@@ -142,6 +142,10 @@ export function useUploadQueue({
 
   const handleUpload = useCallback(async () => {
     if (isRunning) return
+    if (!groupId) {
+      toast.error('업로드할 워크스페이스 정보를 확인할 수 없습니다.')
+      return
+    }
 
     const waitingOnly = items.filter((it) => it.status === 'waiting')
     if (waitingOnly.length === 0) return
@@ -162,7 +166,7 @@ export function useUploadQueue({
     for (const it of waitingOnly) {
       if (stopRequestedRef.current) break
       try {
-        const uploadData = await uploadDocumentApi(it.file)
+        const uploadData = await uploadDocumentApi(it.file, groupId)
         const docId = uploadData.document_ids[0]
         updateItem(it.file, { docId })
       } catch (err) {
@@ -172,14 +176,13 @@ export function useUploadQueue({
         })
       }
     }
-  }, [isRunning, items, setItems, setIsRunning, stopRequestedRef, updateItem])
+  }, [groupId, isRunning, items, setItems, setIsRunning, stopRequestedRef, updateItem])
 
   const clearSession = useCallback(() => {
     clearUploadSessionApi().catch(() => {})
     stopRequestedRef.current = true
-    pollingDocIdsRef.current.clear()
     resetLocalState()
-  }, [pollingDocIdsRef, resetLocalState, stopRequestedRef])
+  }, [resetLocalState, stopRequestedRef])
 
   return {
     handleFileChange,

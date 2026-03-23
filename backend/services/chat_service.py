@@ -1,7 +1,7 @@
 import json
 import os
+
 import requests
-from sqlalchemy.orm import Session
 from redis import Redis
 from models.model import ChatSession, ChatMessage, ChatMessageRole, Document, GroupMember
 from prompts.chat_prompt import CHAT_SYSTEM_PROMPT, CHAT_SUMMARY_PROMPT

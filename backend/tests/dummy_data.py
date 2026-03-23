@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 # -------------------------------------------------------------------
@@ -23,18 +24,39 @@ users = [
     },
 ]
 
+groups = [
+    {
+        "id": 1,
+        "owner_user_id": 1,
+        "name": "테스트 워크스페이스",
+        "description": "문서 테스트용 그룹",
+        "status": "ACTIVE",
+    },
+    {
+        "id": 2,
+        "owner_user_id": 2,
+        "name": "관리자 워크스페이스",
+        "description": "관리자 문서 테스트용 그룹",
+        "status": "ACTIVE",
+    },
+]
+
 documents = [
     {
         "id": 101,
-        "user_id": 1,
-        "document_url": "https://s3.example.com/docs/doc_101.pdf",
-        "status": "DONE",
+        "group_id": 1,
+        "uploader_user_id": 1,
+        "original_filename": "doc_101.pdf",
+        "stored_path": "/tmp/test_docs/doc_101.pdf",
+        "processing_status": "DONE",
     },
     {
         "id": 102,
-        "user_id": 2,
-        "document_url": "https://s3.example.com/docs/doc_102.pdf",
-        "status": "PROCESSING",
+        "group_id": 2,
+        "uploader_user_id": 2,
+        "original_filename": "doc_102.pdf",
+        "stored_path": "/tmp/test_docs/doc_102.pdf",
+        "processing_status": "PROCESSING",
     },
 ]
 
@@ -42,18 +64,20 @@ summaries = [
     {
         "id": 1,
         "document_id": 101,
-        "case_number": "2023다12345",
-        "case_name": "손해배상(기)",
-        "court_name": "대법원",
-        "judgment_date": date(2023, 10, 1),
-        "summary_title": "손해배상 청구 사건 요약",
-        "summary_main": "본 사건은 불법행위로 인한 손해배상 청구에 관한 대법원 판결입니다.",
-        "plaintiff": "홍길동",
-        "defendant": "김철수",
-        "facts": "피고는 원고에게 폭행을 가하여 상해를 입혔음.",
-        "judgment_order": "피고는 원고에게 금 10,000,000원을 지급하라.",
-        "judgment_reason": "증거에 비추어 볼 때 피고의 불법행위가 인정됨.",
-        "related_laws": "민법 제750조",
+        "summary_text": "원고가 불법행위로 인한 손해배상을 청구한 사건으로, 검토자는 사실관계와 손해배상 인정 범위를 먼저 확인할 필요가 있습니다.",
+        "key_points": "불법행위 성립 여부가 핵심 쟁점입니다.\n손해배상 인정 범위와 액수를 확인해야 합니다.\n판단 근거가 되는 증거 관계를 우선 검토해야 합니다.",
+        "metadata_json": json.dumps(
+            {
+                "document_type": "판결문",
+                "case_number": "2023다12345",
+                "case_name": "손해배상(기)",
+                "court_name": "대법원",
+                "judgment_date": str(date(2023, 10, 1)),
+                "plaintiff": "홍길동",
+                "defendant": "김철수",
+            },
+            ensure_ascii=False,
+        ),
     }
 ]
 

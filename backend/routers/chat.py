@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, Form, UploadFile, File, status
 from typing import List
 from sqlalchemy.orm import Session
-from redis import Redis
 
 from dependencies import get_chat_service, get_current_user, get_db, get_redis
 from services.chat_service import ChatService

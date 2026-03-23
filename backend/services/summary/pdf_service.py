@@ -13,10 +13,13 @@ from sqlalchemy.orm import Session
 
 from errors import AppException, ErrorCode
 from repositories.summary_repository import SummaryRepository
+from services.summary.summary_mapper import get_key_points, get_summary_field
 
 logger = logging.getLogger(__name__)
 
-FONT_PATH = os.path.join(os.path.dirname(__file__), "..", "fonts", "NanumMyeongjo.ttf")
+FONT_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "fonts", "NanumMyeongjo.ttf")
+)
 pdfmetrics.registerFont(TTFont("NanumMyeongjo", FONT_PATH))
 
 
@@ -58,23 +61,16 @@ class PdfService:
         )
 
         story = []
-        story.append(Paragraph(summary.summary_title or "판례 요약", title_style))
+        story.append(Paragraph("문서 요약", title_style))
         story.append(Spacer(1, 6 * mm))
 
         meta_data = [
             [
-                "사건번호",
-                summary.case_number or "-",
-                "법원명",
-                summary.court_name or "-",
+                "문서 유형",
+                get_summary_field(summary, "document_type") or "-",
+                "생성일",
+                str(summary.created_at.date()),
             ],
-            [
-                "사건명",
-                summary.case_name or "-",
-                "판결일자",
-                str(summary.judgment_date) if summary.judgment_date else "-",
-            ],
-            ["원고", summary.plaintiff or "-", "피고", summary.defendant or "-"],
         ]
         meta_table = Table(meta_data, colWidths=[25 * mm, 65 * mm, 25 * mm, 55 * mm])
         meta_table.setStyle(
@@ -94,18 +90,26 @@ class PdfService:
         story.append(Spacer(1, 6 * mm))
 
         sections = [
-            ("■ 요약", summary.summary_main),
-            ("■ 사실관계", summary.facts),
-            ("■ 판결주문", summary.judgment_order),
-            ("■ 판결이유", summary.judgment_reason),
-            ("■ 관련법령", summary.related_laws),
+            (
+                "■ 요약",
+                get_summary_field(summary, "summary_text") or summary.summary_text,
+            )
         ]
         for section_title, content in sections:
             story.append(Paragraph(section_title, section_style))
             story.append(Paragraph(content or "-", body_style))
             story.append(Spacer(1, 3 * mm))
 
+        story.append(Paragraph("■ 핵심 포인트", section_style))
+        key_points = get_key_points(summary)
+        if key_points:
+            for point in key_points:
+                story.append(Paragraph(f"• {point}", body_style))
+        else:
+            story.append(Paragraph("-", body_style))
+        story.append(Spacer(1, 3 * mm))
+
         doc.build(story)
         buffer.seek(0)
 
-        return buffer, summary.case_number or str(summary_id)
+        return buffer, str(summary_id)

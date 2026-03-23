@@ -12,13 +12,12 @@ import { makeRestoredItem } from '../uploadState.js'
 
 const UploadContext = createContext(null)
 
-export function UploadProvider({ children }) {
+export function UploadProvider({ children, groupId }) {
   const location = useLocation()
   const { user } = useAuth()
   const fileInputRef = useRef(null)
   const isRunningRef = useRef(false)
   const stopRequestedRef = useRef(false)
-  const pollingDocIdsRef = useRef(new Set())
 
   const [items, setItems] = useState([])
   const [isDragOver, setIsDragOver] = useState(false)
@@ -76,13 +75,13 @@ export function UploadProvider({ children }) {
     clearSession,
   } = useUploadQueue({
     fileInputRef,
+    groupId,
     items,
     setItems,
     isRunning,
     setIsRunning,
     setIsDragOver,
     stopRequestedRef,
-    pollingDocIdsRef,
     resetLocalState,
   })
 

@@ -13,7 +13,7 @@ from sqlalchemy.pool import StaticPool
 import database
 from database import Base, get_db
 from main import app
-from models.model import Document, Summary, User
+from models.model import Document, Group, Summary, User
 from redis_client import redis_client
 from routers.auth import get_current_user
 from services.auth_service import AuthService
@@ -85,6 +85,8 @@ def authenticated_client(client, db_session):
         u = user_data.copy()
         u["password"] = auth_service.hash_password(u["password"])
         db_session.add(User(**u))
+    for group_data in groups:
+        db_session.add(Group(**group_data))
     # 문서 + 요약 삽입
     for d in documents:
         db_session.add(Document(**d))
@@ -128,13 +130,16 @@ def registered_admin(db_session):
 
 @pytest.fixture
 def seed_documents(db_session):
+    group_objects = [Group(**g) for g in groups]
     doc_objects = [Document(**d) for d in documents]
     sum_objects = [Summary(**s) for s in summaries]
+    for obj in group_objects:
+        db_session.add(obj)
     for obj in doc_objects:
         db_session.add(obj)
     for obj in sum_objects:
         db_session.add(obj)
     db_session.commit()
-    for obj in doc_objects + sum_objects:
+    for obj in group_objects + doc_objects + sum_objects:
         db_session.refresh(obj)
-    return {"documents": doc_objects, "summaries": sum_objects}
+    return {"groups": group_objects, "documents": doc_objects, "summaries": sum_objects}

@@ -1,3 +1,4 @@
+/* global WebSocket */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { chatApi } from '../api/chatApi.js';
 import { useAuth } from '@/features/auth/context/AuthContext';

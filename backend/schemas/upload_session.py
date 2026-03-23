@@ -7,11 +7,16 @@ class UploadSessionCreateRequest(BaseModel):
     file_names: List[str]
 
 
+class UploadSessionSummaryResponse(BaseModel):
+    content: str
+    key_points: List[str] = []
+
+
 class UploadSessionItemResponse(BaseModel):
     file_name: str
     status: str
     doc_id: Optional[int] = None
-    summary: Optional[dict] = None
+    summary: Optional[UploadSessionSummaryResponse] = None
     error: Optional[str] = None
     updated_at: str
 

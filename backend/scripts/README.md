@@ -20,6 +20,7 @@
 - `generate_precedent_source_batches.py`
   - 변환된 precedent seed 데이터를 1000건 단위 배치 파일로 나눕니다.
 
+
 ## 정리 원칙
 
 - 브라우저 자동화 실험용, 실패한 실행 경로, 중복 기능 스크립트는 유지하지 않습니다.
