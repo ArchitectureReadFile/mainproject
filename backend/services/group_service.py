@@ -32,7 +32,7 @@ class GroupService:
         
     # OWNER/ADMIN 권한 체크
     def _check_owner_or_admin(self, user_id: int, group_id: int):
-        member = self.repository.get_active_member(group_id, user_id)
+        member = self.repository.get_active_member(user_id, group_id)
         if not member or member.role not in (MembershipRole.OWNER, MembershipRole.ADMIN):
             raise AppException(ErrorCode.GROUP_NOT_ADMIN_OR_OWNER)
         return member     
@@ -194,12 +194,12 @@ class GroupService:
 
     # 멤버 초대
     def invite_member(self, group_id: int, inviter_id: int, username: str, role: MembershipRole) -> InvitedMemberResponse:
-        inviter_member = self._check_owner_or_admin(inviter_id, group_id)
+        self._check_owner_or_admin(inviter_id, group_id)
 
         group = self.repository.get_group_by_id(group_id)
 
         if group.status != GroupStatus.ACTIVE:
-            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+            raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
         
         # 멤버 확인
         target = self.repository.get_user_by_username(username)
@@ -208,7 +208,7 @@ class GroupService:
 
         # 본인 초대x
         if target.id == inviter_id:
-            raise AppException(ErrorCode.GROUP_TRANSFER_TO_SELF)
+            raise AppException(ErrorCode.GROUP_CANNOT_INVITE_SELF)
         
 
         # 이전 멤버였는지 체크(재초대)
@@ -265,7 +265,7 @@ class GroupService:
 
         # 본인 추방x
         if remover_id == target_id:
-            raise AppException(ErrorCode.GROUP_TRANSFER_TO_SELF)
+            raise AppException(ErrorCode.GROUP_CANNOT_REMOVE_SELF)
 
         target_membership = self.repository.get_active_member(target_id, group_id)
         if not target_membership:

@@ -137,3 +137,6 @@ class ErrorCode(Enum):
     GROUP_CANNOT_CHANGE_SELF_ROLE = ("GROUP_014", 400, "본인의 권한은 변경할 수 없습니다.")
     GROUP_ADMIN_CANNOT_PROMOTE = ("GROUP_015", 403, "ADMIN은 ADMIN 이상의 권한을 부여할 수 없습니다.")
     GROUP_TRANSFER_TARGET_NOT_PREMIUM = ("GROUP_016", 403, "프리미엄 구독자에게만 오너를 양도할 수 있습니다.")  
+    GROUP_CANNOT_REMOVE_SELF = ("GROUP_017", 403, "자기 자신은 그룹에서 제거할 수 없습니다.")
+    GROUP_CANNOT_INVITE_SELF = ("GROUP_021", 403, "자기 자신은 그룹에 초대할 수 없습니다.")
+    GROUP_NOT_ACTIVE = ("GROUP_022", 400, "활성 상태의 그룹이 아닙니다.")
