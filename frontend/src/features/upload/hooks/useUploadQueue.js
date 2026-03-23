@@ -1,7 +1,6 @@
 /* global AbortController */
 
 import { useCallback, useRef } from 'react'
-import { fetchDocumentDetail } from '@/api/documents.js'
 import { toast } from 'sonner'
 import { uploadDocumentApi } from '../api/uploadApi.js'
 import {
@@ -10,8 +9,6 @@ import {
   MAX_FILES,
 } from '../uploadState.js'
 
-const POLL_INTERVAL_MS = 2000
-
 export function useUploadQueue({
   fileInputRef,
   groupId,
@@ -19,16 +16,11 @@ export function useUploadQueue({
   setItems,
   setIsDragOver,
 }) {
-  const pollTimersRef = useRef(new Map())
   const uploadControllersRef = useRef(new Map())
   const abortRequestedRef = useRef(false)
 
   const updateItem = useCallback((file, patch) => {
     setItems((prev) => prev.map((it) => (isSameFile(it, file) ? { ...it, ...patch } : it)))
-  }, [setItems])
-
-  const updateItemByDocId = useCallback((docId, patch) => {
-    setItems((prev) => prev.map((it) => (it.docId === docId ? { ...it, ...patch } : it)))
   }, [setItems])
 
   const addFiles = useCallback((newFiles) => {
@@ -93,59 +85,11 @@ export function useUploadQueue({
     setItems((prev) => prev.filter((it) => !isSameFile(it, fileObj)))
   }, [setItems])
 
-  const stopPolling = useCallback((docId) => {
-    const timer = pollTimersRef.current.get(docId)
-    if (timer) {
-      clearTimeout(timer)
-      pollTimersRef.current.delete(docId)
-    }
-  }, [])
-
   const isAbortError = useCallback((err) => (
     err?.code === 'ERR_CANCELED' ||
     err?.name === 'CanceledError' ||
     err?.name === 'AbortError'
   ), [])
-
-  const pollDocument = useCallback(async (docId) => {
-    try {
-      const detail = await fetchDocumentDetail(docId)
-      const status = detail.status?.toLowerCase()
-
-      if (status === 'pending') {
-        updateItemByDocId(docId, { summaryStatus: 'queued' })
-      } else if (status === 'processing') {
-        updateItemByDocId(docId, { summaryStatus: 'processing' })
-      } else if (status === 'done') {
-        updateItemByDocId(docId, {
-          summaryStatus: 'done',
-          summary: {
-            content: detail.summary_text,
-            key_points: detail.key_points ?? [],
-          },
-        })
-        stopPolling(docId)
-        return
-      } else if (status === 'failed') {
-        updateItemByDocId(docId, {
-          summaryStatus: 'failed',
-          error: '처리 중 오류가 발생했습니다.',
-        })
-        stopPolling(docId)
-        return
-      }
-
-      const timer = setTimeout(() => {
-        pollDocument(docId)
-      }, POLL_INTERVAL_MS)
-      pollTimersRef.current.set(docId, timer)
-    } catch {
-      const timer = setTimeout(() => {
-        pollDocument(docId)
-      }, POLL_INTERVAL_MS)
-      pollTimersRef.current.set(docId, timer)
-    }
-  }, [stopPolling, updateItemByDocId])
 
   const handleUpload = useCallback(async () => {
     if (!groupId) {
@@ -178,8 +122,6 @@ export function useUploadQueue({
           summaryStatus: 'queued',
           progress: 100,
         })
-        stopPolling(docId)
-        pollDocument(docId)
       } catch (err) {
         if (!isAbortError(err)) {
           updateItem(it.file, {
@@ -191,13 +133,9 @@ export function useUploadQueue({
         uploadControllersRef.current.delete(it.file)
       }
     }
-  }, [groupId, isAbortError, items, pollDocument, stopPolling, updateItem])
+  }, [groupId, isAbortError, items, updateItem])
 
   const resetUploadState = useCallback(() => {
-    for (const timer of pollTimersRef.current.values()) {
-      clearTimeout(timer)
-    }
-    pollTimersRef.current.clear()
     setItems([])
   }, [setItems])
 

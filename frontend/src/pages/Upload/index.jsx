@@ -60,19 +60,10 @@ function UploadPageInner() {
     loadStatusCounts()
   }, [loadStatusCounts])
 
-  useEffect(() => {
-    if (!groupId) return
-
-    const timer = setInterval(() => {
-      loadStatusCounts()
-    }, 3000)
-
-    return () => clearInterval(timer)
-  }, [groupId, loadStatusCounts])
-
   const handleStartUpload = async () => {
     setUploadModalOpen(true)
     await handleUpload()
+    await loadStatusCounts()
   }
 
   const handleCloseUploadModal = () => {
