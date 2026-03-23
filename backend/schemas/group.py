@@ -87,3 +87,13 @@ class MemberRoleChangeRequest(BaseModel):
 
 class OwnerTransferRequest(BaseModel):
     user_id: int
+
+
+class InvitationResponse(BaseModel):
+    """내가 초대받은 그룹 목록"""
+
+    group_id: int
+    group_name: str
+    owner_username: str
+    role: MembershipRole
+    invited_at: Optional[datetime] = None

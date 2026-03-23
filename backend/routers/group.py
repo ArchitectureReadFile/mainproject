@@ -9,6 +9,7 @@ from schemas.group import (
     GroupCreateRequest,
     GroupDetailResponse,
     GroupSummaryResponse,
+    InvitationResponse,
     InvitedMemberResponse,
     MemberInviteRequest,
     MemberListResponse,
@@ -46,6 +47,14 @@ def get_my_groups(
     service: GroupService = Depends(get_group_service),
 ):
     return service.get_my_groups(current_user.id)
+
+
+@router.get("/invitations", response_model=list[InvitationResponse])
+def get_my_invitations(
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    return service.get_my_invitations(current_user.id)
 
 
 # 그룹 상세

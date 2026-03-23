@@ -3,11 +3,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Input } from '@/components/ui/input'
-import { Calendar, LogOut, Mail } from 'lucide-react'
+import { Calendar, LogOut, Mail, Users } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { meApi } from '../../features/auth/api/authApi'
+import { getMyInvitations, acceptInvite, declineInvite } from '@/api/groups'
 
 
 export default function MypagePage() {
@@ -18,6 +19,9 @@ export default function MypagePage() {
   const [username, setUsername] = useState('')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const inputRef = useRef(null)
+  const [invitations, setInvitations] = useState([])
+  const [inviteError, setInviteError] = useState(null)
+  const [inviteLoading, setInviteLoading] = useState(true)
 
   const fetchUser = useCallback(async () => {
     try {
@@ -33,6 +37,40 @@ export default function MypagePage() {
   }, [navigate])
 
   useEffect(() => { fetchUser() }, [fetchUser])
+
+  const fetchInvitations = useCallback(async () => {
+      try {
+          const data = await getMyInvitations()
+          setInvitations(data)
+      } catch (e) {
+          setInviteError(e.message || '초대 목록을 불러오지 못했습니다.')
+      } finally {
+          setInviteLoading(false)
+      }
+  }, [])
+
+  useEffect(() => { fetchInvitations() }, [fetchInvitations])
+
+  const handleAccept = async (groupId) => {
+    try {
+      await acceptInvite(groupId)
+      setInvitations((prev) => prev.filter((i) => i.group_id !== groupId))
+      toast.success("초대를 수락했습니다.")
+    } catch (e) {
+      toast.error(e.message || "수락에 실패했습니다.")
+    }
+  }
+
+  const handleDecline = async (groupId) => {
+    try {
+      await declineInvite(groupId)
+      setInvitations((prev) => prev.filter((i) => i.group_id !== groupId))
+      toast.success("초대를 거절했습니다.")
+    } catch (e) {
+      toast.error(e.message || "거절에 실패했습니다.")
+    }
+  }
+
 
   const handleUpdateUsername = async () => {
     try {
@@ -114,6 +152,45 @@ export default function MypagePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* 초대 목록 */}
+      {inviteError && (
+          <Card>
+              <CardContent className="pt-6 text-sm text-destructive">{inviteError}</CardContent>
+          </Card>
+      )}
+      {inviteLoading ? null : invitations.length > 0 && (
+          <Card>
+              <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      받은 초대
+                  </CardTitle>
+                  <CardDescription>워크스페이스 초대 요청입니다.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                  {invitations.map((inv) => (
+                      <div key={inv.group_id} className="flex items-center justify-between rounded-lg border p-3">
+                          <div>
+                              <p className="text-sm font-medium">{inv.group_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                  {inv.owner_username} · {inv.role}
+                                  {inv.invited_at && ` · ${new Date(inv.invited_at).toLocaleDateString('ko-KR')}`}
+                              </p>
+                          </div>
+                          <div className="flex gap-2">
+                              <Button size="sm" onClick={() => handleAccept(inv.group_id)}>
+                                  수락
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => handleDecline(inv.group_id)}>
+                                  거절
+                              </Button>
+                          </div>
+                      </div>
+                  ))}
+              </CardContent>
+          </Card>
+      )}
 
       {/* 계정 설정 */}
       <Card>

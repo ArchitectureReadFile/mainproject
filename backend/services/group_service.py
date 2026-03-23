@@ -6,6 +6,7 @@ from repositories.group_repository import GroupRepository
 from schemas.group import (
     GroupDetailResponse,
     GroupSummaryResponse,
+    InvitationResponse,
     InvitedMemberResponse,
     MemberListResponse,
     MemberResponse,
@@ -204,6 +205,20 @@ class GroupService:
         ]
 
         return MemberListResponse(members=members, invited=invited)
+
+    def get_my_invitations(self, user_id: int) -> list[InvitationResponse]:
+        rows = self.repository.get_my_invitations(user_id)
+
+        return [
+            InvitationResponse(
+                group_id=group.id,
+                group_name=group.name,
+                owner_username=group.owner.username,
+                role=membership.role,
+                invited_at=membership.invited_at,
+            )
+            for membership, group in rows
+        ]
 
     # 멤버 초대
     def invite_member(
