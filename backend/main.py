@@ -15,16 +15,14 @@ from routers.group import router as group_router
 from routers.search import router as search_router
 from routers.summarize import router as summarize_router
 from routers.ws import router as ws_router
-
+from routers.chat import router as chat_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     yield
 
-
 app = FastAPI(title="Team Project API", lifespan=lifespan, redirect_slashes=False)
-
 
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException):
@@ -32,7 +30,6 @@ async def app_exception_handler(request: Request, exc: AppException):
         status_code=exc.status_code,
         content={"code": exc.code, "message": exc.message},
     )
-
 
 cors_origins = os.getenv(
     "CORS_ALLOW_ORIGINS",
@@ -48,11 +45,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.get("/api/health")
 def health_check():
     return {"status": "ok"}
-
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
@@ -62,3 +57,4 @@ app.include_router(email_router, prefix="/api")
 app.include_router(ws_router, prefix="/api")
 app.include_router(group_router, prefix="/api")
 app.include_router(search_router, prefix="/api")
+app.include_router(chat_router, prefix="/api")
