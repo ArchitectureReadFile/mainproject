@@ -2,27 +2,27 @@ import client from '../../../api/client.js';
 
 export const chatApi = {
     getRooms: async () => {
-        const response = await client.get('/chat/rooms');
+        const response = await client.get('/chat/sessions');
         return response.data;
     },
 
     createRoom: async (data) => {
-        const response = await client.post('/chat/rooms', data);
+        const response = await client.post('/chat/sessions', data);
         return response.data;
     },
 
     updateRoom: async (sessionId, data) => {
-        const response = await client.put(`/chat/rooms/${sessionId}`, data);
+        const response = await client.put(`/chat/sessions/${sessionId}`, data);
         return response.data;
     },
 
     deleteRoom: async (sessionId) => {
-        const response = await client.delete(`/chat/rooms/${sessionId}`);
+        const response = await client.delete(`/chat/sessions/${sessionId}`);
         return response.data;
     },
 
     getMessages: async (sessionId) => {
-        const response = await client.get(`/chat/rooms/${sessionId}/messages`);
+        const response = await client.get(`/chat/sessions/${sessionId}/messages`);
         return response.data;
     },
 
@@ -39,7 +39,7 @@ export const chatApi = {
             formData.append('document_id', doc.id);
         }
 
-        const response = await client.post(`/chat/rooms/${sessionId}/messages`, formData, {
+        const response = await client.post(`/chat/sessions/${sessionId}/messages`, formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
