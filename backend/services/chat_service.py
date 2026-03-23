@@ -3,6 +3,7 @@ import os
 
 import requests
 from redis import Redis
+from sqlalchemy.orm import Session
 from models.model import ChatSession, ChatMessage, ChatMessageRole, Document, GroupMember
 from prompts.chat_prompt import CHAT_SYSTEM_PROMPT, CHAT_SUMMARY_PROMPT
 from services.summary.process_service import ProcessService
