@@ -38,10 +38,19 @@ class DocumentService:
         user_role,
         view_type="all",
         category="전체",
+        group_id=None,
     ):
         limit = min(limit, 50)
         documents, total = self.repository.get_list(
-            skip, limit, keyword, status, user_id, user_role, view_type, category
+            skip,
+            limit,
+            keyword,
+            status,
+            user_id,
+            user_role,
+            view_type,
+            category,
+            group_id,
         )
 
         results: list[DocumentListItemResponse] = []

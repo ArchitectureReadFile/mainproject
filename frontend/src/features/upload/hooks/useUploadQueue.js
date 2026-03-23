@@ -1,11 +1,8 @@
-import { useCallback } from 'react'
+/* global AbortController */
+
+import { useCallback, useRef } from 'react'
 import { toast } from 'sonner'
-import {
-  cancelUploadItemApi,
-  clearUploadSessionApi,
-  createUploadSessionApi,
-  uploadDocumentApi,
-} from '../api/uploadSessionApi.js'
+import { uploadDocumentApi } from '../api/uploadApi.js'
 import {
   isSameFile,
   makeItem,
@@ -17,43 +14,48 @@ export function useUploadQueue({
   groupId,
   items,
   setItems,
-  isRunning,
-  setIsRunning,
   setIsDragOver,
-  stopRequestedRef,
-  resetLocalState,
 }) {
+  const uploadControllersRef = useRef(new Map())
+  const abortRequestedRef = useRef(false)
+
   const updateItem = useCallback((file, patch) => {
     setItems((prev) => prev.map((it) => (isSameFile(it, file) ? { ...it, ...patch } : it)))
   }, [setItems])
 
-  const updateItemByDocId = useCallback((docId, patch) => {
-    setItems((prev) => prev.map((it) => (it.docId === docId ? { ...it, ...patch } : it)))
-  }, [setItems])
-
   const addFiles = useCallback((newFiles) => {
-    if (isRunning) return
-
     const pdfs = newFiles.filter((f) => f.type === 'application/pdf')
     if (pdfs.length !== newFiles.length) toast.error('PDF 파일만 업로드 가능합니다.')
 
     setItems((prev) => {
+      const occupiedCount = prev.filter((it) =>
+        it.uploadStatus === 'waiting' ||
+        it.uploadStatus === 'uploading' ||
+        it.summaryStatus === 'queued' ||
+        it.summaryStatus === 'processing'
+      ).length
+      if (occupiedCount >= MAX_FILES) {
+        toast.warning(`진행 중인 파일은 최대 ${MAX_FILES}개까지 유지할 수 있습니다.`)
+        return prev
+      }
+
       const existingNames = new Set(
-        prev.filter((it) => it.status !== 'failed').map((it) => it.file.name)
+        prev
+          .filter((it) => it.uploadStatus !== 'upload_failed' && it.summaryStatus !== 'failed')
+          .map((it) => it.file.name)
       )
       const deduped = pdfs.filter((f) => !existingNames.has(f.name))
       if (deduped.length !== pdfs.length) toast.warning('이미 추가된 파일은 제외되었습니다.')
 
-      const waiting = prev.filter((it) => it.status === 'waiting')
-      const combined = [...waiting, ...deduped.map(makeItem)]
-      if (combined.length > MAX_FILES) toast.warning(`최대 ${MAX_FILES}개까지 업로드 가능합니다.`)
+      const availableSlots = MAX_FILES - occupiedCount
+      const limited = deduped.slice(0, availableSlots)
+      if (limited.length !== deduped.length) toast.warning(`진행 중인 파일은 최대 ${MAX_FILES}개까지 유지할 수 있습니다.`)
 
-      const doneOrFailed = prev.filter((it) => it.status === 'done' || it.status === 'failed')
-      return [...doneOrFailed, ...combined.slice(0, MAX_FILES)]
+      return [...prev, ...limited.map(makeItem)]
     })
 
     if (fileInputRef.current) fileInputRef.current.value = ''
-  }, [fileInputRef, isRunning, setItems])
+  }, [fileInputRef, setItems])
 
   const handleFileChange = useCallback((e) => {
     addFiles(Array.from(e.target.files || []))
@@ -62,13 +64,13 @@ export function useUploadQueue({
   const handleDrop = useCallback((e) => {
     e.preventDefault()
     setIsDragOver(false)
-    if (!isRunning) addFiles(Array.from(e.dataTransfer.files || []))
-  }, [addFiles, isRunning, setIsDragOver])
+    addFiles(Array.from(e.dataTransfer.files || []))
+  }, [addFiles, setIsDragOver])
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault()
-    if (!isRunning) setIsDragOver(true)
-  }, [isRunning, setIsDragOver])
+    setIsDragOver(true)
+  }, [setIsDragOver])
 
   const handleDragLeave = useCallback((e) => {
     e.preventDefault()
@@ -76,113 +78,75 @@ export function useUploadQueue({
   }, [setIsDragOver])
 
   const openFilePicker = useCallback(() => {
-    if (!isRunning) fileInputRef.current?.click()
-  }, [fileInputRef, isRunning])
+    fileInputRef.current?.click()
+  }, [fileInputRef])
 
   const removeItem = useCallback((fileObj) => {
     setItems((prev) => prev.filter((it) => !isSameFile(it, fileObj)))
   }, [setItems])
 
-  const cancelItem = useCallback(async (docId) => {
-    try {
-      await cancelUploadItemApi(docId)
-      updateItemByDocId(docId, { status: 'failed', error: '사용자가 취소했습니다.' })
-
-      setItems((prev) => {
-        const stillRunning = prev.some(
-          (it) => it.docId !== docId && (it.status === 'processing' || it.status === 'queued')
-        )
-        if (!stillRunning) setIsRunning(false)
-        return prev
-      })
-    } catch {
-      toast.error('취소에 실패했습니다.')
-    }
-  }, [updateItemByDocId, setItems, setIsRunning])
-
-  const toggleExpand = useCallback((file) => {
-    const current = items.find((it) => isSameFile(it, file))
-    updateItem(file, { expanded: !current?.expanded })
-  }, [items, updateItem])
-
-  const handleWsMessage = useCallback((message) => {
-    const { type, doc_id, summary, error } = message
-
-    if (type === 'upload_processing') {
-      updateItemByDocId(doc_id, { status: 'processing', progress: 0 })
-    } else if (type === 'upload_done') {
-      updateItemByDocId(doc_id, {
-        status: 'done',
-        progress: 100,
-        summary: summary || null,
-      })
-      setItems((prev) => {
-        const stillRunning = prev.some(
-          (it) => it.docId !== doc_id && (it.status === 'processing' || it.status === 'queued')
-        )
-        if (!stillRunning) setIsRunning(false)
-        return prev
-      })
-    } else if (type === 'upload_failed') {
-      updateItemByDocId(doc_id, {
-        status: 'failed',
-        error: error || '처리 중 오류가 발생했습니다.',
-      })
-      setItems((prev) => {
-        const stillRunning = prev.some(
-          (it) => it.docId !== doc_id && (it.status === 'processing' || it.status === 'queued')
-        )
-        if (!stillRunning) setIsRunning(false)
-        return prev
-      })
-    } else if (type === 'upload_cancelled') {
-      updateItemByDocId(doc_id, { status: 'failed', error: '사용자가 취소했습니다.' })
-    }
-  }, [updateItemByDocId, setItems, setIsRunning])
+  const isAbortError = useCallback((err) => (
+    err?.code === 'ERR_CANCELED' ||
+    err?.name === 'CanceledError' ||
+    err?.name === 'AbortError'
+  ), [])
 
   const handleUpload = useCallback(async () => {
-    if (isRunning) return
     if (!groupId) {
       toast.error('업로드할 워크스페이스 정보를 확인할 수 없습니다.')
       return
     }
 
-    const waitingOnly = items.filter((it) => it.status === 'waiting')
+    const waitingOnly = items.filter((it) => it.uploadStatus === 'waiting')
     if (waitingOnly.length === 0) return
 
-    stopRequestedRef.current = false
-
-    try {
-      await createUploadSessionApi(waitingOnly.map((item) => item.file.name))
-    } catch (err) {
-      toast.error(err.message || '업로드 세션 생성에 실패했습니다.')
-      return
-    }
-
-    // 버튼 클릭 시 이전 done/failed 초기화, 대기 파일만 queued로 전환
-    setItems(waitingOnly.map((it) => ({ ...it, status: 'queued' })))
-    setIsRunning(true)
+    abortRequestedRef.current = false
 
     for (const it of waitingOnly) {
-      if (stopRequestedRef.current) break
+      if (abortRequestedRef.current) break
+
+      const controller = new AbortController()
+      uploadControllersRef.current.set(it.file, controller)
+
       try {
-        const uploadData = await uploadDocumentApi(it.file, groupId)
-        const docId = uploadData.document_ids[0]
-        updateItem(it.file, { docId })
-      } catch (err) {
         updateItem(it.file, {
-          status: 'failed',
-          error: err.message || '업로드 실패',
+          uploadStatus: 'uploading',
+          progress: 5,
+          error: null,
         })
+        const uploadData = await uploadDocumentApi(it.file, groupId, controller.signal)
+        const docId = uploadData.document_ids[0]
+        updateItem(it.file, {
+          docId,
+          uploadStatus: 'uploaded',
+          summaryStatus: 'queued',
+          progress: 100,
+        })
+      } catch (err) {
+        if (!isAbortError(err)) {
+          updateItem(it.file, {
+            uploadStatus: 'upload_failed',
+            error: err.message || '업로드 실패',
+          })
+        }
+      } finally {
+        uploadControllersRef.current.delete(it.file)
       }
     }
-  }, [groupId, isRunning, items, setItems, setIsRunning, stopRequestedRef, updateItem])
+  }, [groupId, isAbortError, items, updateItem])
 
-  const clearSession = useCallback(() => {
-    clearUploadSessionApi().catch(() => {})
-    stopRequestedRef.current = true
-    resetLocalState()
-  }, [resetLocalState, stopRequestedRef])
+  const resetUploadState = useCallback(() => {
+    setItems([])
+  }, [setItems])
+
+  const cancelUploadsAndReset = useCallback(() => {
+    abortRequestedRef.current = true
+    for (const controller of uploadControllersRef.current.values()) {
+      controller.abort()
+    }
+    uploadControllersRef.current.clear()
+    resetUploadState()
+  }, [resetUploadState])
 
   return {
     handleFileChange,
@@ -191,17 +155,11 @@ export function useUploadQueue({
     handleDragLeave,
     openFilePicker,
     removeItem,
-    cancelItem,
-    toggleExpand,
     handleUpload,
-    handleWsMessage,
-    clearSession,
-    waitingItems: items.filter((it) => it.status === 'waiting'),
-    processingItems: items.filter((it) =>
-      it.status === 'queued' ||
-      it.status === 'processing' ||
-      it.status === 'done' ||
-      it.status === 'failed'
-    ),
+    cancelUploadsAndReset,
+    resetUploadState,
+    waitingItems: items.filter((it) => it.uploadStatus === 'waiting'),
+    uploadItems: items.filter((it) => it.uploadStatus !== 'waiting'),
+    isUploadingFiles: items.some((it) => it.uploadStatus === 'uploading'),
   }
 }

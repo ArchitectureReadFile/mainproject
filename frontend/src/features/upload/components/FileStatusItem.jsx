@@ -1,56 +1,29 @@
-import { Button } from '@/components/ui/button'
-import { CheckCircle, ChevronDown, ChevronUp, Clock, FileText, Loader2, XCircle } from 'lucide-react'
+import { CheckCircle, FileText, Loader2, XCircle } from 'lucide-react'
 
-function StatusIcon({ status }) {
-  if (status === 'queued')     return <Clock size={16} className="shrink-0 text-muted-foreground" />
-  if (status === 'processing') return <Loader2 size={16} className="shrink-0 text-primary animate-spin" />
-  if (status === 'done')       return <CheckCircle size={16} className="shrink-0 text-success" />
-  if (status === 'failed')     return <XCircle size={16} className="shrink-0 text-destructive" />
+function StatusIcon({ uploadStatus }) {
+  if (uploadStatus === 'uploading') return <Loader2 size={16} className="shrink-0 text-primary animate-spin" />
+  if (uploadStatus === 'uploaded') return <CheckCircle size={16} className="shrink-0 text-success" />
+  if (uploadStatus === 'upload_failed') return <XCircle size={16} className="shrink-0 text-destructive" />
   return <FileText size={16} className="shrink-0 text-muted-foreground" />
 }
 
-function StatusLabel({ status }) {
-  if (status === 'queued')     return <span className="text-xs font-semibold text-muted-foreground">큐 대기</span>
-  if (status === 'processing') return <span className="text-xs font-semibold text-primary">처리 중...</span>
-  if (status === 'done')       return <span className="text-xs font-semibold text-success">완료</span>
-  if (status === 'failed')     return <span className="text-xs font-semibold text-destructive">실패</span>
+function StatusLabel({ uploadStatus }) {
+  if (uploadStatus === 'uploading') return <span className="text-xs font-semibold text-primary">업로드 중...</span>
+  if (uploadStatus === 'uploaded') return <span className="text-xs font-semibold text-success">업로드 완료</span>
+  if (uploadStatus === 'upload_failed') return <span className="text-xs font-semibold text-destructive">업로드 실패</span>
   return <span className="text-xs font-semibold text-muted-foreground">대기 중</span>
 }
 
-export default function FileStatusItem({ it, file, onToggle, onCancel }) {
-  const canCancel = it.status === 'queued' || it.status === 'processing'
-
+export default function FileStatusItem({ it }) {
   return (
     <li className="rounded-lg border overflow-hidden">
       <div className="flex items-center gap-2.5 px-3.5 py-3">
-        <StatusIcon status={it.status} />
+        <StatusIcon uploadStatus={it.uploadStatus} />
         <span className="flex-1 text-sm truncate">{it.file.name}</span>
-        <StatusLabel status={it.status} />
-
-        {canCancel && onCancel && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={() => onCancel(it.docId)}
-          >
-            취소
-          </Button>
-        )}
-
-        {it.status === 'done' && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground"
-            onClick={() => onToggle(file)}
-          >
-            {it.expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </Button>
-        )}
+        <StatusLabel uploadStatus={it.uploadStatus} />
       </div>
 
-      {it.status === 'processing' && (
+      {it.uploadStatus === 'uploading' && (
         <div className="px-3.5 pb-3">
           <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
             <div
@@ -61,28 +34,9 @@ export default function FileStatusItem({ it, file, onToggle, onCancel }) {
         </div>
       )}
 
-      {it.status === 'failed' && (
+      {it.uploadStatus === 'upload_failed' && (
         <div className="px-3.5 pb-3 text-xs text-destructive">
           {it.error}
-        </div>
-      )}
-
-      {it.status === 'done' && it.expanded && it.summary && (
-        <div className="border-t bg-muted/40 p-4">
-          <div>
-            <p className="text-xs text-muted-foreground font-semibold">AI 요약</p>
-            <p className="text-sm text-foreground/80 leading-relaxed mt-1">{it.summary.content}</p>
-          </div>
-          {it.summary.key_points?.length > 0 && (
-            <div className="mt-3">
-              <p className="text-xs text-muted-foreground font-semibold">핵심 포인트</p>
-              <ul className="mt-1 list-disc pl-5 text-sm text-foreground/80 space-y-1">
-                {it.summary.key_points.map((point) => (
-                  <li key={point}>{point}</li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       )}
     </li>

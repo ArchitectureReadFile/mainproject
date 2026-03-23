@@ -26,7 +26,6 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from errors import AppException, ErrorCode
-from extractors.taxlaw_precedent import fetch_taxlaw_precedent
 from models.model import (
     Document,
     DocumentStatus,
@@ -53,13 +52,11 @@ from schemas.admin import (
     ServiceUsage,
     StorageInfo,
 )
-from services.precedent import OptionalPrecedentMetadataParser
 
 logger = logging.getLogger(__name__)
 
 _ALLOWED_SCHEMES = {"https"}
 _ALLOWED_DOMAINS = {"taxlaw.nts.go.kr"}
-_precedent_metadata_parser = OptionalPrecedentMetadataParser()
 
 
 # ── 통계 ──────────────────────────────────────────────────────────────────────
@@ -209,14 +206,13 @@ def get_admin_precedents(
 
 def create_precedent(db: Session, admin: User, source_url: str) -> Precedent:
     """
-    판례 URL을 등록하고 인덱싱 task를 enqueue한다.
+    판례 URL을 등록하고 백그라운드 추출 task를 enqueue한다.
 
     검증 순서:
       1. URL scheme / domain 선검증  → 422
       2. 중복 URL 확인               → 409
-      3. 텍스트 추출
-      4. FAILED 시 stale 인덱스 제거
-      5. DONE 시 Celery task enqueue
+      3. PENDING 등록
+      4. precedent worker enqueue
     """
     _validate_precedent_url(source_url)
 
@@ -226,17 +222,14 @@ def create_precedent(db: Session, admin: User, source_url: str) -> Precedent:
 
     precedent = Precedent(
         source_url=source_url,
-        processing_status=DocumentStatus.PROCESSING,
+        processing_status=DocumentStatus.PENDING,
         uploaded_by_admin_id=admin.id,
     )
     db.add(precedent)
     db.commit()
     db.refresh(precedent)
 
-    _refresh_precedent_content(precedent, log_context=f"url={source_url}")
-    db.commit()
-    db.refresh(precedent)
-    _sync_precedent_index(precedent)
+    _enqueue_precedent_processing()
 
     return precedent
 
@@ -247,14 +240,13 @@ def retry_precedent(db: Session, precedent_id: int) -> Precedent:
     if not precedent:
         raise AppException(ErrorCode.PRECEDENT_NOT_FOUND)
 
-    precedent.processing_status = DocumentStatus.PROCESSING
+    precedent.processing_status = DocumentStatus.PENDING
     precedent.error_message = None
-    db.commit()
-
-    _refresh_precedent_content(precedent, log_context=f"id={precedent_id}")
+    precedent.title = None
+    precedent.text = None
     db.commit()
     db.refresh(precedent)
-    _sync_precedent_index(precedent)
+    _enqueue_precedent_processing()
 
     return precedent
 
@@ -391,54 +383,14 @@ def _validate_precedent_url(url: str) -> None:
         raise AppException(ErrorCode.PRECEDENT_DOMAIN_NOT_ALLOWED)
 
 
-def _refresh_precedent_content(precedent: Precedent, log_context: str) -> None:
-    """원문을 다시 추출해 제목/본문/처리 상태를 갱신한다."""
+def _enqueue_precedent_processing() -> None:
+    """precedent 추출 worker를 깨운다. 지연 import로 순환 참조 방지."""
     try:
-        result = fetch_taxlaw_precedent(precedent.source_url)
-        precedent.title = result.get("title") or None
-        precedent.text = result.get("text") or None
+        from tasks.precedent_task import process_next_pending_precedent
 
-        if not precedent.text:
-            precedent.processing_status = DocumentStatus.FAILED
-            precedent.error_message = "본문 텍스트를 추출할 수 없습니다."
-        else:
-            parsed_meta = _precedent_metadata_parser.parse_text(precedent.text)
-            precedent.title = _resolve_precedent_title(precedent.title, parsed_meta)
-            precedent.processing_status = DocumentStatus.DONE
-            precedent.error_message = None
-
+        process_next_pending_precedent.delay()
     except Exception as exc:
-        logger.error("판례 추출 실패: %s, error=%s", log_context, exc)
-        precedent.processing_status = DocumentStatus.FAILED
-        precedent.error_message = str(exc)
-
-
-def _resolve_precedent_title(raw_title: str | None, parsed_meta: dict) -> str | None:
-    """추출기 제목이 비어 있으면 판례 메타로 식별 가능한 제목을 만든다."""
-    if raw_title and str(raw_title).strip():
-        return str(raw_title).strip()
-
-    case_number = parsed_meta.get("case_number")
-    case_name = parsed_meta.get("case_name")
-    court_name = parsed_meta.get("court_name")
-
-    if case_number and case_name:
-        return f"{case_number} {case_name}"
-    if court_name and case_number:
-        return f"{court_name} {case_number}"
-    if case_name:
-        return case_name
-    if case_number:
-        return case_number
-    return raw_title
-
-
-def _sync_precedent_index(precedent: Precedent) -> None:
-    """처리 상태에 따라 인덱스를 enqueue 하거나 stale 인덱스를 제거한다."""
-    if precedent.processing_status == DocumentStatus.DONE:
-        _enqueue_index(precedent.id)
-    else:
-        _drop_index(precedent.id)
+        logger.error("precedent 처리 task enqueue 실패: error=%s", exc)
 
 
 def _enqueue_index(precedent_id: int) -> None:
@@ -451,18 +403,4 @@ def _enqueue_index(precedent_id: int) -> None:
     except Exception as exc:
         logger.error(
             "인덱싱 task enqueue 실패: precedent_id=%s, error=%s", precedent_id, exc
-        )
-
-
-def _drop_index(precedent_id: int) -> None:
-    """Qdrant + BM25 인덱스에서 판례를 제거한다. stale 인덱스 방지용."""
-    try:
-        from services.rag import bm25_store, vector_store
-
-        vector_store.delete(precedent_id)
-        bm25_store.delete(precedent_id)
-        logger.info("stale 인덱스 제거: precedent_id=%s", precedent_id)
-    except Exception as exc:
-        logger.error(
-            "stale 인덱스 제거 실패: precedent_id=%s, error=%s", precedent_id, exc
         )

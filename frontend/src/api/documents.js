@@ -7,9 +7,18 @@ export async function fetchDocuments({
   status = '',
   viewType = 'my',
   category = '전체',
+  groupId,
 }) {
   const { data } = await client.get('/documents', {
-    params: { skip, limit, keyword, status, view_type: viewType, category },
+    params: {
+      skip,
+      limit,
+      keyword,
+      status,
+      view_type: viewType,
+      category,
+      ...(groupId ? { group_id: groupId } : {}),
+    },
   })
   return data
 }

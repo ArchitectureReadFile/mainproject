@@ -41,10 +41,36 @@ class DocumentRepository:
             "[Document 상태 변경 누락] document_id=%s, status=%s", document_id, status
         )
 
+    def claim_next_pending_document(self) -> Document | None:
+        document = (
+            self.db.query(Document)
+            .filter(Document.processing_status == DocumentStatus.PENDING)
+            .order_by(Document.created_at.asc(), Document.id.asc())
+            .first()
+        )
+        if not document:
+            return None
+
+        document.processing_status = DocumentStatus.PROCESSING
+        self.db.flush()
+        return document
+
     def get_list(
-        self, skip, limit, keyword, status, user_id, user_role, view_type, category
+        self,
+        skip,
+        limit,
+        keyword,
+        status,
+        user_id,
+        user_role,
+        view_type,
+        category,
+        group_id=None,
     ):
         query = self.db.query(Document).join(Document.owner).outerjoin(Document.summary)
+
+        if group_id is not None:
+            query = query.filter(Document.group_id == group_id)
 
         if view_type == "my":
             query = query.filter(Document.uploader_user_id == user_id)
