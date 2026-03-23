@@ -1,6 +1,6 @@
 from errors import ErrorCode
 from models.model import User
-from services.auth_service import create_refresh_token, hash_password, verify_password
+from services.auth_service import AuthService
 from tests.dummy_data import (
     confirm_account_data,
     login_data,
@@ -8,6 +8,8 @@ from tests.dummy_data import (
     refresh_token_data,
     signup_data,
 )
+
+auth_service = AuthService()
 
 # -------------------------------------------------------------------
 # TC-001: 회원가입
@@ -98,7 +100,7 @@ def test_login_failure_invalid_credentials_A(client, registered_user, fake_redis
 def test_login_failure_inactive_B(client, db_session, fake_redis):
     user_data = login_data["inactive_user"].copy()
     raw_password = user_data["password"]
-    user_data["password"] = hash_password(raw_password)
+    user_data["password"] = auth_service.hash_password(raw_password)
     user = User(**user_data)
     db_session.add(user)
     db_session.commit()
@@ -130,7 +132,7 @@ def test_login_failure_rate_limit_C(client, registered_user, fake_redis):
 
 def test_refresh_token_success(client, registered_user, fake_redis):
     email = registered_user.email
-    old_refresh_token = create_refresh_token(email)
+    old_refresh_token = auth_service.create_refresh_token(email)
     fake_redis.set(f"refresh_token:{old_refresh_token}", email)
     client.cookies.set("refresh_token", old_refresh_token)
 
@@ -153,7 +155,7 @@ def test_refresh_token_failure_missing_cookie_A(client, fake_redis):
 
 def test_refresh_token_failure_expired_in_redis_B(client, fake_redis):
     test_email = login_data["payload"]["email"]
-    refresh_token = create_refresh_token(test_email)
+    refresh_token = auth_service.create_refresh_token(test_email)
     client.cookies.set("refresh_token", refresh_token)
 
     response = client.post("/api/auth/refresh")
@@ -164,7 +166,7 @@ def test_refresh_token_failure_expired_in_redis_B(client, fake_redis):
 
 def test_refresh_token_failure_invalid_user_C(client, fake_redis):
     unregistered_email = refresh_token_data["payload"]["unregistered_email"]
-    refresh_token = create_refresh_token(unregistered_email)
+    refresh_token = auth_service.create_refresh_token(unregistered_email)
     fake_redis.set(f"refresh_token:{refresh_token}", unregistered_email)
     client.cookies.set("refresh_token", refresh_token)
 
@@ -181,7 +183,7 @@ def test_refresh_token_failure_invalid_user_C(client, fake_redis):
 
 def test_logout_success(client, registered_user, fake_redis):
     email = registered_user.email
-    refresh_token = create_refresh_token(email)
+    refresh_token = auth_service.create_refresh_token(email)
     fake_redis.set(f"refresh_token:{refresh_token}", email)
 
     client.cookies.set("access_token", "valid_access_token")
@@ -264,12 +266,11 @@ def test_reset_password_success(client, db_session, registered_user, fake_redis)
 
     response = client.post("/api/auth/reset-password", json=payload)
 
-    assert response.status_code == 200
-    assert response.json()["message"] == "비밀번호가 성공적으로 변경되었습니다."
+    assert response.status_code == 204
     assert fake_redis.get(f"email_verified:{email}") is None
 
     db_session.refresh(registered_user)
-    assert verify_password(new_password, registered_user.password) is True
+    assert auth_service.verify_password(new_password, registered_user.password) is True
 
 
 def test_reset_password_failure_not_verified_A(client, fake_redis):

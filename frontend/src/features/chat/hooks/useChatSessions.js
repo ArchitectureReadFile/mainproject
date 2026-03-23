@@ -6,7 +6,7 @@ export function useChatSessions() {
     const auth = useAuth();
     const user = auth?.user;
 
-    const [rooms, setRooms] = useState([]);
+    const [sessions, setRooms] = useState([]);
 
     const fetchRooms = useCallback(async () => {
         if (!user) return;
@@ -14,7 +14,7 @@ export function useChatSessions() {
             const data = await chatApi.getRooms();
             setRooms(data);
         } catch (error) {
-            console.error("Failed to fetch rooms:", error);
+            console.error("Failed to fetch sessions:", error);
         }
     }, [user]);
 
@@ -42,5 +42,5 @@ export function useChatSessions() {
         setRooms(prev => prev.filter(r => r.id !== sessionId));
     };
 
-    return { rooms, createRoom, updateRoom, deleteRoom, refreshRooms: fetchRooms };
+    return { sessions, createRoom, updateRoom, deleteRoom, refreshRooms: fetchRooms };
 }

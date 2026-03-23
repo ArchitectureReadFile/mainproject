@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  IoAdd, 
-  IoChatbubbleEllipsesOutline, 
-  IoTimeOutline, 
-  IoSend, 
-  IoDocumentTextOutline, 
+import {
+  IoAdd,
+  IoChatbubbleEllipsesOutline,
+  IoTimeOutline,
+  IoSend,
+  IoDocumentTextOutline,
   IoPencilOutline,
   IoTrashOutline,
   IoCheckmarkOutline,
@@ -22,12 +22,12 @@ import { useChatSessions } from '../../features/chat/hooks/useChatSessions';
 import { useChat } from '../../features/chat/hooks/useChat';
 
 export default function LandingPage() {
-  const { rooms, createRoom, updateRoom, deleteRoom } = useChatSessions();
+  const { sessions, createRoom, updateRoom, deleteRoom } = useChatSessions();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const { messages, sendMessage, isLoading } = useChat(activeSessionId);
   const [inputText, setInputText] = useState('');
-  
+
   const fileInputRef = useRef(null);
   const [showDocSelect, setShowDocSelect] = useState(false);
   const [showGroupSelect, setShowGroupSelect] = useState(false);
@@ -57,7 +57,7 @@ export default function LandingPage() {
   }, [messages, isLoading]);
 
   const handleCreateAndStart = async () => {
-    const newName = `새로운 상담 ${rooms.length + 1}`;
+    const newName = `새로운 상담 ${sessions.length + 1}`;
     const newRoom = await createRoom(newName);
     if (newRoom) setActiveSessionId(newRoom.id);
   };
@@ -95,10 +95,10 @@ export default function LandingPage() {
     setShowDocSelect(false);
   };
 
-  const startEdit = (e, room) => {
+  const startEdit = (e, session) => {
     e.stopPropagation();
-    setEditingId(room.id);
-    setEditName(room.title);
+    setEditingId(session.id);
+    setEditName(session.title);
   };
 
   const saveEdit = async (e, id) => {
@@ -119,17 +119,16 @@ export default function LandingPage() {
 
   return (
     <div className="flex h-screen w-full bg-white overflow-hidden text-slate-900">
-      <aside 
-        className={`h-full bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out shadow-sm ${
-          isSidebarOpen ? 'w-[340px]' : 'w-0 border-none opacity-0'
-        }`}
+      <aside
+        className={`h-full bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out shadow-sm ${isSidebarOpen ? 'w-[340px]' : 'w-0 border-none opacity-0'
+          }`}
       >
         <div className="p-6 border-b border-slate-100 shrink-0 min-w-[340px]">
           <h1 className="text-xl font-bold text-blue-600 flex items-center gap-2">
             <IoChatbubbleEllipsesOutline size={24} />
             Legal AI
           </h1>
-          <Button 
+          <Button
             onClick={handleCreateAndStart}
             className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-6 shadow-md transition-all flex gap-2"
           >
@@ -139,44 +138,43 @@ export default function LandingPage() {
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2 min-w-[340px]">
           <p className="text-[11px] font-bold text-slate-400 px-2 mb-3 uppercase tracking-widest">최근 상담 내역</p>
-          {rooms.map((room) => (
+          {sessions.map((session) => (
             <div
-              key={room.id}
-              onClick={() => setActiveSessionId(room.id)}
-              className={`group relative flex flex-col p-4 rounded-xl cursor-pointer transition-all border ${
-                activeSessionId === room.id 
-                ? 'bg-blue-50 border-blue-200' 
+              key={session.id}
+              onClick={() => setActiveSessionId(session.id)}
+              className={`group relative flex flex-col p-4 rounded-xl cursor-pointer transition-all border ${activeSessionId === session.id
+                ? 'bg-blue-50 border-blue-200'
                 : 'hover:bg-slate-50 border-transparent hover:border-slate-200'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-3 pr-8">
-                <div className={`p-2 rounded-lg shrink-0 ${activeSessionId === room.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                <div className={`p-2 rounded-lg shrink-0 ${activeSessionId === session.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                   <IoTimeOutline size={18} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  {editingId === room.id ? (
+                  {editingId === session.id ? (
                     <Input
                       autoFocus
                       className="h-7 text-sm p-1"
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.key === 'Enter' && saveEdit(e, room.id)}
+                      onKeyDown={(e) => e.key === 'Enter' && saveEdit(e, session.id)}
                     />
                   ) : (
-                    <p className={`text-sm font-semibold truncate ${activeSessionId === room.id ? 'text-blue-700' : 'text-slate-700'}`}>
-                      {room.title}
+                    <p className={`text-sm font-semibold truncate ${activeSessionId === session.id ? 'text-blue-700' : 'text-slate-700'}`}>
+                      {session.title}
                     </p>
                   )}
                 </div>
               </div>
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                {editingId === room.id ? (
-                  <button onClick={(e) => saveEdit(e, room.id)} className="p-1.5 text-blue-600"><IoCheckmarkOutline size={16} /></button>
+                {editingId === session.id ? (
+                  <button onClick={(e) => saveEdit(e, session.id)} className="p-1.5 text-blue-600"><IoCheckmarkOutline size={16} /></button>
                 ) : (
                   <>
-                    <button onClick={(e) => startEdit(e, room)} className="p-1.5 text-slate-400 hover:text-blue-600"><IoPencilOutline size={14} /></button>
-                    <button onClick={(e) => handleDelete(e, room.id)} className="p-1.5 text-slate-400 hover:text-red-500"><IoTrashOutline size={14} /></button>
+                    <button onClick={(e) => startEdit(e, session)} className="p-1.5 text-slate-400 hover:text-blue-600"><IoPencilOutline size={14} /></button>
+                    <button onClick={(e) => handleDelete(e, session.id)} className="p-1.5 text-slate-400 hover:text-red-500"><IoTrashOutline size={14} /></button>
                   </>
                 )}
               </div>
@@ -188,9 +186,9 @@ export default function LandingPage() {
       <main className="flex-1 h-full flex flex-col relative bg-white">
         <header className="h-20 shrink-0 bg-white border-b border-slate-200 px-6 flex items-center justify-between z-20">
           <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               className="text-slate-500 hover:bg-slate-100 rounded-lg"
             >
@@ -223,22 +221,19 @@ export default function LandingPage() {
                           <AvatarFallback className="bg-white text-blue-600 font-bold text-[10px] border border-slate-200">AI</AvatarFallback>
                         </Avatar>
                       )}
-                      <div className={`p-4 rounded-2xl shadow-sm text-[15px] leading-relaxed flex flex-col ${
-                        msg.sender === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none'
-                      }`}>
+                      <div className={`p-4 rounded-2xl shadow-sm text-[15px] leading-relaxed flex flex-col ${msg.sender === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none'
+                        }`}>
                         {(msg.referenceDoc || msg.referenceGroup) && (
                           <div className="flex flex-col gap-1 mb-2">
                             {msg.referenceDoc && (
-                              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs w-fit border ${
-                                msg.sender === 'user' ? 'bg-white/20 text-blue-50 border-blue-400/30' : 'bg-slate-100 text-slate-600 border-slate-200'
-                              }`}>
+                              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs w-fit border ${msg.sender === 'user' ? 'bg-white/20 text-blue-50 border-blue-400/30' : 'bg-slate-100 text-slate-600 border-slate-200'
+                                }`}>
                                 <IoDocumentTextOutline size={14} /> {msg.referenceDoc.title}
                               </div>
                             )}
                             {msg.referenceGroup && (
-                              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs w-fit border ${
-                                msg.sender === 'user' ? 'bg-white/20 text-blue-50 border-blue-400/30' : 'bg-slate-100 text-slate-600 border-slate-200'
-                              }`}>
+                              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs w-fit border ${msg.sender === 'user' ? 'bg-white/20 text-blue-50 border-blue-400/30' : 'bg-slate-100 text-slate-600 border-slate-200'
+                                }`}>
                                 <IoPeopleOutline size={14} /> {msg.referenceGroup.name}
                               </div>
                             )}
@@ -352,10 +347,10 @@ export default function LandingPage() {
                       placeholder={selectedDoc || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "상담 내용을 입력하세요..."}
                       className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-3 h-12 text-base"
                     />
-                    <Button 
-                      size="icon" 
-                      onClick={handleSend} 
-                      disabled={(!inputText.trim() && !selectedDoc && !selectedGroup) || isLoading} 
+                    <Button
+                      size="icon"
+                      onClick={handleSend}
+                      disabled={(!inputText.trim() && !selectedDoc && !selectedGroup) || isLoading}
                       className="shrink-0 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl w-12 h-12 shadow-md transition-all"
                     >
                       <IoSend size={20} className="ml-1" />

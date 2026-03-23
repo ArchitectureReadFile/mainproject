@@ -3,108 +3,192 @@ import os
 
 import requests
 from redis import Redis
-from sqlalchemy.orm import Session
-
-from models.model import ChatMessage, ChatMessageRole, Document, GroupMember
-from prompts.chat_prompt import CHAT_SUMMARY_PROMPT, CHAT_SYSTEM_PROMPT
+from models.model import ChatSession, ChatMessage, ChatMessageRole, Document, GroupMember
+from prompts.chat_prompt import CHAT_SYSTEM_PROMPT, CHAT_SUMMARY_PROMPT
 from services.summary.process_service import ProcessService
+from errors.error_codes import ErrorCode
+from errors.exceptions import AppException
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
 
 
 class ChatService:
-    def __init__(self, db: Session, redis_client: Redis):
-        self.db = db
-        self.redis_client = redis_client
+    def get_sessions(self, db: Session, user_id: int):
+        return (
+            db.query(ChatSession)
+            .filter(ChatSession.user_id == user_id)
+            .order_by(ChatSession.updated_at.desc())
+            .all()
+        )
+
+    def create_session(self, db: Session, user_id: int, title: str):
+        new_session = ChatSession(user_id=user_id, title=title)
+        db.add(new_session)
+        db.commit()
+        db.refresh(new_session)
+        return new_session
+
+    def update_session(self, db: Session, user_id: int, session_id: int, title: str):
+        session = self._get_session_with_permission(db, user_id, session_id)
+        session.title = title
+        db.commit()
+        db.refresh(session)
+        return session
+
+    def delete_session(self, db: Session, user_id: int, session_id: int):
+        session = self._get_session_with_permission(db, user_id, session_id)
+        db.delete(session)
+        db.commit()
+
+    def get_messages(self, db: Session, user_id: int, session_id: int):
+        self._get_session_with_permission(db, user_id, session_id)
+        return (
+            db.query(ChatMessage)
+            .filter(ChatMessage.session_id == session_id)
+            .order_by(ChatMessage.created_at.asc())
+            .all()
+        )
+
+    def send_message(
+        self, db: Session, user_id: int, session_id: int, text: str, document_id: int = None, file_bytes: bytes = None
+    ):
+        self._get_session_with_permission(db, user_id, session_id)
+
+        user_msg = ChatMessage(
+            session_id=session_id, role=ChatMessageRole.USER, content=text
+        )
+        db.add(user_msg)
+        db.commit()
+
+        temp_doc_text = None
+        if file_bytes:
+            temp_doc_text = self._extract_text_from_bytes(file_bytes)
+
+        from tasks.chat_task import process_chat_message
+        
+        payload = {
+            "user_id": user_id,
+            "session_id": session_id,
+            "context_options": {"doc_id": document_id, "temp_doc_text": temp_doc_text},
+        }
+        process_chat_message.delay(payload)
+        
+        return {"status": "success", "message": "Task queued"}
 
     def process_chat(
-        self, user_id: int, session_id: int, message: str, context_options: dict
+        self, db: Session, redis_client: Redis, user_id: int, session_id: int, context_options: dict
     ):
         temp_doc_text = context_options.get("temp_doc_text")
         doc_id = context_options.get("doc_id")
 
         self._publish_status(
-            session_id, user_id, "processing", "답변을 생성중입니다..."
+            redis_client, session_id, user_id, "processing", "답변을 생성중입니다..."
         )
 
-        doc_context = ""
-        if temp_doc_text:
-            doc_context = temp_doc_text
-        elif doc_id:
-            if not self._check_document_permission(user_id, doc_id):
-                self._publish_status(
-                    session_id,
-                    user_id,
-                    "error",
-                    "해당 문서를 찾을 수 없거나 접근 권한이 없습니다.",
+        try:
+            doc_context = ""
+            if temp_doc_text:
+                doc_context = temp_doc_text
+            elif doc_id:
+                if not self._check_document_permission(db, user_id, doc_id):
+                    self._publish_error(redis_client, session_id, user_id, ErrorCode.CHAT_UNAUTHORIZED)
+                    return
+
+                document = db.query(Document).filter(Document.id == doc_id).first()
+                if not document:
+                    self._publish_error(redis_client, session_id, user_id, ErrorCode.DOC_NOT_FOUND)
+                    return
+                doc_context = self._get_document_full_text(document)
+
+            summary_key = f"chat_summary:{session_id}"
+            last_msg_key = f"chat_last_summarized_id:{session_id}"
+
+            existing_summary = redis_client.get(summary_key) or ""
+            if isinstance(existing_summary, bytes):
+                existing_summary = existing_summary.decode('utf-8')
+
+            last_id_str = redis_client.get(last_msg_key)
+            last_id = int(last_id_str) if last_id_str else 0
+
+            unsummarized_msgs = (
+                db.query(ChatMessage)
+                .filter(ChatMessage.session_id == session_id, ChatMessage.id > last_id)
+                .order_by(ChatMessage.id.asc())
+                .all()
+            )
+
+            if len(unsummarized_msgs) > 15:
+                msgs_to_summarize = unsummarized_msgs[:10]
+                recent_msgs = unsummarized_msgs[10:]
+
+                dialogue_to_summarize = ""
+                for msg in msgs_to_summarize:
+                    role_str = "사용자" if msg.role == ChatMessageRole.USER else "AI"
+                    dialogue_to_summarize += f"{role_str}: {msg.content}\n"
+
+                new_summary = self._summarize_dialogue(existing_summary, dialogue_to_summarize)
+
+                redis_client.set(summary_key, new_summary)
+                redis_client.set(last_msg_key, msgs_to_summarize[-1].id)
+
+                existing_summary = new_summary
+            else:
+                recent_msgs = unsummarized_msgs
+
+            system_content = CHAT_SYSTEM_PROMPT
+            
+            if doc_context:
+                system_content += f"\n\n[참고 문서 원문]\n{doc_context}"
+                
+            if existing_summary:
+                system_content += f"\n\n[이전 대화 핵심 요약]\n{existing_summary}"
+
+            chat_messages = [{"role": "system", "content": system_content.strip()}]
+
+            for msg in recent_msgs:
+                role_str = "user" if msg.role == ChatMessageRole.USER else "assistant"
+                chat_messages.append({"role": role_str, "content": msg.content})
+
+            full_answer = self._generate_llm_response(redis_client, session_id, user_id, chat_messages)
+
+            if full_answer:
+                ai_msg = ChatMessage(
+                    session_id=session_id,
+                    role=ChatMessageRole.ASSISTANT,
+                    content=full_answer,
                 )
-                return
+                db.add(ai_msg)
+                db.commit()
 
-            document = self.db.query(Document).filter(Document.id == doc_id).first()
-            doc_context = self._get_document_full_text(document)
+        except AppException as ae:
+            self._publish_error(redis_client, session_id, user_id, ae.error_code)
+        except Exception:
+            self._publish_error(redis_client, session_id, user_id, ErrorCode.CHAT_HISTORY_LOAD_FAILED)
 
-        summary_key = f"chat_summary:{session_id}"
-        last_msg_key = f"chat_last_summarized_id:{session_id}"
+    def _get_session_with_permission(self, db: Session, user_id: int, session_id: int) -> ChatSession:
+        session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        if not session:
+            raise AppException(ErrorCode.CHAT_ROOM_NOT_FOUND)
+        if session.user_id != user_id:
+            raise AppException(ErrorCode.CHAT_UNAUTHORIZED)
+        return session
 
-        existing_summary = self.redis_client.get(summary_key) or ""
-        if isinstance(existing_summary, bytes):
-            existing_summary = existing_summary.decode("utf-8")
-
-        last_id_str = self.redis_client.get(last_msg_key)
-        last_id = int(last_id_str) if last_id_str else 0
-
-        unsummarized_msgs = (
-            self.db.query(ChatMessage)
-            .filter(ChatMessage.session_id == session_id, ChatMessage.id > last_id)
-            .order_by(ChatMessage.id.asc())
-            .all()
-        )
-
-        if len(unsummarized_msgs) > 15:
-            msgs_to_summarize = unsummarized_msgs[:10]
-            recent_msgs = unsummarized_msgs[10:]
-
-            dialogue_to_summarize = ""
-            for msg in msgs_to_summarize:
-                role_str = "사용자" if msg.role == ChatMessageRole.USER else "AI"
-                dialogue_to_summarize += f"{role_str}: {msg.content}\n"
-
-            new_summary = self._summarize_dialogue(
-                existing_summary, dialogue_to_summarize
-            )
-
-            self.redis_client.set(summary_key, new_summary)
-            self.redis_client.set(last_msg_key, msgs_to_summarize[-1].id)
-
-            existing_summary = new_summary
-        else:
-            recent_msgs = unsummarized_msgs
-
-        system_content = CHAT_SYSTEM_PROMPT
-
-        if doc_context:
-            system_content += f"\n\n[참고 문서 원문]\n{doc_context}"
-
-        if existing_summary:
-            system_content += f"\n\n[이전 대화 핵심 요약]\n{existing_summary}"
-
-        chat_messages = [{"role": "system", "content": system_content.strip()}]
-
-        for msg in recent_msgs:
-            role_str = "user" if msg.role == ChatMessageRole.USER else "assistant"
-            chat_messages.append({"role": role_str, "content": msg.content})
-
-        full_answer = self._generate_llm_response(session_id, user_id, chat_messages)
-
-        if full_answer:
-            ai_msg = ChatMessage(
-                session_id=session_id,
-                role=ChatMessageRole.ASSISTANT,
-                content=full_answer,
-            )
-            self.db.add(ai_msg)
-            self.db.commit()
+    def _extract_text_from_bytes(self, file_bytes: bytes) -> str:
+        try:
+            process_service = ProcessService()
+            pages = process_service.extract_pages_from_bytes(file_bytes)
+            if process_service.is_text_too_short("\n".join(pages)):
+                pages = process_service.extract_pages_from_bytes_ocr(file_bytes)
+            
+            extracted_text = "\n".join(pages).strip()
+            if not extracted_text:
+                raise AppException(ErrorCode.LLM_EMPTY_PAGES)
+            return extracted_text
+        except AppException:
+            raise
+        except Exception:
+            raise AppException(ErrorCode.CHAT_FILE_PARSE_FAILED)
 
     def _summarize_dialogue(self, existing_summary: str, new_dialogue: str) -> str:
         prompt = CHAT_SUMMARY_PROMPT.format(
@@ -128,13 +212,13 @@ class ChatService:
         except Exception:
             return existing_summary
 
-    def _check_document_permission(self, user_id: int, doc_id: int) -> bool:
-        document = self.db.query(Document).filter(Document.id == doc_id).first()
+    def _check_document_permission(self, db: Session, user_id: int, doc_id: int) -> bool:
+        document = db.query(Document).filter(Document.id == doc_id).first()
         if not document:
             return False
         if document.group_id:
             member = (
-                self.db.query(GroupMember)
+                db.query(GroupMember)
                 .filter(
                     GroupMember.user_id == user_id,
                     GroupMember.group_id == document.group_id,
@@ -150,28 +234,31 @@ class ChatService:
         )
 
         if not file_path or not os.path.exists(file_path):
-            return "시스템 메시지: 실제 파일을 찾을 수 없습니다."
+            raise AppException(ErrorCode.FILE_NOT_FOUND)
 
         try:
             with open(file_path, "rb") as f:
                 file_bytes = f.read()
+            return self._extract_text_from_bytes(file_bytes)
+        except AppException:
+            raise
+        except Exception:
+            raise AppException(ErrorCode.DOC_INTERNAL_PARSE_ERROR)
 
-            process_service = ProcessService()
-            pages = process_service.extract_pages_from_bytes(file_bytes)
-
-            if process_service.is_text_too_short("\n".join(pages)):
-                pages = process_service.extract_pages_from_bytes_ocr(file_bytes)
-
-            return "\n".join(pages).strip()
-        except Exception as e:
-            return f"시스템 메시지: 문서 텍스트 추출 중 오류가 발생했습니다. ({str(e)})"
-
-    def _publish_status(self, session_id: int, user_id: int, status: str, message: str):
+    def _publish_status(self, redis_client: Redis, session_id: int, user_id: int, status: str, message: str):
         payload = {"status": status, "message": message}
-        self.redis_client.publish(f"chat:{session_id}:{user_id}", json.dumps(payload))
+        redis_client.publish(f"chat:{session_id}:{user_id}", json.dumps(payload))
+
+    def _publish_error(self, redis_client: Redis, session_id: int, user_id: int, error_code: ErrorCode):
+        payload = {
+            "status": "error", 
+            "code": error_code.code,
+            "message": error_code.message
+        }
+        redis_client.publish(f"chat:{session_id}:{user_id}", json.dumps(payload))
 
     def _generate_llm_response(
-        self, session_id: int, user_id: int, messages: list
+        self, redis_client: Redis, session_id: int, user_id: int, messages: list
     ) -> str:
         payload_data = {
             "model": OLLAMA_MODEL,
@@ -196,16 +283,17 @@ class ChatService:
                         if word:
                             full_answer += word
                             self._publish_status(
-                                session_id, user_id, "streaming", full_answer
+                                redis_client, session_id, user_id, "streaming", full_answer
                             )
-        except Exception as e:
-            self._publish_status(
-                session_id,
-                user_id,
-                "error",
-                f"LLM 모델 서버와 통신 중 오류가 발생했습니다. ({str(e)})",
-            )
+        except requests.exceptions.Timeout:
+            self._publish_error(redis_client, session_id, user_id, ErrorCode.LLM_PROCESS_TIMEOUT)
+            return ""
+        except requests.exceptions.ConnectionError:
+            self._publish_error(redis_client, session_id, user_id, ErrorCode.LLM_CONNECT_FAILED)
+            return ""
+        except Exception:
+            self._publish_error(redis_client, session_id, user_id, ErrorCode.LLM_ALL_PROFILES_FAILED)
             return ""
 
-        self._publish_status(session_id, user_id, "complete", full_answer)
+        self._publish_status(redis_client, session_id, user_id, "complete", full_answer)
         return full_answer
