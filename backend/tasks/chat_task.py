@@ -1,5 +1,7 @@
-import redis
 import os
+
+import redis
+
 from celery_app import celery_app
 from database import SessionLocal
 from services.chat_service import ChatService

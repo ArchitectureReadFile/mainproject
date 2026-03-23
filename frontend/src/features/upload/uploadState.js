@@ -1,13 +1,4 @@
 export const MAX_FILES = 5
-export const POLL_INTERVAL = 3000
-export const POLL_TIMEOUT = 600000
-
-export const buildSummary = (result) => ({
-  case_number: result.case_number ?? '-',
-  court: result.court_name ?? '-',
-  date: result.judgment_date ?? '-',
-  content: result.summary_main ?? '요약 내용이 없습니다.',
-})
 
 export const isSameFile = (item, file) =>
   item.restored ? item.file.name === file.name : item.file === file

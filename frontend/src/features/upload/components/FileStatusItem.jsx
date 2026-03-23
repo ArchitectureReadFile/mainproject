@@ -69,22 +69,20 @@ export default function FileStatusItem({ it, file, onToggle, onCancel }) {
 
       {it.status === 'done' && it.expanded && it.summary && (
         <div className="border-t bg-muted/40 p-4">
-          <div className="grid grid-cols-3 gap-3 mb-3">
-            {[
-              ['사건번호', it.summary.case_number],
-              ['법원',     it.summary.court],
-              ['판결일',   it.summary.date],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <p className="text-xs text-muted-foreground font-semibold">{label}</p>
-                <p className="text-sm font-bold mt-0.5">{value}</p>
-              </div>
-            ))}
-          </div>
           <div>
             <p className="text-xs text-muted-foreground font-semibold">AI 요약</p>
             <p className="text-sm text-foreground/80 leading-relaxed mt-1">{it.summary.content}</p>
           </div>
+          {it.summary.key_points?.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground font-semibold">핵심 포인트</p>
+              <ul className="mt-1 list-disc pl-5 text-sm text-foreground/80 space-y-1">
+                {it.summary.key_points.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </li>

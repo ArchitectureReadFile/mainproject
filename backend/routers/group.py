@@ -6,9 +6,13 @@ from models.model import User
 from repositories.group_repository import GroupRepository
 from routers.auth import get_current_user
 from schemas.group import (
-    GroupCreateRequest, GroupDetailResponse, GroupSummaryResponse,
-    MemberInviteRequest, InvitedMemberResponse, MemberListResponse,
-    MemberRoleChangeRequest, OwnerTransferRequest,
+    GroupCreateRequest,
+    GroupDetailResponse,
+    GroupSummaryResponse,
+    InvitedMemberResponse,
+    MemberInviteRequest,
+    MemberListResponse,
+    MemberRoleChangeRequest,
 )
 from services.group_service import GroupService
 
@@ -78,7 +82,7 @@ def cancel_delete_group(
 ):
     result = service.cancel_delete_group(current_user.id, group_id)
     db.commit()
-    
+
     return result
 
 
@@ -93,7 +97,11 @@ def get_members(
 
 
 # 초대 POST /api/groups/{group_id}/members
-@router.post("/{group_id}/members", response_model=InvitedMemberResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{group_id}/members",
+    response_model=InvitedMemberResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def invite_member(
     group_id: int,
     payload: MemberInviteRequest,
@@ -101,10 +109,12 @@ def invite_member(
     current_user: User = Depends(get_current_user),
     service: GroupService = Depends(get_group_service),
 ):
-    result = service.invite_member(group_id, current_user.id, payload.username, payload.role)
+    result = service.invite_member(
+        group_id, current_user.id, payload.username, payload.role
+    )
     db.commit()
     return result
-    
+
 
 # 초대 수락
 @router.post("/{group_id}/members/accept", status_code=status.HTTP_204_NO_CONTENT)
@@ -112,7 +122,7 @@ def accept_invite(
     group_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    service: GroupService = Depends(get_group_service), 
+    service: GroupService = Depends(get_group_service),
 ):
     service.accept_invite(current_user.id, group_id)
     db.commit()
@@ -131,13 +141,15 @@ def decline_invite(
 
 
 # 추방 DELETE /api/groups/{group_id}/members/{user_id}
-@router.delete("/{group_id}/members/{target_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{group_id}/members/{target_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 def remove_member(
     group_id: int,
     target_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    service: GroupService = Depends(get_group_service),      
+    service: GroupService = Depends(get_group_service),
 ):
     service.remove_member(target_id, group_id, current_user.id)
     db.commit()
@@ -158,7 +170,9 @@ def change_member_role(
 
 
 # 오너 양도
-@router.post("/{group_id}/members/{target_id}/transfer", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/{group_id}/members/{target_id}/transfer", status_code=status.HTTP_204_NO_CONTENT
+)
 def transfer_owner(
     group_id: int,
     target_id: int,

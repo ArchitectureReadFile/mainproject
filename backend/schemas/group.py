@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from models.model import GroupStatus, MembershipRole, MembershipStatus
+from models.model import GroupStatus, MembershipRole
 
 
 class GroupCreateRequest(BaseModel):
@@ -50,26 +50,28 @@ class GroupDetailResponse(BaseModel):
     updated_at: datetime
 
 
-
 class MemberResponse(BaseModel):
     """ACTIVE 멤버용"""
+
     user_id: int
     email: str
     username: str
-    role: MembershipRole     
+    role: MembershipRole
     joined_at: Optional[datetime] = None
 
 
 class InvitedMemberResponse(BaseModel):
     """INVITED 멤버용"""
+
     user_id: int
     username: str
-    role: MembershipRole  
+    role: MembershipRole
     invited_at: Optional[datetime] = None
 
 
 class MemberListResponse(BaseModel):
     """멤버 목록 전체 응답"""
+
     members: list[MemberResponse]
     invited: list[InvitedMemberResponse]
 

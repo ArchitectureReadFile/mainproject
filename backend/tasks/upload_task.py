@@ -57,7 +57,7 @@ def process_upload_task(
         service.process_file(file_path, document_id)
         logger.info(f"[ProcessService 완료] doc_id={document_id}")
 
-        from services.upload_session_service import UploadSessionService
+        from services.upload.session_service import UploadSessionService
 
         session = UploadSessionService().get_session(user_id)
         summary = next(

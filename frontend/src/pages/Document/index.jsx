@@ -52,7 +52,7 @@ export default function DocumentPage() {
   const handleDownload = async () => {
     if (!s.summary_id) return
     try {
-      await downloadSummaryPdf(s.summary_id, s.case_number, s.summary_title)
+      await downloadSummaryPdf(s.summary_id, null, null)
     } catch {
       toast.error('다운로드에 실패했습니다.')
     }
@@ -113,30 +113,22 @@ export default function DocumentPage() {
 
       {/* 제목 + 메타 */}
       <div className="px-1">
-        <h1 className="text-2xl font-bold mb-3">{s.case_name || s.summary_title || '제목 없음'}</h1>
+        <h1 className="text-2xl font-bold mb-3">{s.case_name || s.case_number || '문서 상세'}</h1>
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
           <div className="flex gap-1.5">
-            <span className="font-medium text-foreground">법원</span>
-            <span>{s.court_name || '-'}</span>
+            <span className="font-medium text-foreground">문서 유형</span>
+            <span>{s.document_type || '-'}</span>
           </div>
           <div className="flex gap-1.5">
-            <span className="font-medium text-foreground">사건번호</span>
-            <span>{s.case_number || '-'}</span>
-          </div>
-          <div className="flex gap-1.5">
-            <span className="font-medium text-foreground">판결일</span>
-            <span>{s.judgment_date || '-'}</span>
+            <span className="font-medium text-foreground">업로더</span>
+            <span>{s.uploader || '-'}</span>
           </div>
         </div>
       </div>
 
       {/* 섹션 카드들 */}
       {[
-        { title: 'AI 요약',   content: s.summary_main },
-        { title: '사실 관계', content: s.facts },
-        { title: '판결 주문', content: s.judgment_order },
-        { title: '판단 근거', content: s.judgment_reason },
-        { title: '관련 법령', content: s.related_laws },
+        { title: 'AI 요약', content: s.summary_text },
       ].map(({ title, content }) => (
         <Card key={title} className="p-6">
           <h3 className="text-sm font-semibold text-muted-foreground mb-2">{title}</h3>
@@ -144,19 +136,18 @@ export default function DocumentPage() {
         </Card>
       ))}
 
-      {/* 당사자 */}
+      {/* 핵심 포인트 */}
       <Card className="p-6">
-        <h3 className="text-sm font-semibold text-muted-foreground mb-3">당사자</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">원고</p>
-            <p className="text-sm font-medium">{s.plaintiff || '-'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">피고</p>
-            <p className="text-sm font-medium">{s.defendant || '-'}</p>
-          </div>
-        </div>
+        <h3 className="text-sm font-semibold text-muted-foreground mb-3">핵심 포인트</h3>
+        {s.key_points?.length ? (
+          <ul className="list-disc pl-5 space-y-2 text-sm">
+            {s.key_points.map((point) => (
+              <li key={point}>{point}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm font-medium">-</p>
+        )}
       </Card>
     </div>
   )

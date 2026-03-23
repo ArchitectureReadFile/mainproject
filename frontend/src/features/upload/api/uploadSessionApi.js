@@ -29,9 +29,10 @@ export async function clearUploadSessionApi() {
   await client.delete('/documents/upload-session')
 }
 
-export async function uploadDocumentApi(file) {
+export async function uploadDocumentApi(file, groupId) {
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('group_id', String(groupId))
   const { data } = await client.post('/documents/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })

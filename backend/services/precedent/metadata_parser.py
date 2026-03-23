@@ -29,8 +29,8 @@ _HEADER_LABELS = (
 )
 
 
-class MetadataParser:
-    """판결문 메타데이터를 단순 규칙으로 추출합니다."""
+class OptionalPrecedentMetadataParser:
+    """판례 전용 보조 메타데이터 파서입니다."""
 
     def extract_header(self, pages: list[str], max_chars: int = 8000) -> str:
         full_text = "\n".join(pages)
@@ -95,7 +95,7 @@ class MetadataParser:
         defendant = self._clean_value(d_match.group(1)) if d_match else None
         return plaintiff, defendant
 
-    def parse(self, pages: list[str]) -> dict:
+    def parse_optional_metadata(self, pages: list[str]) -> dict:
         header = self.extract_header(pages)
         case_number = self._extract_case_number(header)
         plaintiff, defendant = self._extract_parties(header)
@@ -107,3 +107,14 @@ class MetadataParser:
             "plaintiff": plaintiff,
             "defendant": defendant,
         }
+
+    def parse_text(self, text: str) -> dict:
+        """추출된 판례 본문 텍스트 한 덩어리에서 메타데이터를 추출합니다."""
+        return self.parse_optional_metadata([text] if text else [])
+
+    def parse(self, pages: list[str]) -> dict:
+        """하위 호환용 alias. 새 코드는 parse_optional_metadata를 사용합니다."""
+        return self.parse_optional_metadata(pages)
+
+
+MetadataParser = OptionalPrecedentMetadataParser

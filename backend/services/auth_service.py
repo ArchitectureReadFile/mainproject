@@ -7,7 +7,7 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from errors import AppException, ErrorCode
-from models.model import User, Subscription, SubscriptionPlan, SubscriptionStatus
+from models.model import Subscription, SubscriptionPlan, SubscriptionStatus, User
 from schemas.auth import SignupRequest
 
 load_dotenv()
@@ -113,7 +113,7 @@ def create_user(db: Session, payload: SignupRequest) -> User:
         plan=SubscriptionPlan.FREE,
         status=SubscriptionStatus.ACTIVE,
     )
-    
+
     db.add(subscription)
     db.commit()
     db.refresh(user)

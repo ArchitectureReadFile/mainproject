@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { FileText, X } from 'lucide-react'
+import { useParams } from 'react-router-dom'
 import FileDropzone from '../../features/upload/components/FileDropzone.jsx'
 import FileStatusItem from '../../features/upload/components/FileStatusItem.jsx'
 import FlowSteps from '../../features/upload/components/FlowSteps.jsx'
@@ -117,8 +118,10 @@ function UploadPageInner() {
 }
 
 export default function UploadPage() {
+  const { group_id } = useParams()
+
   return (
-    <UploadProvider>
+    <UploadProvider groupId={group_id}>
       <UploadPageInner />
     </UploadProvider>
   )

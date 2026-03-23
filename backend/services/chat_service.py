@@ -1,10 +1,12 @@
 import json
 import os
+
 import requests
-from sqlalchemy.orm import Session
 from redis import Redis
+from sqlalchemy.orm import Session
+
 from models.model import ChatMessage, ChatMessageRole, Document, GroupMember
-from prompts.chat_prompt import CHAT_SYSTEM_PROMPT, CHAT_SUMMARY_PROMPT
+from prompts.chat_prompt import CHAT_SUMMARY_PROMPT, CHAT_SYSTEM_PROMPT
 from services.summary.process_service import ProcessService
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST")
@@ -31,7 +33,11 @@ class ChatService:
             doc_context = temp_doc_text
         elif doc_id:
             if not self._check_document_permission(user_id, doc_id):
-                self._publish_status(session_id, user_id, "error", "해당 문서를 찾을 수 없거나 접근 권한이 없습니다.",
+                self._publish_status(
+                    session_id,
+                    user_id,
+                    "error",
+                    "해당 문서를 찾을 수 없거나 접근 권한이 없습니다.",
                 )
                 return
 
@@ -43,7 +49,7 @@ class ChatService:
 
         existing_summary = self.redis_client.get(summary_key) or ""
         if isinstance(existing_summary, bytes):
-            existing_summary = existing_summary.decode('utf-8')
+            existing_summary = existing_summary.decode("utf-8")
 
         last_id_str = self.redis_client.get(last_msg_key)
         last_id = int(last_id_str) if last_id_str else 0
@@ -64,7 +70,9 @@ class ChatService:
                 role_str = "사용자" if msg.role == ChatMessageRole.USER else "AI"
                 dialogue_to_summarize += f"{role_str}: {msg.content}\n"
 
-            new_summary = self._summarize_dialogue(existing_summary, dialogue_to_summarize)
+            new_summary = self._summarize_dialogue(
+                existing_summary, dialogue_to_summarize
+            )
 
             self.redis_client.set(summary_key, new_summary)
             self.redis_client.set(last_msg_key, msgs_to_summarize[-1].id)
@@ -74,10 +82,10 @@ class ChatService:
             recent_msgs = unsummarized_msgs
 
         system_content = CHAT_SYSTEM_PROMPT
-        
+
         if doc_context:
             system_content += f"\n\n[참고 문서 원문]\n{doc_context}"
-            
+
         if existing_summary:
             system_content += f"\n\n[이전 대화 핵심 요약]\n{existing_summary}"
 

@@ -13,17 +13,24 @@ class DocumentRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_pending_document(self, user_id: int, document_url: str) -> Document:
-        """
+    def create_pending_document(
+        self,
+        *,
+        group_id: int,
+        uploader_user_id: int,
+        original_filename: str,
+        stored_path: str,
+    ) -> Document:
         document = Document(
-            user_id=user_id, document_url=document_url, status=DocumentStatus.PENDING
+            group_id=group_id,
+            uploader_user_id=uploader_user_id,
+            original_filename=original_filename,
+            stored_path=stored_path,
+            processing_status=DocumentStatus.PENDING,
         )
         self.db.add(document)
-        self.db.commit()
-        self.db.refresh(document)
+        self.db.flush()
         return document
-        """
-        pass
 
     def update_status(self, document_id: int, status: DocumentStatus):
         document = self.db.query(Document).filter(Document.id == document_id).first()
@@ -53,7 +60,6 @@ class DocumentRepository:
             query = query.filter(
                 or_(
                     Document.original_filename.contains(keyword),
-                    Summary.summary_title.contains(keyword),
                     Summary.summary_text.contains(keyword),
                 )
             )

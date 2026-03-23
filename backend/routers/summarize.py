@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.model import User
 from routers.auth import get_current_user
-from services.pdf_service import PdfService
+from services.summary.pdf_service import PdfService
 
 router = APIRouter()
 
