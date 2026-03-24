@@ -46,5 +46,10 @@ export const chatApi = {
         });
 
         return response.data;
+    },
+
+    deleteReference: async (sessionId) => {
+        const response = await client.delete(`/chat/sessions/${sessionId}/reference`);
+        return response.data;
     }
 };

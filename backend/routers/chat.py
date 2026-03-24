@@ -65,8 +65,10 @@ async def send_message(
     chat_service: ChatService = Depends(get_chat_service),
 ):
     file_bytes = None
+    file_name = None
     if file:
         file_bytes = await file.read()
+        file_name = file.filename
 
     return chat_service.send_message(
         db=db,
@@ -74,5 +76,19 @@ async def send_message(
         session_id=session_id,
         text=text,
         document_id=document_id,
+        file_name=file_name,
         file_bytes=file_bytes,
+    )
+
+@router.delete("/sessions/{session_id}/reference", response_model=ChatSessionResponse)
+def delete_reference_document(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+):
+    return chat_service.delete_reference_document(
+        db=db,
+        user_id=current_user.id,
+        session_id=session_id,
     )

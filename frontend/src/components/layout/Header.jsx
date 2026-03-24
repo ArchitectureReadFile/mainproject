@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { useTheme } from '@/hooks/useTheme'
 import { LogIn, Menu, Moon, Scale, Sun, X } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AuthModal, useAuth } from '../../features/auth/index.js'
 import MenuDrawer from './MenuDrawer.jsx'
 
@@ -20,6 +20,8 @@ export default function Header() {
   } = useAuth()
 
   const { theme, toggle } = useTheme()
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const showUserChip = !isBootstrapping && isAuthenticated
 
@@ -33,12 +35,21 @@ export default function Header() {
     openAuthModal('signup')
   }
 
+  const handleLogoClick = (e) => {
+    if (pathname === '/') {
+      e.preventDefault()
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else {
+      navigate('/')
+    }
+  }
+
   return (
     <>
       <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur-sm">
         <div className="max-w-[1100px] mx-auto px-5 py-3.5 flex items-center justify-between gap-3">
 
-          <Link to="/" className="no-underline text-inherit min-w-0">
+          <Link to="/" onClick={handleLogoClick} className="no-underline text-inherit min-w-0">
             <div className="flex items-center gap-2.5">
               <Scale className="w-8 h-8 text-primary shrink-0" />
               <div>

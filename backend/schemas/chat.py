@@ -8,6 +8,7 @@ class ChatSessionResponse(BaseModel):
     id: int
     user_id: int
     title: str
+    reference_document_title: str | None = None
     created_at: datetime
     updated_at: datetime
 

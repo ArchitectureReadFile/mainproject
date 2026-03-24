@@ -18,10 +18,10 @@ function Sheet({ open, onOpenChange, children }) {
 function SheetContent({ className, children, ...props }) {
   return (
     <Drawer.Portal>
-      <Drawer.Overlay className="fixed inset-0 z-[35] bg-black/45" />
+      <Drawer.Overlay className="fixed inset-0 z-[1000] bg-black/45" />
       <Drawer.Content
         className={cn(
-          'fixed top-0 right-0 z-40 h-dvh w-[min(86vw,320px)] bg-background border-l border-border shadow-xl overflow-y-auto flex flex-col',
+          'fixed top-0 right-0 z-[1001] h-dvh w-[min(86vw,320px)] bg-background border-l border-border shadow-xl overflow-y-auto flex flex-col',
           className
         )}
         {...props}

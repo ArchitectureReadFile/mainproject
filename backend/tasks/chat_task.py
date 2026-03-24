@@ -12,7 +12,6 @@ REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 def process_chat_message(payload: dict):
     user_id = payload.get("user_id")
     session_id = payload.get("session_id")
-    context_options = payload.get("context_options", {})
 
     redis_client = redis.Redis(host=REDIS_HOST, port=6379, db=0, decode_responses=True)
     db = SessionLocal()
@@ -24,7 +23,6 @@ def process_chat_message(payload: dict):
             redis_client=redis_client,
             user_id=user_id,
             session_id=session_id,
-            context_options=context_options,
         )
     finally:
         db.close()

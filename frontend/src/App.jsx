@@ -17,8 +17,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
-      <main className="flex-1">
+      <div className="fixed top-0 left-0 w-full z-50">
+        <Header />
+      </div>
+      <main className="flex-1 pt-[72px]">
         <Routes>
           <Route path="/" element={<LandingPage />} />
 
@@ -73,7 +75,9 @@ export default function App() {
         </Routes>
       </main>
       {!hideChatWidget && <ChatWidget />}
-      <Footer />
+      <div className="snap-start">
+        <Footer />
+      </div>
     </div>
   )
 }
