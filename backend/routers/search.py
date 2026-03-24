@@ -41,7 +41,6 @@ def search_precedents(
         results=results,
     )
 
-
 @router.post("/answer", response_model=SearchAnswerResponse)
 def answer_precedent_search(
     payload: SearchAnswerRequest,
