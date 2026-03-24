@@ -196,6 +196,7 @@ class GroupService:
                 username=user.username,
                 role=member.role,
                 joined_at=member.joined_at,
+                is_premium=self.repository.is_premium(user.id)
             )
             for member, user in active_rows
         ]

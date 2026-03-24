@@ -16,7 +16,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
+import { Avatar } from '@/components/ui/Avatar'
 
 
 // 역할별 허용 탭
@@ -64,7 +65,12 @@ const ROLE_STYLE = {
 
 function RoleBadge({ role }) {
     const { label, variant } = ROLE_STYLE[role] ?? { label: role, variant: 'outline' }
-    return <Badge variant={variant}>{label}</Badge>
+    return <Badge 
+        variant={variant}
+        className={"rounded-sm font-semibold justify-center w-15"}
+        >
+            {label}
+        </Badge>
 }
 
 
@@ -160,6 +166,13 @@ function MembersTab({ group }) {
         return true
     }
 
+    const canTransferOwner = (m) => {
+        if (group.my_role !== "OWNER") return false
+        if (m.user_id === user?.id) return false
+        if (m.role === "OWNER") return false
+        return true
+    }
+
     const handleRemove = async (targetId) => {
         setActionLoading(targetId)
         try {
@@ -194,6 +207,35 @@ function MembersTab({ group }) {
             setActionLoading(null)
         }
     }
+
+    const handleTransferOwner = async (targetId) => {
+        if (!confirm("정말 오너를 양도하시겟습니까?")) return
+
+        setActionLoading(targetId)
+
+        try {
+            await transferOwner(group.id, targetId)
+
+            setData((prev) => ({
+                ...prev,
+                members: prev.members.map((m) => {
+                    if (m.user_id === targetId) {
+                        return {...m, role: "OWNER"}
+                    }
+                    if (m.user_id === user?.id) {
+                        return { ...m, role: "ADMIN" }  
+                    }
+                    return m
+                }),
+            }))
+            toast.success("오너가 변경되었습니다.")
+        } catch (e) {
+            toast.error(e.message || "오너 변경 실패")
+        } finally {
+            setActionLoading(null)
+        }
+    }
+
 
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
@@ -268,14 +310,19 @@ function MembersTab({ group }) {
                     <ul>
                         {filteredMembers.map((m) => (
                             <li key={m.user_id} className="flex items-center justify-between px-5 py-3">
-                                <div>
-                                    <p className="text-sm font-medium">
-                                        {m.username}
-                                        {m.user_id === user?.id && (
-                                            <span className="ml-1.5 text-xs text-muted-foreground font-normal">(나)</span>
-                                        )}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">{m.email}</p>
+                                <div className="flex flex-col gap-0.5">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium">{m.username}</span> 
+                                        <Badge 
+                                            variant={m.is_premium ? "secondary" : "outline"}
+                                            className="text-[10px] px-1.5 py-0 h-4 font-normal leading-none shrink-0"
+                                            >
+                                            {m.is_premium ? "Premium" : "Free"}
+                                        </Badge>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground leading-none">
+                                        {m.email}
+                                    </span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     {canRolechange(m) && (
@@ -294,6 +341,37 @@ function MembersTab({ group }) {
                                                     <SelectItem value="VIEWER">VIEWER</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            {canTransferOwner(m) && (
+                                                m.is_premium ? (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        disabled={actionLoading === m.user_id}
+                                                        onClick={() => handleTransferOwner(m.user_id)}
+                                                        className="h-8 px-2 text-xs"
+                                                    >
+                                                        OWNER 변경
+                                                    </Button>
+                                                ) : (
+                                                    <Tooltip delayDuration={0}>
+                                                        <TooltipTrigger asChild>
+                                                            <span className="inline-block">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    disabled
+                                                                    className="h-8 px-2 text-xs opacity-50"
+                                                                >
+                                                                    OWNER 변경
+                                                                </Button>
+                                                            </span>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            프리미엄 플랜 사용자만 오너로 지정할 수 있습니다.
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                )
+                                            )}
                                             <Button
                                                 variant="destructive"
                                                 size="sm"
@@ -556,9 +634,12 @@ export default function GroupDetailPage() {
             <div className="flex items-center gap-2">
                 <Home className="h-8 w-8 "/>
                 <h1 className="text-2xl font-bold">{group.name}</h1>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 border border-blue-200">
-                    {group.my_role}
-                </span>
+                <Badge 
+                variant={group.my_role === 'OWNER' ? 'default' : 'secondary'}
+                className="text-[10px] px-2 py-0.5 rounded-sm font-semibold tracking-tight"
+                >
+                {group.my_role}
+                </Badge>
             </div>
             <div className="flex items-center gap-4 mt-3 text-sm">
 
@@ -598,7 +679,9 @@ export default function GroupDetailPage() {
         {activeTab === 'documents' && <div>문서 섹션</div>}
         {activeTab === 'trash'     && <div>휴지통 섹션</div>}
         {activeTab === 'members'   && (
-            <MembersTab group={group}/>
+            <TooltipProvider>
+                <MembersTab group={group}/>
+            </TooltipProvider>
         )}
         {activeTab === "workspace" && (
             <WorkspaceTab group={group} onUpdated={(updated) => setGroup(updated)} />
