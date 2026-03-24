@@ -1,4 +1,3 @@
-/* global WebSocket */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { chatApi } from '../api/chatApi.js';
 import { useAuth } from '@/features/auth/context/AuthContext';
@@ -7,11 +6,20 @@ const toKSTTime = (date) =>
     date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' });
 
 
-export const useChat = (sessionId) => {
+export const useChat = (sessionId, initialReferenceTitle) => {
     const { user } = useAuth();
     const [messages, setMessages] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+    const [referenceTitle, setReferenceTitle] = useState(initialReferenceTitle || null);
+    const [currentSessionId, setCurrentSessionId] = useState(null);
     const ws = useRef(null);
+
+    useEffect(() => {
+        if (initialReferenceTitle !== undefined) {
+            setReferenceTitle(initialReferenceTitle || null);
+        }
+    }, [sessionId, initialReferenceTitle]);
 
     const connectWebSocket = useCallback(() => {
         if (!sessionId || !user?.id) return;
@@ -95,9 +103,9 @@ export const useChat = (sessionId) => {
         if (!sessionId || !user) return;
 
         const fetchMessages = async () => {
+            setIsFetchingHistory(true);
             try {
                 const data = await chatApi.getMessages(sessionId);
-                console.log(data[0].created_at)
                 const formattedMessages = data.map(m => ({
                     id: m.id,
                     text: m.content,
@@ -106,28 +114,41 @@ export const useChat = (sessionId) => {
                     isError: false,
                     isStreaming: false
                 }));
+
+                const isLastMsgUser = formattedMessages.length > 0 && 
+                                    formattedMessages[formattedMessages.length - 1].sender === 'user';
+
                 setMessages(formattedMessages || []);
+                setIsLoading(isLastMsgUser);
+                setCurrentSessionId(sessionId);
             } catch (error) {
                 console.error("Failed to load chat history:", error);
+                setIsLoading(false);
+            } finally {
+                setIsFetchingHistory(false);
             }
         };
 
         setMessages([]);
+        setIsLoading(false);
+        setIsFetchingHistory(true);
+        setCurrentSessionId(null);
         fetchMessages();
         connectWebSocket();
 
         return () => {
+            setIsLoading(false);
             if (ws.current) {
                 ws.current.close();
             }
         };
     }, [sessionId, user, connectWebSocket]);
 
-    const sendMessage = useCallback(async (text, doc) => {
+    const sendMessage = useCallback(async (text, doc, group) => {
         if (!user) return;
 
         const userText = text || (doc ? `${doc.title || doc.file?.name} 검토 부탁드립니다.` : '');
-        if (!userText.trim()) return;
+        if (!userText.trim() && !doc) return;
 
         const userMsg = {
             id: Date.now(),
@@ -135,10 +156,16 @@ export const useChat = (sessionId) => {
             sender: 'user',
             timestamp: toKSTTime(new Date()),
             referenceDoc: doc,
+            referenceGroup: group 
         };
 
         setMessages((prev) => [...prev, userMsg]);
         setIsLoading(true);
+
+        if (doc) {
+            const newTitle = doc.title || doc.file?.name;
+            setReferenceTitle(newTitle);
+        }
 
         try {
             await chatApi.sendMessage(sessionId, userText, doc);
@@ -148,5 +175,14 @@ export const useChat = (sessionId) => {
         }
     }, [sessionId, user]);
 
-    return { messages, isLoading, sendMessage };
+    const removeReference = useCallback(async () => {
+        try {
+            await chatApi.deleteReference(sessionId);
+            setReferenceTitle(null);
+        } catch (error) {
+            console.error("Failed to delete reference:", error);
+        }
+    }, [sessionId]);
+
+    return { messages, isLoading, isFetchingHistory, sendMessage, referenceTitle, removeReference, currentSessionId };
 };
