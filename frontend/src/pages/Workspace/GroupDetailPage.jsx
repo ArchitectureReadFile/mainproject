@@ -1,11 +1,14 @@
-import { getGroupDetail, requestDeleteGroup, cancelDeleteGroup, getMembers, inviteMember } from '@/api/groups'
+import { 
+    getGroupDetail, requestDeleteGroup, cancelDeleteGroup, getMembers, inviteMember, 
+    removeMember, changeMemberRole, transferOwner,
+} from '@/api/groups'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import {
     AlertTriangle, FileText, Home, Loader2,
-    Trash2, Undo2, Users, ArrowLeft,
+    Trash2, Undo2, Users, ArrowLeft, 
 } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import UploadPage from '@/pages/Upload/index'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/features/auth/index'
@@ -13,6 +16,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
 
 
 
@@ -61,11 +65,16 @@ const ROLE_STYLE = {
 
 function RoleBadge({ role }) {
     const { label, variant } = ROLE_STYLE[role] ?? { label: role, variant: 'outline' }
-    return <Badge variant={variant}>{label}</Badge>
+    return <Badge 
+        variant={variant}
+        className={"rounded-sm font-semibold justify-center w-15"}
+        >
+            {label}
+        </Badge>
 }
 
 
-function MembersTab({ group }) {
+function MembersTab({ group, setGroup }) {
     const { user } = useAuth()
 
     const [data, setData] = useState(null)
@@ -77,6 +86,11 @@ function MembersTab({ group }) {
     const [inviteRole, setInviteRole] = useState('EDITOR')
     const [inviteLoading, setInviteLoading] = useState(false)
     const [inviteError, setInviteError] = useState('')
+    const [confirmRemove, setConfirmRemove] = useState(null)  
+    const [actionLoading, setActionLoading] = useState(null)  
+    const [confirmInvite, setConfirmInvite] = useState(false)
+    const [confirmTransfer, setConfirmTransfer] = useState(null)
+
 
     const handleInvite = async () => {
         if(!inviteUsername.trim()) return
@@ -145,6 +159,106 @@ function MembersTab({ group }) {
 
     const canSeeInvited = group.my_role === 'OWNER' || group.my_role === 'ADMIN'
 
+    const canRolechange = (m) => {
+        if (!canSeeInvited) return false
+        if (m.user_id === user?.id) return false
+        if (m.role === "OWNER") return false
+        if (group.my_role === "ADMIN" && m.role === "ADMIN") return false
+        return true
+    }
+
+    const canTransferOwner = (m) => {
+        if (group.my_role !== "OWNER") return false
+        if (m.user_id === user?.id) return false
+        if (m.role === "OWNER") return false
+
+        if (!m.is_premium) return false
+        if (m.has_owned_group) return false
+
+        return true
+    }
+
+    const handleRemove = async (targetId) => {
+        setActionLoading(targetId)
+        try {
+            await removeMember(group.id, targetId)
+            setData((prev) => ({
+                ...prev,
+                members: prev.members.filter((m) => m.user_id !== targetId),
+            }))
+            toast.success("멤버를 추방했습니다.")
+        } catch (e) {
+            toast.error(e.message || "추방에 실패했습니다.")
+        } finally {
+            setActionLoading(null)
+            setConfirmRemove(null)
+        }
+    }
+
+    const handleRoleChange = async (targetId, role) => {
+        setActionLoading(targetId)
+        try {
+            await changeMemberRole(group.id, targetId, role)
+            setData((prev) => ({
+                ...prev,
+                members: prev.members.map((m) => 
+                    m.user_id === targetId ? { ...m, role} : m
+                ),
+            }))
+            toast.success("권한이 변경됐습니다.")
+        } catch (e) {
+            toast.error(e.message || '권한 변경에 실패했습니다.')
+        } finally {
+            setActionLoading(null)
+        }
+    }
+
+    const handleTransferOwner = (targetId) => {
+        setConfirmTransfer(targetId)
+    }
+
+    const executeTransferOwner = async (targetId) => {
+        setActionLoading(targetId)
+
+        try {
+            await transferOwner(group.id, targetId)
+            const targetMember = data.members.find(m => m.user_id === targetId)   
+
+            setData((prev) => ({
+                ...prev,
+                members: prev.members.map((m) => {
+                    if (m.user_id === targetId) {
+                        return {...m, role: "OWNER"}
+                    }
+                    if (m.user_id === user?.id) {
+                        return { ...m, role: "ADMIN" }  
+                    }
+                    return m
+                }),
+            }))
+            const updated = await getGroupDetail(group.id)
+            setGroup(updated)
+
+            toast.success("오너가 변경되었습니다.")
+        } catch (e) {
+            toast.error(e.message || "오너 변경 실패")
+        } finally {
+            setActionLoading(null)
+            setConfirmTransfer(null)
+        }
+    }
+
+    const getOwnerTooltip = (m) => {
+        if (!m.is_premium) {
+            return "프리미엄 플랜 사용자만 오너로 지정할 수 있습니다."
+        }
+        if (m.has_owned_group) {
+            return "이미 다른 워크스페이스의 오너입니다."
+        }
+        return ""
+    }
+
+
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
             {/* 초대(OWNER/ADMIN만) */}
@@ -170,7 +284,10 @@ function MembersTab({ group }) {
                         </Select>
                         <Button
                             variant="outline"
-                            onClick={handleInvite}
+                            onClick={() => {
+                                if(!inviteUsername.trim()) return
+                                setConfirmInvite(true)
+                            }}
                             disabled={inviteLoading || !inviteUsername.trim()}
                         >
                             {inviteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : '초대'}
@@ -215,16 +332,82 @@ function MembersTab({ group }) {
                     <ul>
                         {filteredMembers.map((m) => (
                             <li key={m.user_id} className="flex items-center justify-between px-5 py-3">
-                                <div>
-                                    <p className="text-sm font-medium">
-                                        {m.username}
+                                <div className="flex flex-col gap-0.5">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium">{m.username}</span>
                                         {m.user_id === user?.id && (
-                                            <span className="ml-1.5 text-xs text-muted-foreground font-normal">(나)</span>
-                                        )}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">{m.email}</p>
+                                            <span className="text-xs text-muted-foreground font-normal">(나)</span>
+                                        )} 
+                                        <Badge 
+                                            variant={m.is_premium ? "secondary" : "outline"}
+                                            className="text-[10px] px-1.5 py-0 h-4 font-normal leading-none shrink-0"
+                                            >
+                                            {m.is_premium ? "Premium" : "Free"}
+                                        </Badge>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground leading-none">
+                                        {m.email}
+                                    </span>
                                 </div>
-                                <RoleBadge role={m.role} />
+                                <div className="flex items-center gap-2">
+                                    {canRolechange(m) && (
+                                        <>
+                                            <Select
+                                                value={m.role}
+                                                onValueChange={(role) => handleRoleChange(m.user_id, role)}
+                                                disabled={actionLoading === m.user_id}
+                                            >
+                                                <SelectTrigger className="w-28 h-8 text-xs">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="ADMIN">ADMIN</SelectItem>
+                                                    <SelectItem value="EDITOR">EDITOR</SelectItem>
+                                                    <SelectItem value="VIEWER">VIEWER</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            {canTransferOwner(m) ? (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={actionLoading === m.user_id}
+                                                    onClick={() => handleTransferOwner(m.user_id)}
+                                                    className="h-8 px-2 text-xs"
+                                                >
+                                                    OWNER 변경
+                                                </Button>
+                                            ) : (
+                                                <Tooltip delayDuration={0}>
+                                                    <TooltipTrigger asChild>
+                                                        <span className="inline-block">
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                disabled
+                                                                className="h-8 px-2 text-xs opacity-50"
+                                                            >
+                                                                OWNER 변경
+                                                            </Button>
+                                                        </span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        {getOwnerTooltip(m)}
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            )}
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={() => setConfirmRemove(m.user_id)}
+                                                disabled={actionLoading === m.user_id}
+                                                className="hover:text-destructive hover:bg-destructive/10 h-8 px-2"
+                                            >
+                                                추방
+                                            </Button>
+                                        </>
+                                    )}
+                                    {!canRolechange(m) && <RoleBadge role={m.role} />}
+                                </div>
                             </li>
                         ))}
                     </ul>
@@ -261,7 +444,35 @@ function MembersTab({ group }) {
                     )}
                 </div>
             )}
+
+            <ConfirmModal 
+                open={confirmInvite}
+                message={`${inviteUsername} 님을 ${inviteRole} 로 초대하시겠습니까?`}
+                confirmLabel={inviteLoading ? "처리 중..." : "초대"}
+                onConfirm={() => {
+                    setConfirmInvite(false)
+                    handleInvite()
+                }}
+                onCancel={() => setConfirmInvite(false)}
+            />
+
+            <ConfirmModal
+                open={confirmRemove !== null}
+                message="해당 멤버를 추방하시겠습니까?"
+                confirmLabel={actionLoading ? '처리 중...' : '추방'}
+                onConfirm={() => handleRemove(confirmRemove)}
+                onCancel={() => setConfirmRemove(null)}
+            />
+
+            <ConfirmModal
+                open={confirmTransfer !== null}
+                message="해당 멤버에게 오너 권한을 양도하시겠습니까?"
+                confirmLabel={actionLoading ? "처리 중..." : "양도"}
+                onConfirm={() => executeTransferOwner(confirmTransfer)}
+                onCancel={() => setConfirmTransfer(null)}
+            />
         </div>
+        
     )
 
 }
@@ -403,6 +614,21 @@ export default function GroupDetailPage() {
     const [error, setError] = useState(null)
     const [activeTab, setActiveTab] = useState('documents')
     const navigate = useNavigate()
+    const [searchParams, setSearchParams] = useSearchParams()
+    const tabFromUrl = searchParams.get("tab")
+
+
+    useEffect(() => {
+        setActiveTab(tabFromUrl || "documents")
+    }, [tabFromUrl])
+    
+    const handleTabChange = (tab) => {
+        setActiveTab(tab)
+        const newParams = new URLSearchParams(searchParams)
+        newParams.set("tab", tab)
+
+        setSearchParams(newParams)
+    }
 
     useEffect(() => {
         setLoading(true)
@@ -447,16 +673,24 @@ export default function GroupDetailPage() {
         {/* 헤더 */}
         <div className="mb-6">
             {/* 뒤로가기 버튼 */}
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1.5 mb-3 -ml-2">
-                <ArrowLeft size={15} />
-                뒤로 가기
-            </Button>
+            <div className="mb-6 flex items-center gap-2">
+                <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => navigate("/workspace")} className="gap-1.5 mb-3 -ml-2">
+                    <ArrowLeft size={15} />
+                    그룹 목록
+                </Button>
+            </div>
             <div className="flex items-center gap-2">
                 <Home className="h-8 w-8 "/>
                 <h1 className="text-2xl font-bold">{group.name}</h1>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 border border-blue-200">
-                    {group.my_role}
-                </span>
+                <Badge 
+                variant={group.my_role === 'OWNER' ? 'default' : 'secondary'}
+                className="text-[10px] px-2 py-0.5 rounded-sm font-semibold tracking-tight"
+                >
+                {group.my_role}
+                </Badge>
             </div>
             <div className="flex items-center gap-4 mt-3 text-sm">
 
@@ -479,7 +713,7 @@ export default function GroupDetailPage() {
             {visibleTabs.map((tab) => (
             <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => handleTabChange(tab.key)}
                 className={`px-4 py-2 text-sm font-medium text-slate-900 border-b-2 transition-colors ${
                 activeTab === tab.key
                     ? 'border-blue-600 text-blue-600'
@@ -496,7 +730,9 @@ export default function GroupDetailPage() {
         {activeTab === 'documents' && <div>문서 섹션</div>}
         {activeTab === 'trash'     && <div>휴지통 섹션</div>}
         {activeTab === 'members'   && (
-            <MembersTab group={group}/>
+            <TooltipProvider>
+                <MembersTab group={group} setGroup={setGroup}/>
+            </TooltipProvider>
         )}
         {activeTab === "workspace" && (
             <WorkspaceTab group={group} onUpdated={(updated) => setGroup(updated)} />
