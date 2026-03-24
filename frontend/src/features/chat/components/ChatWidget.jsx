@@ -6,9 +6,15 @@ import ChatSession from './ChatSession';
 
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [activeSession, setActiveSession] = useState(null);
   const [scrollOffset, setScrollOffset] = useState(0);
   const [footerOffset, setFooterOffset] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const handleSessionUpdate = (updatedSession) => {
+    setActiveSession(prev => ({...prev, ...updatedSession}));
+    setRefreshTrigger(prev => prev + 1);
+  };
 
   useEffect(() => {
     let lastScrollY = window.scrollY;
@@ -55,18 +61,20 @@ export default function ChatWidget() {
   return (
     <>
       {isOpen && (
-        <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[10000] w-[calc(100%-32px)] min-w-[400px] max-w-[800px] h-[600px] flex flex-col overflow-hidden shadow-2xl border-slate-200 animate-in fade-in zoom-in duration-200">
-          <div className="flex-1 flex flex-col overflow-hidden bg-white">
-            {activeSessionId ? (
+        <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[10000] w-[calc(100%-32px)] min-w-[400px] max-w-[800px] h-[600px] flex flex-col overflow-hidden shadow-2xl border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
+          <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900">
+            {activeSession ? (
               <ChatSession
-                sessionId={activeSessionId}
-                onBack={() => setActiveSessionId(null)}
+                session={activeSession}
+                onBack={() => setActiveSession(null)}
                 onClose={() => setIsOpen(false)}
+                onUpdateSession={handleSessionUpdate}
               />
             ) : (
               <ChatList
-                onSelectRoom={(id) => setActiveSessionId(id)}
+                onSelectRoom={(session) => setActiveSession(session)}
                 onClose={() => setIsOpen(false)}
+                refreshTrigger={refreshTrigger}
               />
             )}
           </div>
