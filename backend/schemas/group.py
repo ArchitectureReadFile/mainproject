@@ -58,6 +58,8 @@ class MemberResponse(BaseModel):
     username: str
     role: MembershipRole
     joined_at: Optional[datetime] = None
+    is_premium: bool
+    has_owned_group: bool
 
 
 class InvitedMemberResponse(BaseModel):

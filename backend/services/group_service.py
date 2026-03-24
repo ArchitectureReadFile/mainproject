@@ -196,6 +196,8 @@ class GroupService:
                 username=user.username,
                 role=member.role,
                 joined_at=member.joined_at,
+                is_premium=self.repository.is_premium(user.id),
+                has_owned_group=self.repository.exists_active_owned_group(user.id),
             )
             for member, user in active_rows
         ]
@@ -358,16 +360,12 @@ class GroupService:
         if not target_membership:
             raise AppException(ErrorCode.GROUP_MEMBER_NOT_FOUND)
 
+        if self.repository.exists_active_owned_group(target_id):
+            raise AppException(ErrorCode.GROUP_TRANSFER_TARGET_ALREADY_OWNER)
+
         # 양도 대상 프리미엄 체크
         if not self.repository.is_premium(target_id):
             raise AppException(ErrorCode.GROUP_TRANSFER_TARGET_NOT_PREMIUM)
 
         # 오너 변경
-        self.repository.change_member_role(target_membership, MembershipRole.OWNER)
-
-        # 기존 오너 어드민으로 변경
-        owner_membership = self.repository.get_active_member(user_id, group_id)
-        self.repository.change_member_role(owner_membership, MembershipRole.ADMIN)
-
-        # 그룹 정보 변경
-        group.owner_user_id = target_id
+        self.repository.transfer_owner(group, user_id, target_id)

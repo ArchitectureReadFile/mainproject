@@ -278,3 +278,37 @@ class GroupRepository:
             )
             .first()
         )
+    
+    def transfer_owner(self, group: Group, old_owner_id: int, new_owner_id: int) -> None:
+        locked_group = (
+            self.db.query(Group)
+            .filter(Group.id == group.id)
+            .with_for_update()
+            .first()
+        )
+
+        if not locked_group:
+            raise RuntimeError("transfer_owner: group not found")
+
+        new_member = self.get_active_member(new_owner_id, locked_group.id)
+        old_member = self.get_active_member(old_owner_id, locked_group.id)
+
+        if not new_member or not old_member:
+            raise RuntimeError("transfer_owner: membership not found")
+
+        new_member.role = MembershipRole.OWNER
+        old_member.role = MembershipRole.ADMIN
+
+        locked_group.owner_user_id = new_owner_id
+
+    
+    def exists_active_owned_group(self, user_id: int) -> bool:
+        return (
+            self.db.query(Group)
+            .filter(
+                Group.owner_user_id == user_id,
+                Group.status == GroupStatus.ACTIVE
+            )
+            .first()
+            is not None
+        )
