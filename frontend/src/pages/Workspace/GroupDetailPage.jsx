@@ -334,7 +334,10 @@ function MembersTab({ group, setGroup }) {
                             <li key={m.user_id} className="flex items-center justify-between px-5 py-3">
                                 <div className="flex flex-col gap-0.5">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium">{m.username}</span> 
+                                        <span className="text-sm font-medium">{m.username}</span>
+                                        {m.user_id === user?.id && (
+                                            <span className="text-xs text-muted-foreground font-normal">(나)</span>
+                                        )} 
                                         <Badge 
                                             variant={m.is_premium ? "secondary" : "outline"}
                                             className="text-[10px] px-1.5 py-0 h-4 font-normal leading-none shrink-0"
