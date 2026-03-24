@@ -196,7 +196,8 @@ class GroupService:
                 username=user.username,
                 role=member.role,
                 joined_at=member.joined_at,
-                is_premium=self.repository.is_premium(user.id)
+                is_premium=self.repository.is_premium(user.id),
+                has_owned_group=self.repository.exists_active_owned_group(user.id),
             )
             for member, user in active_rows
         ]
@@ -348,7 +349,7 @@ class GroupService:
         self.repository.change_member_role(target_membership, role)
 
     # 오너 양도
-    def transfer_owner(self, user_id: int, group_id: int, target_id: int) -> GroupDetailResponse:
+    def transfer_owner(self, user_id: int, group_id: int, target_id: int) -> None:
         group = self._check_owner(user_id, group_id)
 
         # 본인에게 양도 x
@@ -359,24 +360,12 @@ class GroupService:
         if not target_membership:
             raise AppException(ErrorCode.GROUP_MEMBER_NOT_FOUND)
 
+        if self.repository.exists_active_owned_group(target_id):
+            raise AppException(ErrorCode.GROUP_TRANSFER_TARGET_ALREADY_OWNER)
+
         # 양도 대상 프리미엄 체크
         if not self.repository.is_premium(target_id):
             raise AppException(ErrorCode.GROUP_TRANSFER_TARGET_NOT_PREMIUM)
 
         # 오너 변경
         self.repository.transfer_owner(group, user_id, target_id)
-
-        return GroupDetailResponse(
-            id=group.id,
-            name=group.name,
-            description=group.description,
-            status=group.status.value,
-            my_role=MembershipRole.ADMIN.value, 
-            owner_id=group.owner_user_id,
-            owner_username=target_membership.user.username,
-            member_count=self.repository.count_member(group.id),
-            document_count=self.repository.count_document(group.id),
-            delete_scheduled_at=group.delete_scheduled_at,
-            created_at=group.created_at,
-            updated_at=group.updated_at,
-        )

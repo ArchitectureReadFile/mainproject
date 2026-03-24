@@ -183,8 +183,13 @@ class ErrorCode(Enum):
         "자기 자신은 그룹에서 제거할 수 없습니다.",
     )
     GROUP_CANNOT_INVITE_SELF = (
-        "GROUP_021",
+        "GROUP_018",
         403,
         "자기 자신은 그룹에 초대할 수 없습니다.",
     )
-    GROUP_NOT_ACTIVE = ("GROUP_022", 400, "활성 상태의 그룹이 아닙니다.")
+    GROUP_NOT_ACTIVE = ("GROUP_019", 400, "활성 상태의 그룹이 아닙니다.")
+    GROUP_TRANSFER_TARGET_ALREADY_OWNER = (
+        "GROUP_020",
+        409,
+        "해당 사용자는 이미 다른 워크스페이스의 오너입니다.",
+    )

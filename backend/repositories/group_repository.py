@@ -300,3 +300,15 @@ class GroupRepository:
         old_member.role = MembershipRole.ADMIN
 
         locked_group.owner_user_id = new_owner_id
+
+    
+    def exists_active_owned_group(self, user_id: int) -> bool:
+        return (
+            self.db.query(Group)
+            .filter(
+                Group.owner_user_id == user_id,
+                Group.status == GroupStatus.ACTIVE
+            )
+            .first()
+            is not None
+        )

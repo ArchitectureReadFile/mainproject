@@ -5,10 +5,10 @@ import {
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import {
     AlertTriangle, FileText, Home, Loader2,
-    Trash2, Undo2, Users, ArrowLeft, MoreHorizontal,
+    Trash2, Undo2, Users, ArrowLeft, 
 } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import UploadPage from '@/pages/Upload/index'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/features/auth/index'
@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
-import { Avatar } from '@/components/ui/Avatar'
+
 
 
 // 역할별 허용 탭
@@ -74,7 +74,7 @@ function RoleBadge({ role }) {
 }
 
 
-function MembersTab({ group }) {
+function MembersTab({ group, setGroup }) {
     const { user } = useAuth()
 
     const [data, setData] = useState(null)
@@ -89,6 +89,7 @@ function MembersTab({ group }) {
     const [confirmRemove, setConfirmRemove] = useState(null)  
     const [actionLoading, setActionLoading] = useState(null)  
     const [confirmInvite, setConfirmInvite] = useState(false)
+    const [confirmTransfer, setConfirmTransfer] = useState(null)
 
 
     const handleInvite = async () => {
@@ -170,6 +171,10 @@ function MembersTab({ group }) {
         if (group.my_role !== "OWNER") return false
         if (m.user_id === user?.id) return false
         if (m.role === "OWNER") return false
+
+        if (!m.is_premium) return false
+        if (m.has_owned_group) return false
+
         return true
     }
 
@@ -208,13 +213,16 @@ function MembersTab({ group }) {
         }
     }
 
-    const handleTransferOwner = async (targetId) => {
-        if (!confirm("정말 오너를 양도하시겟습니까?")) return
+    const handleTransferOwner = (targetId) => {
+        setConfirmTransfer(targetId)
+    }
 
+    const executeTransferOwner = async (targetId) => {
         setActionLoading(targetId)
 
         try {
             await transferOwner(group.id, targetId)
+            const targetMember = data.members.find(m => m.user_id === targetId)   
 
             setData((prev) => ({
                 ...prev,
@@ -228,12 +236,26 @@ function MembersTab({ group }) {
                     return m
                 }),
             }))
+            const updated = await getGroupDetail(group.id)
+            setGroup(updated)
+
             toast.success("오너가 변경되었습니다.")
         } catch (e) {
             toast.error(e.message || "오너 변경 실패")
         } finally {
             setActionLoading(null)
+            setConfirmTransfer(null)
         }
+    }
+
+    const getOwnerTooltip = (m) => {
+        if (!m.is_premium) {
+            return "프리미엄 플랜 사용자만 오너로 지정할 수 있습니다."
+        }
+        if (m.has_owned_group) {
+            return "이미 다른 워크스페이스의 오너입니다."
+        }
+        return ""
     }
 
 
@@ -341,36 +363,34 @@ function MembersTab({ group }) {
                                                     <SelectItem value="VIEWER">VIEWER</SelectItem>
                                                 </SelectContent>
                                             </Select>
-                                            {canTransferOwner(m) && (
-                                                m.is_premium ? (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        disabled={actionLoading === m.user_id}
-                                                        onClick={() => handleTransferOwner(m.user_id)}
-                                                        className="h-8 px-2 text-xs"
-                                                    >
-                                                        OWNER 변경
-                                                    </Button>
-                                                ) : (
-                                                    <Tooltip delayDuration={0}>
-                                                        <TooltipTrigger asChild>
-                                                            <span className="inline-block">
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    disabled
-                                                                    className="h-8 px-2 text-xs opacity-50"
-                                                                >
-                                                                    OWNER 변경
-                                                                </Button>
-                                                            </span>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            프리미엄 플랜 사용자만 오너로 지정할 수 있습니다.
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                )
+                                            {canTransferOwner(m) ? (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={actionLoading === m.user_id}
+                                                    onClick={() => handleTransferOwner(m.user_id)}
+                                                    className="h-8 px-2 text-xs"
+                                                >
+                                                    OWNER 변경
+                                                </Button>
+                                            ) : (
+                                                <Tooltip delayDuration={0}>
+                                                    <TooltipTrigger asChild>
+                                                        <span className="inline-block">
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                disabled
+                                                                className="h-8 px-2 text-xs opacity-50"
+                                                            >
+                                                                OWNER 변경
+                                                            </Button>
+                                                        </span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        {getOwnerTooltip(m)}
+                                                    </TooltipContent>
+                                                </Tooltip>
                                             )}
                                             <Button
                                                 variant="destructive"
@@ -439,6 +459,14 @@ function MembersTab({ group }) {
                 confirmLabel={actionLoading ? '처리 중...' : '추방'}
                 onConfirm={() => handleRemove(confirmRemove)}
                 onCancel={() => setConfirmRemove(null)}
+            />
+
+            <ConfirmModal
+                open={confirmTransfer !== null}
+                message="해당 멤버에게 오너 권한을 양도하시겠습니까?"
+                confirmLabel={actionLoading ? "처리 중..." : "양도"}
+                onConfirm={() => executeTransferOwner(confirmTransfer)}
+                onCancel={() => setConfirmTransfer(null)}
             />
         </div>
         
@@ -583,6 +611,21 @@ export default function GroupDetailPage() {
     const [error, setError] = useState(null)
     const [activeTab, setActiveTab] = useState('documents')
     const navigate = useNavigate()
+    const [searchParams, setSearchParams] = useSearchParams()
+    const tabFromUrl = searchParams.get("tab")
+
+
+    useEffect(() => {
+        setActiveTab(tabFromUrl || "documents")
+    }, [tabFromUrl])
+    
+    const handleTabChange = (tab) => {
+        setActiveTab(tab)
+        const newParams = new URLSearchParams(searchParams)
+        newParams.set("tab", tab)
+
+        setSearchParams(newParams)
+    }
 
     useEffect(() => {
         setLoading(true)
@@ -627,10 +670,15 @@ export default function GroupDetailPage() {
         {/* 헤더 */}
         <div className="mb-6">
             {/* 뒤로가기 버튼 */}
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1.5 mb-3 -ml-2">
-                <ArrowLeft size={15} />
-                뒤로 가기
-            </Button>
+            <div className="mb-6 flex items-center gap-2">
+                <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => navigate("/workspace")} className="gap-1.5 mb-3 -ml-2">
+                    <ArrowLeft size={15} />
+                    그룹 목록
+                </Button>
+            </div>
             <div className="flex items-center gap-2">
                 <Home className="h-8 w-8 "/>
                 <h1 className="text-2xl font-bold">{group.name}</h1>
@@ -662,7 +710,7 @@ export default function GroupDetailPage() {
             {visibleTabs.map((tab) => (
             <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => handleTabChange(tab.key)}
                 className={`px-4 py-2 text-sm font-medium text-slate-900 border-b-2 transition-colors ${
                 activeTab === tab.key
                     ? 'border-blue-600 text-blue-600'
@@ -680,7 +728,7 @@ export default function GroupDetailPage() {
         {activeTab === 'trash'     && <div>휴지통 섹션</div>}
         {activeTab === 'members'   && (
             <TooltipProvider>
-                <MembersTab group={group}/>
+                <MembersTab group={group} setGroup={setGroup}/>
             </TooltipProvider>
         )}
         {activeTab === "workspace" && (
