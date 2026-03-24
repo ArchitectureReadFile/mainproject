@@ -1,8 +1,11 @@
-import { getGroupDetail, requestDeleteGroup, cancelDeleteGroup, getMembers, inviteMember } from '@/api/groups'
+import { 
+    getGroupDetail, requestDeleteGroup, cancelDeleteGroup, getMembers, inviteMember, 
+    removeMember, changeMemberRole, transferOwner,
+} from '@/api/groups'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import {
     AlertTriangle, FileText, Home, Loader2,
-    Trash2, Undo2, Users, ArrowLeft,
+    Trash2, Undo2, Users, ArrowLeft, MoreHorizontal,
 } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -77,6 +80,10 @@ function MembersTab({ group }) {
     const [inviteRole, setInviteRole] = useState('EDITOR')
     const [inviteLoading, setInviteLoading] = useState(false)
     const [inviteError, setInviteError] = useState('')
+    const [confirmRemove, setConfirmRemove] = useState(null)  
+    const [actionLoading, setActionLoading] = useState(null)  
+    const [confirmInvite, setConfirmInvite] = useState(false)
+
 
     const handleInvite = async () => {
         if(!inviteUsername.trim()) return
@@ -145,6 +152,49 @@ function MembersTab({ group }) {
 
     const canSeeInvited = group.my_role === 'OWNER' || group.my_role === 'ADMIN'
 
+    const canRolechange = (m) => {
+        if (!canSeeInvited) return false
+        if (m.user_id === user?.id) return false
+        if (m.role === "OWNER") return false
+        if (group.my_role === "ADMIN" && m.role === "ADMIN") return false
+        return true
+    }
+
+    const handleRemove = async (targetId) => {
+        setActionLoading(targetId)
+        try {
+            await removeMember(group.id, targetId)
+            setData((prev) => ({
+                ...prev,
+                members: prev.members.filter((m) => m.user_id !== targetId),
+            }))
+            toast.success("멤버를 추방했습니다.")
+        } catch (e) {
+            toast.error(e.message || "추방에 실패했습니다.")
+        } finally {
+            setActionLoading(null)
+            setConfirmRemove(null)
+        }
+    }
+
+    const handleRoleChange = async (targetId, role) => {
+        setActionLoading(targetId)
+        try {
+            await changeMemberRole(group.id, targetId, role)
+            setData((prev) => ({
+                ...prev,
+                members: prev.members.map((m) => 
+                    m.user_id === targetId ? { ...m, role} : m
+                ),
+            }))
+            toast.success("권한이 변경됐습니다.")
+        } catch (e) {
+            toast.error(e.message || '권한 변경에 실패했습니다.')
+        } finally {
+            setActionLoading(null)
+        }
+    }
+
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
             {/* 초대(OWNER/ADMIN만) */}
@@ -170,7 +220,10 @@ function MembersTab({ group }) {
                         </Select>
                         <Button
                             variant="outline"
-                            onClick={handleInvite}
+                            onClick={() => {
+                                if(!inviteUsername.trim()) return
+                                setConfirmInvite(true)
+                            }}
                             disabled={inviteLoading || !inviteUsername.trim()}
                         >
                             {inviteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : '초대'}
@@ -224,7 +277,36 @@ function MembersTab({ group }) {
                                     </p>
                                     <p className="text-xs text-muted-foreground">{m.email}</p>
                                 </div>
-                                <RoleBadge role={m.role} />
+                                <div className="flex items-center gap-2">
+                                    {canRolechange(m) && (
+                                        <>
+                                            <Select
+                                                value={m.role}
+                                                onValueChange={(role) => handleRoleChange(m.user_id, role)}
+                                                disabled={actionLoading === m.user_id}
+                                            >
+                                                <SelectTrigger className="w-28 h-8 text-xs">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="ADMIN">ADMIN</SelectItem>
+                                                    <SelectItem value="EDITOR">EDITOR</SelectItem>
+                                                    <SelectItem value="VIEWER">VIEWER</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={() => setConfirmRemove(m.user_id)}
+                                                disabled={actionLoading === m.user_id}
+                                                className="hover:text-destructive hover:bg-destructive/10 h-8 px-2"
+                                            >
+                                                추방
+                                            </Button>
+                                        </>
+                                    )}
+                                    {!canRolechange(m) && <RoleBadge role={m.role} />}
+                                </div>
                             </li>
                         ))}
                     </ul>
@@ -261,7 +343,27 @@ function MembersTab({ group }) {
                     )}
                 </div>
             )}
+
+            <ConfirmModal 
+                open={confirmInvite}
+                message={`${inviteUsername} 님을 ${inviteRole} 로 초대하시겠습니까?`}
+                confirmLabel={inviteLoading ? "처리 중..." : "초대"}
+                onConfirm={() => {
+                    setConfirmInvite(false)
+                    handleInvite()
+                }}
+                onCancel={() => setConfirmInvite(false)}
+            />
+
+            <ConfirmModal
+                open={confirmRemove !== null}
+                message="해당 멤버를 추방하시겠습니까?"
+                confirmLabel={actionLoading ? '처리 중...' : '추방'}
+                onConfirm={() => handleRemove(confirmRemove)}
+                onCancel={() => setConfirmRemove(null)}
+            />
         </div>
+        
     )
 
 }

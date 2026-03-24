@@ -11,7 +11,7 @@ createRoot(document.getElementById('root')).render(
     <AuthProvider>
       <TooltipProvider>
         <App />
-        <Toaster position="top-right" richColors />
+        <Toaster position="top-right" richColors closeButton />
       </TooltipProvider>
     </AuthProvider>
   </BrowserRouter>

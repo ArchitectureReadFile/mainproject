@@ -347,7 +347,7 @@ class GroupService:
         self.repository.change_member_role(target_membership, role)
 
     # 오너 양도
-    def transfer_owner(self, user_id: int, group_id: int, target_id: int) -> None:
+    def transfer_owner(self, user_id: int, group_id: int, target_id: int) -> GroupDetailResponse:
         group = self._check_owner(user_id, group_id)
 
         # 본인에게 양도 x
@@ -363,11 +363,19 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_TRANSFER_TARGET_NOT_PREMIUM)
 
         # 오너 변경
-        self.repository.change_member_role(target_membership, MembershipRole.OWNER)
+        self.repository.transfer_owner(group, user_id, target_id)
 
-        # 기존 오너 어드민으로 변경
-        owner_membership = self.repository.get_active_member(user_id, group_id)
-        self.repository.change_member_role(owner_membership, MembershipRole.ADMIN)
-
-        # 그룹 정보 변경
-        group.owner_user_id = target_id
+        return GroupDetailResponse(
+            id=group.id,
+            name=group.name,
+            description=group.description,
+            status=group.status.value,
+            my_role=MembershipRole.ADMIN.value, 
+            owner_id=group.owner_user_id,
+            owner_username=target_membership.user.username,
+            member_count=self.repository.count_member(group.id),
+            document_count=self.repository.count_document(group.id),
+            delete_scheduled_at=group.delete_scheduled_at,
+            created_at=group.created_at,
+            updated_at=group.updated_at,
+        )
