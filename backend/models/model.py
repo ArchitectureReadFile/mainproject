@@ -447,6 +447,9 @@ class ChatSession(Base):
     )
 
     title = Column(String(255))
+    
+    reference_document_title = Column(String(255), nullable=True)
+    reference_document_text = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
     updated_at = Column(
