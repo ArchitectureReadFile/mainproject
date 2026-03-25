@@ -11,30 +11,42 @@ from services.rag.retrieval_service import retrieve_precedents
 router = APIRouter(prefix="/search", tags=["search"])
 
 
+def _grouped_to_search_result(item: dict) -> SearchResult:
+    """
+    grouping_service 결과(precedent-level dict) → SearchResult 스키마 변환.
+
+    text / section_title / element_type: top chunk 기준.
+    메타 필드(case_number 등)는 precedent-level에서 직접 읽는다.
+    """
+    top_chunk = item.get("chunks", [{}])[0] if item.get("chunks") else {}
+    return SearchResult(
+        precedent_id=item["precedent_id"],
+        score=item["score"],
+        title=item.get("title"),
+        case_number=item.get("case_number"),
+        case_name=item.get("case_name"),
+        court_name=item.get("court_name"),
+        judgment_date=item.get("judgment_date"),
+        source_url=item.get("source_url"),
+        text=top_chunk.get("text"),
+        section_title=top_chunk.get("section_title"),
+        element_type=top_chunk.get("element_type"),
+        dense_score=None,
+        bm25_score=None,
+    )
+
+
 @router.post("", response_model=SearchResponse)
 def search_precedents(
     payload: SearchRequest,
     _: User = Depends(get_current_user),
 ):
-    """
-    자연어 질문으로 유사 판례를 검색한다.
-
-    search_mode=dense:
-        임베딩 벡터 기반 코사인 유사도 검색.
-        의미적으로 유사한 판례를 찾는 데 강함.
-
-    search_mode=hybrid:
-        BM25(키워드) + Dense(의미) 결합.
-        정확한 법률 용어, 사건번호 검색에 강함.
-        score = 0.8 × BM25 + 0.2 × Dense (HYBRID_ALPHA env로 조정 가능)
-    """
-    hits = retrieve_precedents(
+    grouped = retrieve_precedents(
         query=payload.query,
         top_k=payload.top_k,
         search_mode=payload.search_mode,
     )
-    results = [SearchResult(**h) for h in hits]
-
+    results = [_grouped_to_search_result(item) for item in grouped]
     return SearchResponse(
         query=payload.query,
         search_mode=payload.search_mode,
@@ -46,18 +58,18 @@ def answer_precedent_search(
     payload: SearchAnswerRequest,
     _: User = Depends(get_current_user),
 ):
-    hits = retrieve_precedents(
+    grouped = retrieve_precedents(
         query=payload.query,
         top_k=payload.top_k,
         search_mode=payload.search_mode,
     )
-    results = [SearchResult(**h) for h in hits]
 
     answer_payload = RagAnswerService().generate_answer(
         query=payload.query,
-        results=[result.model_dump() for result in results],
+        results=grouped,
     )
 
+    results = [_grouped_to_search_result(item) for item in grouped]
     return SearchAnswerResponse(
         query=payload.query,
         search_mode=payload.search_mode,
@@ -69,7 +81,6 @@ def answer_precedent_search(
 
 @router.get("/count")
 def get_index_count(_: User = Depends(get_current_user)):
-    """Qdrant(Dense)와 BM25 인덱스에 저장된 문서 수를 반환한다."""
     return {
         "dense_count": vector_store.count(),
         "bm25_count": bm25_store.count(),

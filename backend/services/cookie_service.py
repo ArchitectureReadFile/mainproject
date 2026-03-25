@@ -1,8 +1,12 @@
-from fastapi import Response
 import os
 
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+from fastapi import Response
+
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(
+    os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30")
+)
 JWT_REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+
 
 class CookieService:
     @staticmethod
@@ -11,7 +15,7 @@ class CookieService:
             key="access_token",
             value=access_token,
             httponly=False,
-            secure=False,  
+            secure=False,
             samesite="lax",
             max_age=JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         )
@@ -19,7 +23,7 @@ class CookieService:
             key="refresh_token",
             value=refresh_token,
             httponly=True,
-            secure=False, 
+            secure=False,
             samesite="lax",
             max_age=JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         )

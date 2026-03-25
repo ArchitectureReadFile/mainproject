@@ -57,6 +57,11 @@ class LLMClient:
                     "temperature": 0.0,
                     "num_predict": num_predict,
                     "num_ctx": num_ctx,
+                    # 이전 요청의 KV 캐시를 재사용하지 않도록 강제한다.
+                    # Ollama는 기본적으로 동일 모델 연속 요청 시 KV 캐시를 유지하는데,
+                    # 문서 요약처럼 매 요청이 독립적이어야 하는 경우 이전 컨텍스트가
+                    # 다음 요청에 섞이는 문제가 생긴다.
+                    "num_keep": 0,
                 },
             }
             try:

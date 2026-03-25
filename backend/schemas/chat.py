@@ -1,8 +1,11 @@
-from pydantic import BaseModel
 from datetime import datetime
+
+from pydantic import BaseModel
+
 
 class ChatSessionRequest(BaseModel):
     title: str
+
 
 class ChatSessionResponse(BaseModel):
     id: int
@@ -14,6 +17,7 @@ class ChatSessionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class ChatMessageResponse(BaseModel):
     id: int
