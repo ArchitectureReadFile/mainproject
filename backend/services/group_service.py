@@ -259,7 +259,7 @@ class GroupService:
 
         # 이전 멤버였는지 체크(재초대)
         existing = self.repository.get_member_any_status(target.id, group_id)
-        print("before:", existing.status)
+
         if existing:
             if existing.status == MembershipStatus.ACTIVE:
                 raise AppException(ErrorCode.GROUP_MEMBER_ALREADY_EXISTS)
