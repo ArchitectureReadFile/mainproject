@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { IoAdd, IoTrashOutline, IoPencilOutline, IoCheckmarkOutline, IoClose } from 'react-icons/io5';
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";

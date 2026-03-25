@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { IoHomeOutline, IoChatbubbleEllipsesOutline, IoInformationCircleOutline } from 'react-icons/io5';
 import IntroSection from './components/IntroSection';
 import ChatSection from './components/ChatSection';

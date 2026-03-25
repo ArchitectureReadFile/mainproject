@@ -1,4 +1,3 @@
-import React from 'react';
 import { IoCloudUploadOutline, IoDocumentTextOutline, IoCheckmarkOutline } from 'react-icons/io5';
 
 export default function GuideSection() {

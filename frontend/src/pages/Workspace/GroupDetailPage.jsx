@@ -222,8 +222,6 @@ function MembersTab({ group, setGroup }) {
 
         try {
             await transferOwner(group.id, targetId)
-            const targetMember = data.members.find(m => m.user_id === targetId)   
-
             setData((prev) => ({
                 ...prev,
                 members: prev.members.map((m) => {

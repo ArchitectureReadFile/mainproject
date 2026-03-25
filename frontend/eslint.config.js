@@ -36,6 +36,7 @@ export default [
         URL: 'readonly',
         File: 'readonly',
         FileReader: 'readonly',
+        WebSocket: 'readonly',
       },
       parserOptions: {
         ecmaFeatures: { jsx: true },

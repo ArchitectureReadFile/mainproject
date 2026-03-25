@@ -18,10 +18,12 @@ import {
   IoTrashOutline
 } from 'react-icons/io5';
 import { getMyGroups } from '../../../api/groups';
+import { useAuth } from '../../../features/auth';
 import { useChat } from '../../../features/chat/hooks/useChat';
 import { useChatSessions } from '../../../features/chat/hooks/useChatSessions';
 
 export default function ChatSection() {
+  const { user } = useAuth();
   const { sessions, createRoom, updateRoom, deleteRoom, refreshRooms } = useChatSessions();
   const [activeSessionId, setActiveSessionId] = useState(null);
 
@@ -65,6 +67,7 @@ export default function ChatSection() {
   }, [messages, isLoading]);
 
   useEffect(() => {
+    if (!user) return;
     const fetchGroups = async () => {
       try {
         const data = await getMyGroups();
@@ -74,7 +77,7 @@ export default function ChatSection() {
       }
     };
     fetchGroups();
-  }, []);
+  }, [user]);
 
   const handleCreateAndStart = async () => {
     const newName = `새로운 상담 ${sessions.length + 1}`;
