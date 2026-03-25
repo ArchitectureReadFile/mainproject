@@ -36,7 +36,9 @@ from models.model import (
     UserRole,
 )
 from services import admin_service
-from services.auth_service import hash_password
+from services.auth_service import AuthService
+
+_auth_service = AuthService()
 
 try:
     from seed_data.precedent_sources import SEED_PRECEDENT_SOURCES
@@ -269,7 +271,7 @@ def seed_users(db) -> dict[str, User]:
         user = User(
             email=item["email"],
             username=item["username"],
-            password=hash_password("Test1234!"),
+            password=_auth_service.hash_password("Test1234!"),
             role=UserRole.GENERAL,
             is_active=item["is_active"],
             created_at=_days_ago(item["days_ago"]),
@@ -463,7 +465,7 @@ def seed_admin(db) -> User | None:
     admin = User(
         email=ADMIN_EMAIL,
         username="시드관리자",
-        password=hash_password(ADMIN_PASSWORD),
+        password=_auth_service.hash_password(ADMIN_PASSWORD),
         role=UserRole.ADMIN,
         is_active=True,
     )
