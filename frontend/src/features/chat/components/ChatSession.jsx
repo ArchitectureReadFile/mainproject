@@ -1,19 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  IoArrowBack,
-  IoSend,
-  IoClose,
-  IoAdd,
-  IoFolderOpenOutline,
-  IoDocumentTextOutline,
-  IoPeopleOutline,
-  IoCloseCircle,
-  IoCloudUploadOutline,
-  IoEllipsisHorizontal
-} from 'react-icons/io5';
+import { Avatar, AvatarFallback } from "@/components/ui/Avatar.jsx";
 import { Button } from "@/components/ui/Button.jsx";
 import { Input } from "@/components/ui/Input.jsx";
-import { Avatar, AvatarFallback } from "@/components/ui/Avatar.jsx";
+import { useEffect, useRef, useState } from 'react';
+import {
+  IoAdd,
+  IoArrowBack,
+  IoClose,
+  IoCloseCircle,
+  IoCloudUploadOutline,
+  IoDocumentTextOutline,
+  IoEllipsisHorizontal,
+  IoFolderOpenOutline,
+  IoPeopleOutline,
+  IoSend
+} from 'react-icons/io5';
+import { getMyGroups } from '../../../api/groups';
 import { useChat } from '../hooks/useChat.js';
 
 export default function ChatSession({ session, onBack, onClose, onUpdateSession }) {
@@ -23,7 +24,7 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
 
   useEffect(() => {
     if (onUpdateSession && referenceTitle !== session.reference_document_title) {
-        onUpdateSession({ reference_document_title: referenceTitle });
+      onUpdateSession({ reference_document_title: referenceTitle });
     }
   }, [referenceTitle, session.reference_document_title, onUpdateSession]);
 
@@ -33,24 +34,25 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
   const [showGroupSelect, setShowGroupSelect] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
-
-  const dummyDocuments = [
-    { id: 1, title: '표준 근로계약서.pdf' },
-    { id: 2, title: '비밀유지 서약서(NDA).pdf' },
-    { id: 3, title: '부동산 임대차 계약서.docx' },
-  ];
-
-  const dummyGroups = [
-    { id: 1, name: '법무팀 워크스페이스' },
-    { id: 2, name: '프론트엔드 그룹' },
-    { id: 3, name: '개인 문서함' },
-  ];
+  const [groups, setGroups] = useState([]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        const data = await getMyGroups();
+        setGroups(data);
+      } catch (error) {
+        console.error("Failed to fetch groups:", error);
+      }
+    };
+    fetchGroups();
+  }, []);
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -181,21 +183,10 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
                   >
                     <IoCloudUploadOutline size={18} /> 내 PC에서 새 파일 업로드
                   </button>
-
-                  <div className="px-2 pt-1 pb-0.5 text-[10px] font-semibold text-slate-400 dark:text-slate-500">최근 문서</div>
-                  {dummyDocuments.map(doc => (
-                    <button
-                      key={doc.id}
-                      onClick={() => { setSelectedDoc(doc); setShowDocSelect(false); }}
-                      className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg flex items-center gap-2 transition-colors"
-                    >
-                      <IoDocumentTextOutline className="text-slate-400 dark:text-slate-500" size={16} /> {doc.title}
-                    </button>
-                  ))}
                 </>
               )}
 
-              {showGroupSelect && dummyGroups.map(group => (
+              {showGroupSelect && groups.map(group => (
                 <button
                   key={group.id}
                   onClick={() => { setSelectedGroup(group); setShowGroupSelect(false); }}
@@ -253,14 +244,14 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
             <Button
               variant="outline" size="sm"
               onClick={toggleDocSelect}
-              className={`h-7 text-[11px] rounded-full gap-1.5 shadow-sm px-3 border-slate-200 dark:border-slate-800 transition-colors ${showDocSelect ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+              className={`h-7 text-[11px] rounded-full gap-1.5 shadow-sm px-3 border-slate-200 dark:border-slate-700 transition-all duration-200 font-bold cursor-pointer ${showDocSelect ? 'bg-slate-800 hover:bg-slate-700 dark:bg-slate-200 dark:hover:bg-slate-300 text-white hover:text-white dark:text-slate-800 dark:hover:text-slate-800 border-slate-800 dark:border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'}`}
             >
               <IoAdd size={14} /> 문서 검토
             </Button>
             <Button
               variant="outline" size="sm"
               onClick={toggleGroupSelect}
-              className={`h-7 text-[11px] rounded-full gap-1.5 shadow-sm px-3 border-slate-200 dark:border-slate-800 transition-colors ${showGroupSelect ? 'bg-slate-800 dark:bg-slate-700 text-slate-900 dark:text-slate-100' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+              className={`h-7 text-[11px] rounded-full gap-1.5 shadow-sm px-3 border-slate-200 dark:border-slate-700 transition-all duration-200 font-bold cursor-pointer ${showGroupSelect ? 'bg-slate-800 hover:bg-slate-700 dark:bg-slate-200 dark:hover:bg-slate-300 text-white hover:text-white dark:text-slate-800 dark:hover:text-slate-800 border-slate-800 dark:border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'}`}
             >
               <IoFolderOpenOutline size={14} /> 그룹 참조
             </Button>

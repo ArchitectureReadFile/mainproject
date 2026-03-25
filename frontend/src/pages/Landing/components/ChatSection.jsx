@@ -24,17 +24,17 @@ import { useChatSessions } from '../../../features/chat/hooks/useChatSessions';
 export default function ChatSection() {
   const { sessions, createRoom, updateRoom, deleteRoom, refreshRooms } = useChatSessions();
   const [activeSessionId, setActiveSessionId] = useState(null);
-  
+
   const activeSession = sessions.find(s => s.id === activeSessionId) || null;
-  
+
   const { messages, sendMessage, isLoading, referenceTitle, removeReference, currentSessionId } = useChat(
-    activeSessionId, 
+    activeSessionId,
     activeSession?.reference_document_title
   );
 
   useEffect(() => {
     if (activeSessionId && currentSessionId === activeSessionId && referenceTitle !== activeSession?.reference_document_title) {
-        refreshRooms();
+      refreshRooms();
     }
   }, [referenceTitle, activeSessionId, currentSessionId, activeSession?.reference_document_title, refreshRooms]);
   const [inputText, setInputText] = useState('');
@@ -50,11 +50,6 @@ export default function ChatSection() {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [groups, setGroups] = useState([]);
   const [pendingMessage, setPendingMessage] = useState(null);
-
-  const dummyDocuments = [
-    { id: 'doc1', title: '표준 근로계약서.pdf' },
-    { id: 'doc2', title: '개인정보 처리방침.pdf' },
-  ];
 
   useEffect(() => {
     if (activeSessionId && pendingMessage && currentSessionId === activeSessionId) {
@@ -128,9 +123,9 @@ export default function ChatSection() {
   const handleInitialSend = async () => {
     const textToSend = inputText.trim();
     if (!textToSend && !selectedDoc && !selectedGroup) return;
-    
+
     const msg = { text: textToSend, doc: selectedDoc, group: selectedGroup };
-    
+
     setInputText('');
     setSelectedDoc(null);
     setSelectedGroup(null);
@@ -144,6 +139,16 @@ export default function ChatSection() {
     } catch (error) {
       console.error("Failed to start initial chat:", error);
     }
+  };
+
+  const toggleDocSelect = () => {
+    setShowDocSelect(!showDocSelect);
+    setShowGroupSelect(false);
+  };
+
+  const toggleGroupSelect = () => {
+    setShowGroupSelect(!showGroupSelect);
+    setShowDocSelect(false);
   };
 
   return (
@@ -186,7 +191,7 @@ export default function ChatSection() {
                     </p>
                   )}
                 </div>
-                
+
                 <div className={`flex gap-1 transition-opacity ${editingId === session.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                   <button
                     onClick={(e) => editingId === session.id ? saveEdit(e, session.id) : startEdit(e, session)}
@@ -206,225 +211,221 @@ export default function ChatSection() {
           </div>
         </aside>
 
-            <div className="flex-1 h-full flex flex-col bg-white dark:bg-slate-900 overflow-hidden relative">
-              {activeSessionId ? (
-                <>
-                  <div ref={scrollRef} className="flex-1 overflow-y-auto bg-slate-50/30 dark:bg-slate-950/30 p-10 space-y-8 custom-scrollbar">
-                    {messages.map((msg) => (
-                      <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] p-6 rounded-3xl shadow-sm text-lg leading-relaxed flex flex-col ${msg.sender === 'user' ? 'bg-blue-600 text-white shadow-blue-100 dark:shadow-none' : 'bg-white dark:bg-slate-800 text-foreground border border-slate-100 dark:border-slate-700'}`}>
-                          {msg.referenceDoc && (
-                            <div className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-xl text-sm w-fit border ${msg.sender === 'user' ? 'bg-white/20 border-white/30 text-white' : 'bg-blue-50 dark:bg-blue-900/30 border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-300'}`}>
-                              <IoDocumentTextOutline size={16} /> {msg.referenceDoc.title}
-                            </div>
-                          )}
-                          {msg.referenceGroup && (
-                            <div className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-xl text-sm w-fit border ${msg.sender === 'user' ? 'bg-white/20 border-white/30 text-white' : 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-100 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'}`}>
-                              <IoPeopleOutline size={16} /> {msg.referenceGroup.name}
-                            </div>
-                          )}
-                          <p>{msg.text}</p>
-                          <p className={`text-xs mt-3 opacity-60 ${msg.sender === 'user' ? 'text-right' : 'text-left'}`}>
-                            {msg.timestamp}
-                          </p>
+        <div className="flex-1 h-full flex flex-col bg-white dark:bg-slate-900 overflow-hidden relative">
+          {activeSessionId ? (
+            <>
+              <div ref={scrollRef} className="flex-1 overflow-y-auto bg-slate-50/30 dark:bg-slate-950/30 p-10 space-y-8 custom-scrollbar">
+                {messages.map((msg) => (
+                  <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] p-6 rounded-3xl shadow-sm text-lg leading-relaxed flex flex-col ${msg.sender === 'user' ? 'bg-blue-600 text-white shadow-blue-100 dark:shadow-none' : 'bg-white dark:bg-slate-800 text-foreground border border-slate-100 dark:border-slate-700'}`}>
+                      {msg.referenceDoc && (
+                        <div className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-xl text-sm w-fit border ${msg.sender === 'user' ? 'bg-white/20 border-white/30 text-white' : 'bg-blue-50 dark:bg-blue-900/30 border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-300'}`}>
+                          <IoDocumentTextOutline size={16} /> {msg.referenceDoc.title}
                         </div>
-                      </div>
-                    ))}
-                    {isLoading && (
-                      <div className="flex justify-start">
-                        <div className="max-w-[75%] px-4 py-3 rounded-2xl shadow-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-bl-sm flex items-center gap-2">
-                          <IoEllipsisHorizontal className="text-slate-400 dark:text-slate-500 animate-pulse" size={20} />
+                      )}
+                      {msg.referenceGroup && (
+                        <div className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-xl text-sm w-fit border ${msg.sender === 'user' ? 'bg-white/20 border-white/30 text-white' : 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-100 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'}`}>
+                          <IoPeopleOutline size={16} /> {msg.referenceGroup.name}
                         </div>
-                      </div>
-                    )}
+                      )}
+                      <p>{msg.text}</p>
+                      <p className={`text-xs mt-3 opacity-60 ${msg.sender === 'user' ? 'text-right' : 'text-left'}`}>
+                        {msg.timestamp}
+                      </p>
+                    </div>
                   </div>
+                ))}
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[75%] px-4 py-3 rounded-2xl shadow-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-bl-sm flex items-center gap-2">
+                      <IoEllipsisHorizontal className="text-slate-400 dark:text-slate-500 animate-pulse" size={20} />
+                    </div>
+                  </div>
+                )}
+              </div>
 
-                  <div className="p-10 border-t border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl relative">
-                    {(showDocSelect || showGroupSelect) && (
-                      <div className="absolute bottom-full left-10 right-10 mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[2rem] shadow-2xl p-4 z-30 animate-in slide-in-from-bottom-4 fade-in duration-300">
-                        <div className="flex justify-between items-center mb-4 px-4 pt-2">
-                          <span className="text-lg font-black text-foreground">
-                            {showDocSelect ? '검토할 문서 선택' : '참조할 그룹 선택'}
-                          </span>
-                          <button onClick={() => { setShowDocSelect(false); setShowGroupSelect(false); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
-                            <IoClose size={24} className="text-slate-400" />
+              <div className="p-10 border-t border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl relative">
+                {(showDocSelect || showGroupSelect) && (
+                  <div className="absolute bottom-full left-10 right-10 mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[2rem] shadow-2xl p-4 z-30 animate-in slide-in-from-bottom-4 fade-in duration-300">
+                    <div className="flex justify-between items-center mb-4 px-4 pt-2">
+                      <span className="text-lg font-black text-foreground">
+                        {showDocSelect ? '검토할 문서 선택' : '참조할 그룹 선택'}
+                      </span>
+                      <button onClick={() => { setShowDocSelect(false); setShowGroupSelect(false); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
+                        <IoClose size={24} className="text-slate-400" />
+                      </button>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+                      {showDocSelect && (
+                        <>
+                          <button onClick={() => fileInputRef.current?.click()} className="w-full text-left p-5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10 rounded-2xl flex items-center gap-4 transition-all border border-dashed border-blue-200 dark:border-blue-800 font-bold mb-4">
+                            <div className="w-12 h-12 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center shadow-sm"><IoCloudUploadOutline size={24} /></div>
+                            내 PC에서 파일 업로드
                           </button>
-                        </div>
-                        <div className="max-h-64 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-                          {showDocSelect && (
-                            <>
-                              <button onClick={() => fileInputRef.current?.click()} className="w-full text-left p-5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10 rounded-2xl flex items-center gap-4 transition-all border border-dashed border-blue-200 dark:border-blue-800 font-bold mb-4">
-                                <div className="w-12 h-12 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center shadow-sm"><IoCloudUploadOutline size={24} /></div>
-                                내 PC에서 파일 업로드
-                              </button>
-                              {dummyDocuments.map(doc => (
-                                <button key={doc.id} onClick={() => { setSelectedDoc(doc); setShowDocSelect(false); }} className="w-full text-left p-4 text-foreground hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center gap-4 transition-colors">
-                                  <IoDocumentTextOutline className="text-slate-400" size={20} /> {doc.title}
-                                </button>
-                              ))}
-                            </>
-                          )}
-                          {showGroupSelect && groups.map(group => (
-                            <button key={group.id} onClick={() => { setSelectedGroup(group); setShowGroupSelect(false); }} className="w-full text-left p-4 text-foreground hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center gap-4 transition-colors">
-                              <IoPeopleOutline className="text-slate-400" size={20} /> {group.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="max-w-5xl mx-auto space-y-4">
-                      {(referenceTitle || selectedDoc || selectedGroup) && (
-                        <div className="flex flex-wrap gap-3 px-2">
-                          {referenceTitle && !selectedDoc && (
-                            <span className="flex items-center gap-2 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-4 py-2 rounded-full border border-indigo-200 dark:border-indigo-800 font-bold text-sm">
-                              <IoDocumentTextOutline size={18} /> {referenceTitle}
-                              <span className="text-xs opacity-70 ml-1">(참조 중)</span>
-                              <button onClick={removeReference} className="hover:text-indigo-900 dark:hover:text-indigo-100"><IoCloseCircle size={20} /></button>
-                            </span>
-                          )}
-                          {selectedDoc && (
-                            <span className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-full border border-blue-200 dark:border-blue-800 font-bold text-sm">
-                              <IoDocumentTextOutline size={18} /> {selectedDoc.title}
-                              <button onClick={() => setSelectedDoc(null)} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={20} /></button>
-                            </span>
-                          )}
-                          {selectedGroup && (
-                            <span className="flex items-center gap-2 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-4 py-2 rounded-full border border-emerald-200 dark:border-emerald-800 font-bold text-sm">
-                              <IoPeopleOutline size={18} /> {selectedGroup.name}
-                              <button onClick={() => setSelectedGroup(null)} className="hover:text-emerald-900 dark:hover:text-emerald-100"><IoCloseCircle size={20} /></button>
-                            </span>
-                          )}
-                        </div>
+                        </>
                       )}
-
-                      <div className="flex flex-col bg-slate-100/50 dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:border-blue-400 dark:focus-within:border-blue-500 transition-all duration-500 p-2">
-                        <div className="flex gap-4 items-center p-2">
-                          <input
-                            value={inputText}
-                            onChange={(e) => setInputText(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                            placeholder={referenceTitle || selectedDoc || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "궁금한 법률 내용을 입력하세요..."}
-                            className="flex-1 bg-transparent border-none outline-none shadow-none text-xl px-6 h-14 focus:ring-0 text-foreground"
-                          />
-                          <Button onClick={handleSend} size="icon" className="bg-blue-600 hover:bg-blue-700 rounded-full w-14 h-14 shadow-2xl transition-all active:scale-90 shrink-0">
-                            <IoSend size={24} />
-                          </Button>
-                        </div>
-                        <div className="flex items-center gap-3 px-4 pb-3">
-                          <Button variant="outline" size="sm" onClick={() => { setShowDocSelect(!showDocSelect); setShowGroupSelect(false); }} className={`h-10 text-sm rounded-full gap-2 px-5 border-slate-200 dark:border-slate-700 transition-all font-bold ${showDocSelect ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-800 border-slate-800 dark:border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                            <IoAdd size={18} /> 문서 검토
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => { setShowGroupSelect(!showGroupSelect); setShowDocSelect(false); }} className={`h-10 text-sm rounded-full gap-2 px-5 border-slate-200 dark:border-slate-700 transition-all font-bold ${showGroupSelect ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-800 border-slate-800 dark:border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                            <IoFolderOpenOutline size={18} /> 그룹 참조
-                          </Button>
-                        </div>
-                      </div>
+                      {showGroupSelect && groups.map(group => (
+                        <button key={group.id} onClick={() => { setSelectedGroup(group); setShowGroupSelect(false); }} className="w-full text-left p-4 text-foreground hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center gap-4 transition-colors">
+                          <IoPeopleOutline className="text-slate-400" size={20} /> {group.name}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                </>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center p-20 text-center bg-white dark:bg-slate-900 relative">
-                  <div className="max-w-2xl w-full space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-                    <div className="flex flex-col items-center">
-                      <div className="w-24 h-24 bg-blue-50 dark:bg-blue-900/20 rounded-[2.5rem] flex items-center justify-center mb-8">
-                        <IoChatbubbleEllipsesOutline size={48} className="text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <h3 className="text-4xl font-black text-foreground mb-4">무엇을 도와드릴까요?</h3>
-                      <p className="text-muted-foreground font-medium text-xl">새로운 상담을 시작하여 법률 분석을 받아보세요.</p>
-                    </div>
+                )}
 
-                    <div className="flex flex-col bg-slate-100/50 dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:border-blue-400 dark:focus-within:border-blue-500 focus-within:shadow-2xl focus-within:shadow-blue-100/50 dark:focus-within:shadow-none transition-all duration-500 p-3 relative">
-                      
-                      {(showDocSelect || showGroupSelect) && (
-                        <div className="absolute bottom-full left-0 right-0 mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[2rem] shadow-2xl p-4 z-30 animate-in slide-in-from-bottom-4 fade-in duration-300 text-left">
-                          <div className="flex justify-between items-center mb-4 px-4 pt-2">
-                            <span className="text-lg font-black text-foreground">
-                              {showDocSelect ? '검토할 문서 선택' : '참조할 그룹 선택'}
-                            </span>
-                            <button onClick={() => { setShowDocSelect(false); setShowGroupSelect(false); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
-                              <IoClose size={24} className="text-slate-400" />
-                            </button>
-                          </div>
-                          <div className="max-h-64 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-                            {showDocSelect && (
-                              <>
-                                <button onClick={() => fileInputRef.current?.click()} className="w-full text-left p-5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10 rounded-2xl flex items-center gap-4 transition-all border border-dashed border-blue-200 dark:border-blue-800 font-bold mb-4">
-                                  <div className="w-12 h-12 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center shadow-sm"><IoCloudUploadOutline size={24} /></div>
-                                  내 PC에서 파일 업로드
-                                </button>
-                                {dummyDocuments.map(doc => (
-                                  <button key={doc.id} onClick={() => { setSelectedDoc(doc); setShowDocSelect(false); }} className="w-full text-left p-4 text-foreground hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center gap-4 transition-colors">
-                                    <IoDocumentTextOutline className="text-slate-400" size={20} /> {doc.title}
-                                  </button>
-                                ))}
-                              </>
-                            )}
-                            {showGroupSelect && groups.map(group => (
-                              <button key={group.id} onClick={() => { setSelectedGroup(group); setShowGroupSelect(false); }} className="w-full text-left p-4 text-foreground hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center gap-4 transition-colors">
-                                <IoPeopleOutline className="text-slate-400" size={20} /> {group.name}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+                <div className="max-w-5xl mx-auto space-y-4">
+                  {(referenceTitle || selectedDoc || selectedGroup) && (
+                    <div className="flex flex-wrap gap-3 px-2">
+                      {referenceTitle && !selectedDoc && (
+                        <span className="flex items-center gap-2 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-4 py-2 rounded-full border border-indigo-200 dark:border-indigo-800 font-bold text-sm">
+                          <IoDocumentTextOutline size={18} /> {referenceTitle}
+                          <span className="text-xs opacity-70 ml-1">(참조 중)</span>
+                          <button onClick={removeReference} className="hover:text-indigo-900 dark:hover:text-indigo-100"><IoCloseCircle size={20} /></button>
+                        </span>
                       )}
-
-                      {(selectedDoc || selectedGroup) && (
-                        <div className="flex flex-wrap gap-3 px-4 pt-2 pb-1 text-left">
-                          {selectedDoc && (
-                            <span className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-4 py-1.5 rounded-full border border-blue-200 dark:border-blue-800 font-bold text-xs">
-                              <IoDocumentTextOutline size={14} /> {selectedDoc.title}
-                              <button onClick={() => setSelectedDoc(null)} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={16} /></button>
-                            </span>
-                          )}
-                          {selectedGroup && (
-                            <span className="flex items-center gap-2 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-4 py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800 font-bold text-xs">
-                              <IoPeopleOutline size={14} /> {selectedGroup.name}
-                              <button onClick={() => setSelectedGroup(null)} className="hover:text-emerald-900 dark:hover:text-emerald-100"><IoCloseCircle size={16} /></button>
-                            </span>
-                          )}
-                        </div>
+                      {selectedDoc && (
+                        <span className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-full border border-blue-200 dark:border-blue-800 font-bold text-sm">
+                          <IoDocumentTextOutline size={18} /> {selectedDoc.title}
+                          <button onClick={() => setSelectedDoc(null)} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={20} /></button>
+                        </span>
                       )}
-
-                      <div className="flex gap-4 items-center p-2">
-                        <input
-                          value={inputText}
-                          onChange={(e) => setInputText(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleInitialSend()}
-                          placeholder={selectedDoc || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "궁금한 법률 내용을 입력하고 상담을 시작하세요..."}
-                          className="flex-1 bg-transparent border-none outline-none shadow-none text-xl px-6 h-16 focus:ring-0 text-foreground"
-                        />
-                        <Button 
-                          onClick={handleInitialSend}
-                          className="bg-blue-600 hover:bg-blue-700 rounded-full w-16 h-16 shadow-2xl transition-all active:scale-90 shrink-0"
-                        >
-                          <IoSend size={28} />
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-3 px-4 pb-3">
-                        <Button variant="outline" size="sm" onClick={() => { setShowDocSelect(!showDocSelect); setShowGroupSelect(false); }} className={`h-11 text-sm rounded-full gap-2 px-6 border-slate-200 dark:border-slate-700 transition-all font-bold ${showDocSelect ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-800' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'}`}>
-                          <IoAdd size={20} /> 문서 검토
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => { setShowGroupSelect(!showGroupSelect); setShowDocSelect(false); }} className={`h-11 text-sm rounded-full gap-2 px-6 border-slate-200 dark:border-slate-700 transition-all font-bold ${showGroupSelect ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-800' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'}`}>
-                          <IoFolderOpenOutline size={20} /> 그룹 참조
-                        </Button>
-                      </div>
+                      {selectedGroup && (
+                        <span className="flex items-center gap-2 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-4 py-2 rounded-full border border-emerald-200 dark:border-emerald-800 font-bold text-sm">
+                          <IoPeopleOutline size={18} /> {selectedGroup.name}
+                          <button onClick={() => setSelectedGroup(null)} className="hover:text-emerald-900 dark:hover:text-emerald-100"><IoCloseCircle size={20} /></button>
+                        </span>
+                      )}
                     </div>
+                  )}
 
-                    <div className="grid grid-cols-2 gap-4 text-left">
-                      <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-900 transition-colors cursor-pointer group" onClick={() => setInputText('근로계약서 작성 시 유의사항을 알려줘')}>
-                        <p className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-2">추천 질문</p>
-                        <p className="text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">"근로계약서 작성 시 유의사항을 알려줘"</p>
-                      </div>
-                      <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-900 transition-colors cursor-pointer group" onClick={() => setInputText('개인정보 처리방침 필수 포함 항목이 뭐야?')}>
-                        <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-2">추천 질문</p>
-                        <p className="text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">"개인정보 처리방침 필수 포함 항목이 뭐야?"</p>
-                      </div>
+                  <div className="flex flex-col bg-slate-100/50 dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:border-blue-400 dark:focus-within:border-blue-500 transition-all duration-500 p-2">
+                    <div className="flex gap-4 items-center p-2">
+                      <input
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                        placeholder={referenceTitle || selectedDoc || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "궁금한 법률 내용을 입력하세요..."}
+                        className="flex-1 bg-transparent border-none outline-none shadow-none text-xl px-6 h-14 focus:ring-0 text-foreground"
+                      />
+                      <Button onClick={handleSend} size="icon" className="bg-blue-600 hover:bg-blue-700 rounded-full w-14 h-14 shadow-2xl transition-all active:scale-90 shrink-0">
+                        <IoSend size={24} />
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-3 px-4 pb-3">
+                      <Button variant="outline" size="sm"
+                        onClick={toggleDocSelect}
+                        className={`h-10 text-sm rounded-full gap-2 px-5 border-slate-200 dark:border-slate-700 transition-all duration-200 font-bold cursor-pointer ${showDocSelect ? 'bg-slate-800 hover:bg-slate-700 dark:bg-slate-200 dark:hover:bg-slate-300 text-white hover:text-white dark:text-slate-800 dark:hover:text-slate-800 border-slate-800 dark:border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'}`}
+                      >
+                        <IoAdd size={18} /> 문서 검토
+                      </Button>
+                      <Button variant="outline" size="sm"
+                        onClick={toggleGroupSelect}
+                        className={`h-10 text-sm rounded-full gap-2 px-5 border-slate-200 dark:border-slate-700 transition-all duration-200 font-bold cursor-pointer ${showGroupSelect ? 'bg-slate-800 hover:bg-slate-700 dark:bg-slate-200 dark:hover:bg-slate-300 text-white hover:text-white dark:text-slate-800 dark:hover:text-slate-800 border-slate-800 dark:border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'}`}
+                      >
+                        <IoFolderOpenOutline size={18} /> 그룹 참조
+                      </Button>
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center p-20 text-center bg-white dark:bg-slate-900 relative">
+              <div className="max-w-2xl w-full space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+                <div className="flex flex-col items-center">
+                  <div className="w-24 h-24 bg-blue-50 dark:bg-blue-900/20 rounded-[2.5rem] flex items-center justify-center mb-8">
+                    <IoChatbubbleEllipsesOutline size={48} className="text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h3 className="text-4xl font-black text-foreground mb-4">무엇을 도와드릴까요?</h3>
+                  <p className="text-muted-foreground font-medium text-xl">새로운 상담을 시작하여 법률 분석을 받아보세요.</p>
+                </div>
+
+                <div className="flex flex-col bg-slate-100/50 dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:border-blue-400 dark:focus-within:border-blue-500 focus-within:shadow-2xl focus-within:shadow-blue-100/50 dark:focus-within:shadow-none transition-all duration-500 p-3 relative">
+
+                  {(showDocSelect || showGroupSelect) && (
+                    <div className="absolute bottom-full left-0 right-0 mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[2rem] shadow-2xl p-4 z-30 animate-in slide-in-from-bottom-4 fade-in duration-300 text-left">
+                      <div className="flex justify-between items-center mb-4 px-4 pt-2">
+                        <span className="text-lg font-black text-foreground">
+                          {showDocSelect ? '검토할 문서 선택' : '참조할 그룹 선택'}
+                        </span>
+                        <button onClick={() => { setShowDocSelect(false); setShowGroupSelect(false); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
+                          <IoClose size={24} className="text-slate-400" />
+                        </button>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+                        {showDocSelect && (
+                          <>
+                            <button onClick={() => fileInputRef.current?.click()} className="w-full text-left p-5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10 rounded-2xl flex items-center gap-4 transition-all border border-dashed border-blue-200 dark:border-blue-800 font-bold mb-4">
+                              <div className="w-12 h-12 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center shadow-sm"><IoCloudUploadOutline size={24} /></div>
+                              내 PC에서 파일 업로드
+                            </button>
+                          </>
+                        )}
+                        {showGroupSelect && groups.map(group => (
+                          <button key={group.id} onClick={() => { setSelectedGroup(group); setShowGroupSelect(false); }} className="w-full text-left p-4 text-foreground hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center gap-4 transition-colors">
+                            <IoPeopleOutline className="text-slate-400" size={20} /> {group.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(selectedDoc || selectedGroup) && (
+                    <div className="flex flex-wrap gap-3 px-4 pt-2 pb-1 text-left">
+                      {selectedDoc && (
+                        <span className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-4 py-1.5 rounded-full border border-blue-200 dark:border-blue-800 font-bold text-xs">
+                          <IoDocumentTextOutline size={14} /> {selectedDoc.title}
+                          <button onClick={() => setSelectedDoc(null)} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={16} /></button>
+                        </span>
+                      )}
+                      {selectedGroup && (
+                        <span className="flex items-center gap-2 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-4 py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800 font-bold text-xs">
+                          <IoPeopleOutline size={14} /> {selectedGroup.name}
+                          <button onClick={() => setSelectedGroup(null)} className="hover:text-emerald-900 dark:hover:text-emerald-100"><IoCloseCircle size={16} /></button>
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex gap-4 items-center p-2">
+                    <input
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleInitialSend()}
+                      placeholder={selectedDoc || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "궁금한 법률 내용을 입력하고 상담을 시작하세요..."}
+                      className="flex-1 bg-transparent border-none outline-none shadow-none text-xl px-6 h-16 focus:ring-0 text-foreground"
+                    />
+                    <Button
+                      onClick={handleInitialSend}
+                      className="bg-blue-600 hover:bg-blue-700 rounded-full w-16 h-16 shadow-2xl transition-all active:scale-90 shrink-0"
+                    >
+                      <IoSend size={28} />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-3 px-4 pb-3">
+                    <Button variant="outline" size="sm" onClick={() => { setShowDocSelect(!showDocSelect); setShowGroupSelect(false); }} className={`h-11 text-sm rounded-full gap-2 px-6 border-slate-200 dark:border-slate-700 transition-all duration-200 font-bold cursor-pointer ${showDocSelect ? 'bg-slate-800 hover:bg-slate-700 dark:bg-slate-200 dark:hover:bg-slate-300 text-white hover:text-white dark:text-slate-800 dark:hover:text-slate-800 border-slate-800 dark:border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'}`}>
+                      <IoAdd size={20} /> 문서 검토
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => { setShowGroupSelect(!showGroupSelect); setShowDocSelect(false); }} className={`h-11 text-sm rounded-full gap-2 px-6 border-slate-200 dark:border-slate-700 transition-all duration-200 font-bold cursor-pointer ${showGroupSelect ? 'bg-slate-800 hover:bg-slate-700 dark:bg-slate-200 dark:hover:bg-slate-300 text-white hover:text-white dark:text-slate-800 dark:hover:text-slate-800 border-slate-800 dark:border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'}`}>
+                      <IoFolderOpenOutline size={20} /> 그룹 참조
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-left">
+                  <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-900 transition-colors cursor-pointer group" onClick={() => setInputText('근로계약서 작성 시 유의사항을 알려줘')}>
+                    <p className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-2">추천 질문</p>
+                    <p className="text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">"근로계약서 작성 시 유의사항을 알려줘"</p>
+                  </div>
+                  <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-900 transition-colors cursor-pointer group" onClick={() => setInputText('개인정보 처리방침 필수 포함 항목이 뭐야?')}>
+                    <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-2">추천 질문</p>
+                    <p className="text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">"개인정보 처리방침 필수 포함 항목이 뭐야?"</p>
+                  </div>
+                </div>
+              </div>
             </div>
+          )}
+        </div>
       </div>
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".pdf,.doc,.docx,.hwp,.txt" />
     </section>
