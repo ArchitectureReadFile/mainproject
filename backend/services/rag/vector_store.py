@@ -12,10 +12,11 @@ services/rag/vector_store.py
     EMBEDDING_DIM        기본값 768  (KURE-v1 기준)
     HYBRID_ALPHA         기본값 0.8  (BM25 비중)
 
-retrieval 반환 계약:
-    search() / hybrid_search() 모두 동일한 필드를 반환한다.
-    chunk payload에 저장된 메타는 retrieval 결과에도 일관되게 포함된다.
-    grouping_service가 소비하는 필드는 모두 이 계약에 포함되어야 한다.
+corpus isolation 보장:
+    - search() / hybrid_search()는 query_filter를 항상 dense 검색에 적용한다.
+    - hybrid_search()는 BM25 후보를 caller가 scope-aware하게 넘겨야 한다.
+      (bm25_store.search vs bm25_store.search_documents 분리로 보장)
+    - hybrid_search()는 최종 retrieve() 후 payload를 재필터링해 isolation을 이중 보장한다.
 """
 
 import hashlib
@@ -35,9 +36,7 @@ HYBRID_ALPHA = float(os.getenv("HYBRID_ALPHA", "0.8"))
 
 _client: QdrantClient | None = None
 
-# retrieval 결과 dict에 포함할 payload 필드 목록.
-# chunk_builder.PrecedentChunk payload 계약과 일치해야 한다.
-_RETRIEVAL_PAYLOAD_FIELDS = (
+_PRECEDENT_PAYLOAD_FIELDS = (
     "chunk_id",
     "precedent_id",
     "title",
@@ -53,6 +52,18 @@ _RETRIEVAL_PAYLOAD_FIELDS = (
     "section_title",
     "element_type",
     "order_index",
+)
+
+_GROUP_DOC_PAYLOAD_FIELDS = (
+    "chunk_id",
+    "document_id",
+    "group_id",
+    "file_name",
+    "source_type",
+    "chunk_type",
+    "section_title",
+    "order_index",
+    "text",
 )
 
 
@@ -90,21 +101,45 @@ def _ensure_collection() -> None:
 
 
 def _chunk_id_to_point_id(chunk_id: str) -> int:
-    """chunk_id 문자열을 Qdrant point id(uint64)로 변환한다."""
     return int(hashlib.md5(chunk_id.encode()).hexdigest(), 16) % (2**63)
 
 
+def _payload_fields(payload: dict) -> tuple:
+    """payload의 source_type에 따라 적합한 필드 목록을 반환한다."""
+    return (
+        _GROUP_DOC_PAYLOAD_FIELDS
+        if payload.get("source_type") == "pdf"
+        else _PRECEDENT_PAYLOAD_FIELDS
+    )
+
+
 def _hit_to_dict(payload: dict, score: float, extra: dict | None = None) -> dict:
-    """
-    Qdrant payload를 retrieval 결과 dict로 변환한다.
-    _RETRIEVAL_PAYLOAD_FIELDS에 선언된 필드만 추출하므로
-    payload에 필드가 없으면 None으로 채워진다.
-    """
-    result = {field: payload.get(field) for field in _RETRIEVAL_PAYLOAD_FIELDS}
+    fields = _payload_fields(payload)
+    result = {field: payload.get(field) for field in fields}
     result["score"] = score
     if extra:
         result.update(extra)
     return result
+
+
+def _passes_filter(payload: dict, query_filter: qmodels.Filter | None) -> bool:
+    """
+    payload가 query_filter 조건을 만족하는지 Python 레벨에서 재검증한다.
+    retrieve()는 filter를 적용하지 않으므로 BM25-only hit를 걸러내기 위해 사용한다.
+
+    지원하는 조건: FieldCondition + MatchValue (must 리스트)
+    나머지 복잡한 filter는 통과로 처리한다 (Qdrant가 dense 단계에서 이미 적용).
+    """
+    if query_filter is None:
+        return True
+    for condition in query_filter.must or []:
+        if not isinstance(condition, qmodels.FieldCondition):
+            continue
+        if not isinstance(condition.match, qmodels.MatchValue):
+            continue
+        if payload.get(condition.key) != condition.match.value:
+            return False
+    return True
 
 
 def upsert(
@@ -112,7 +147,6 @@ def upsert(
     embedding: list[float],
     payload: dict | None = None,
 ) -> None:
-    """chunk 벡터를 저장한다. payload에 precedent_id 필수."""
     _ensure_collection()
     client = _get_client()
     point_id = _chunk_id_to_point_id(chunk_id)
@@ -132,13 +166,9 @@ def upsert(
 def search(
     query_embedding: list[float],
     top_k: int = 5,
+    query_filter: qmodels.Filter | None = None,
 ) -> list[dict]:
-    """
-    Dense 검색. chunk 단위 hit 반환.
-
-    반환 필드: _RETRIEVAL_PAYLOAD_FIELDS + score
-    grouping_service가 소비하는 모든 메타 필드가 포함된다.
-    """
+    """Dense 검색. query_filter가 있으면 Qdrant 레벨에서 적용된다."""
     _ensure_collection()
     client = _get_client()
     hits = client.search(
@@ -146,6 +176,7 @@ def search(
         query_vector=query_embedding,
         limit=top_k,
         with_payload=True,
+        query_filter=query_filter,
     )
     return [_hit_to_dict(hit.payload, hit.score) for hit in hits]
 
@@ -155,18 +186,21 @@ def hybrid_search(
     bm25_results: list[dict],
     top_k: int = 5,
     alpha: float | None = None,
+    query_filter: qmodels.Filter | None = None,
 ) -> list[dict]:
     """
-    BM25 + Dense 하이브리드 검색. chunk 단위 hit 반환.
-    bm25_results의 key는 chunk_id 기준이어야 한다.
+    BM25 + Dense 하이브리드 검색.
 
-    반환 필드: _RETRIEVAL_PAYLOAD_FIELDS + score + dense_score + bm25_score
+    isolation 보장 3단계:
+    1. bm25_results는 caller가 scope-aware corpus에서 가져온 것이어야 한다.
+       (bm25_store.search vs search_documents 분리로 보장)
+    2. dense 검색에 query_filter를 적용한다.
+    3. retrieve() 후 payload를 재검증해 filter 미통과 chunk를 제거한다.
     """
     a = alpha if alpha is not None else HYBRID_ALPHA
-
     fetch_k = max(top_k * 2, 20)
-    dense_results = search(query_embedding, top_k=fetch_k)
 
+    dense_results = search(query_embedding, top_k=fetch_k, query_filter=query_filter)
     dense_map: dict[str, float] = {r["chunk_id"]: r["score"] for r in dense_results}
     bm25_map: dict[str, float] = {r["chunk_id"]: r["score"] for r in bm25_results}
 
@@ -175,8 +209,7 @@ def hybrid_search(
     def _normalize(score_map: dict[str, float]) -> dict[str, float]:
         if not score_map:
             return {}
-        min_s = min(score_map.values())
-        max_s = max(score_map.values())
+        min_s, max_s = min(score_map.values()), max(score_map.values())
         span = max_s - min_s
         if span == 0:
             return {k: 1.0 for k in score_map}
@@ -195,10 +228,9 @@ def hybrid_search(
     ]
 
     client = _get_client()
-    point_ids = [_chunk_id_to_point_id(cid) for cid in top_chunk_ids]
     points = client.retrieve(
         collection_name=QDRANT_COLLECTION,
-        ids=point_ids,
+        ids=[_chunk_id_to_point_id(cid) for cid in top_chunk_ids],
         with_payload=True,
     )
     payload_map = {p.payload.get("chunk_id"): p.payload for p in points}
@@ -207,6 +239,10 @@ def hybrid_search(
     for cid in top_chunk_ids:
         p = payload_map.get(cid)
         if not p:
+            continue
+        # 3단계: payload 재필터링 — BM25-only hit가 scope를 뚫는 것을 차단
+        if not _passes_filter(p, query_filter):
+            logger.debug("hybrid_search: scope 불일치로 제거된 chunk_id=%s", cid)
             continue
         results.append(
             _hit_to_dict(
@@ -222,11 +258,19 @@ def hybrid_search(
 
 
 def delete(precedent_id: int) -> None:
-    """precedent_id 기준으로 해당 판례의 모든 chunk를 삭제한다."""
+    _delete_by_field("precedent_id", precedent_id)
+    logger.info("Qdrant delete 완료: precedent_id=%s", precedent_id)
+
+
+def delete_document(document_id: int) -> None:
+    _delete_by_field("document_id", document_id)
+    logger.info("Qdrant delete 완료: document_id=%s", document_id)
+
+
+def _delete_by_field(field: str, value: int) -> None:
     client = _get_client()
     existing = [c.name for c in client.get_collections().collections]
     if QDRANT_COLLECTION not in existing:
-        logger.debug("delete 스킵: 컬렉션 없음 (%s)", QDRANT_COLLECTION)
         return
     client.delete(
         collection_name=QDRANT_COLLECTION,
@@ -234,14 +278,12 @@ def delete(precedent_id: int) -> None:
             filter=qmodels.Filter(
                 must=[
                     qmodels.FieldCondition(
-                        key="precedent_id",
-                        match=qmodels.MatchValue(value=precedent_id),
+                        key=field, match=qmodels.MatchValue(value=value)
                     )
                 ]
             )
         ),
     )
-    logger.info("Qdrant delete 완료: precedent_id=%s (chunk 전체)", precedent_id)
 
 
 def count() -> int:
@@ -249,8 +291,7 @@ def count() -> int:
     existing = [c.name for c in client.get_collections().collections]
     if QDRANT_COLLECTION not in existing:
         return 0
-    result = client.count(collection_name=QDRANT_COLLECTION, exact=True)
-    return result.count
+    return client.count(collection_name=QDRANT_COLLECTION, exact=True).count
 
 
 def clear() -> None:

@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function SideNavigation({ sections, currentSection, onSectionClick }) {
   return (
     <div className="fixed left-3 top-1/2 -translate-y-1/2 z-50 flex flex-col items-start gap-4">

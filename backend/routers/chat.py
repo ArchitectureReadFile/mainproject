@@ -89,6 +89,7 @@ async def send_message(
         file_bytes=file_bytes,
     )
 
+
 @router.delete("/sessions/{session_id}/reference", response_model=ChatSessionResponse)
 def delete_reference_document(
     session_id: int,

@@ -107,6 +107,9 @@ class DocumentRepository:
             .first()
         )
 
+    def get_by_id(self, document_id: int) -> Document | None:
+        return self.db.query(Document).filter(Document.id == document_id).first()
+
     def delete_document(self, document_id: int, user_id: int, user_role: str) -> None:
         document = self.db.query(Document).filter(Document.id == document_id).first()
         if not document:
