@@ -76,3 +76,55 @@ class LLMClient:
 
         self.unload_model()
         raise AppException(ErrorCode.LLM_ALL_PROFILES_FAILED) from last_error
+
+    def stream_chat(self, messages: list, num_predict: int = 1024):
+        endpoint = f"{self._host}/api/chat"
+        payload = {
+            "model": self._model,
+            "messages": messages,
+            "stream": True,
+            "options": {
+                "temperature": 0.1,
+                "num_predict": num_predict,
+                "num_ctx": self._initial_num_ctx,
+                "num_keep": 0,
+            },
+        }
+
+        try:
+            with requests.post(
+                endpoint, json=payload, stream=True, timeout=self._timeout
+            ) as r:
+                r.raise_for_status()
+                for line in r.iter_lines():
+                    if line:
+                        chunk = json.loads(line)
+                        yield chunk
+        except Exception as e:
+            logger.error(f"[OLLAMA_STREAM_FAILED] {e}")
+            self.unload_model()
+            raise AppException(ErrorCode.LLM_CONNECT_FAILED) from e
+        
+    def summarize_chat(self, messages: list, num_predict: int = 1024) -> str:
+        endpoint = f"{self._host}/api/chat"
+        payload = {
+            "model": self._model,
+            "messages": messages,
+            "stream": False,
+            "options": {
+                "temperature": 0.1,
+                "num_predict": num_predict,
+                "num_ctx": self._initial_num_ctx,
+                "num_keep": 0,
+            },
+        }
+
+        try:
+            response = requests.post(endpoint, json=payload, timeout=self._timeout)
+            response.raise_for_status()
+            return response.json().get("message", {}).get("content", "").strip()
+        except Exception as e:
+            logger.error(f"[OLLAMA_CHAT_FAILED] {e}")
+            self.unload_model()
+            raise AppException(ErrorCode.LLM_CONNECT_FAILED) from e
+
