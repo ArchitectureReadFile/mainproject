@@ -1,11 +1,6 @@
 # Scripts Guide
 
-현재 유지하는 스크립트는 아래 4개입니다.
-
-## RAG 검증
-
-- `rag_smoke_test.py`
-  - 현재 precedent RAG 인덱스의 `dense / hybrid / answer` 결과를 빠르게 점검합니다.
+현재 유지하는 스크립트는 아래 3개입니다.
 
 ## Precedent 수집
 
