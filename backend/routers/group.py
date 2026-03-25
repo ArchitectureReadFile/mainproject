@@ -3,8 +3,10 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models.model import User
+from repositories.document_repository import DocumentRepository
 from repositories.group_repository import GroupRepository
 from routers.auth import get_current_user
+from schemas.document import DocumentDetailResponse
 from schemas.group import (
     GroupCreateRequest,
     GroupDetailResponse,
@@ -15,6 +17,7 @@ from schemas.group import (
     MemberListResponse,
     MemberRoleChangeRequest,
 )
+from services.document_service import DocumentService
 from services.group_service import GroupService
 
 router = APIRouter(prefix="/groups", tags=["groups"])
@@ -22,6 +25,10 @@ router = APIRouter(prefix="/groups", tags=["groups"])
 
 def get_group_service(db: Session = Depends(get_db)) -> GroupService:
     return GroupService(GroupRepository(db))
+
+
+def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
+    return DocumentService(DocumentRepository(db))
 
 
 # 그룹 생성
@@ -191,3 +198,77 @@ def transfer_owner(
 ):
     service.transfer_owner(current_user.id, group_id, target_id)
     db.commit()
+
+
+@router.get("/{group_id}/documents")
+def list_documents(
+    group_id: int,
+    skip: int = 0,
+    limit: int = 5,
+    keyword: str = "",
+    status: str = "",
+    view_type: str = "my",
+    category: str = "전체",
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group_service.assert_view_permission(current_user.id, group_id)
+
+    items, total = service.get_list(
+        skip,
+        limit,
+        keyword,
+        status,
+        user_id=current_user.id,
+        view_type=view_type,
+        category=category,
+        group_id=group_id,
+    )
+    return {"items": items, "total": total}
+
+
+@router.get("/{group_id}/documents/deleted")
+def list_deleted_documents(
+    group_id: int,
+    skip: int = 0,
+    limit: int = 5,
+    service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
+    group_service: GroupService = Depends(get_group_service),
+):
+    group_service.assert_view_permission(current_user.id, group_id)
+
+    items, total = service.get_deleted_list(
+        skip,
+        limit,
+        user_id=current_user.id,
+        group_id=group_id,
+    )
+
+    return {"items": items, "total": total}
+
+
+@router.get("/{group_id}/documents/{doc_id}", response_model=DocumentDetailResponse)
+def get_detail_document(
+    group_id: int,
+    doc_id: int,
+    group_service: GroupService = Depends(get_group_service),
+    document_service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
+):
+    group_service.assert_view_permission(current_user.id, group_id)
+
+    return document_service.get_detail_in_group(doc_id, group_id)
+
+
+@router.delete("/{group_id}/documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_document(
+    group_id: int,
+    doc_id: int,
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group_service.assert_view_permission(current_user.id, group_id)
+    service.delete_document(doc_id, current_user.id, group_id)

@@ -64,6 +64,15 @@ class GroupService:
 
         return group, role
 
+    def assert_view_permission(self, user_id: int, group_id: int):
+        result = self.repository.get_group_with_role(user_id, group_id)
+        if not result:
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+
+        group, _ = result
+        if group.status != GroupStatus.ACTIVE:
+            raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
+
     # 그룹 생성
     def create_group(
         self, owner_user_id: int, name: str, description: Optional[str]
@@ -250,6 +259,7 @@ class GroupService:
 
         # 이전 멤버였는지 체크(재초대)
         existing = self.repository.get_member_any_status(target.id, group_id)
+        print("before:", existing.status)
         if existing:
             if existing.status == MembershipStatus.ACTIVE:
                 raise AppException(ErrorCode.GROUP_MEMBER_ALREADY_EXISTS)

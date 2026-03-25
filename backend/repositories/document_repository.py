@@ -1,10 +1,20 @@
 import logging
+from datetime import timedelta
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
-from errors import AppException, ErrorCode
-from models.model import Category, Document, DocumentStatus, Summary, User, UserRole
+from models.model import (
+    Category,
+    Document,
+    DocumentLifecycleStatus,
+    DocumentStatus,
+    GroupMember,
+    MembershipRole,
+    MembershipStatus,
+    Summary,
+    utc_now_naive,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +22,19 @@ logger = logging.getLogger(__name__)
 class DocumentRepository:
     def __init__(self, db: Session):
         self.db = db
+
+    def is_group_admin(self, user_id: int, group_id: int) -> bool:
+        return (
+            self.db.query(GroupMember.id)
+            .filter(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id == user_id,
+                GroupMember.status == MembershipStatus.ACTIVE,
+                GroupMember.role.in_([MembershipRole.OWNER, MembershipRole.ADMIN]),
+            )
+            .first()
+            is not None
+        )
 
     def create_pending_document(
         self,
@@ -62,22 +85,28 @@ class DocumentRepository:
         keyword,
         status,
         user_id,
-        user_role,
         view_type,
         category,
         group_id=None,
     ):
-        query = self.db.query(Document).join(Document.owner).outerjoin(Document.summary)
+        query = (
+            self.db.query(Document)
+            .options(
+                joinedload(Document.owner),
+                joinedload(Document.summary),
+            )
+            .outerjoin(Document.summary)
+        )
+
+        query = query.filter(
+            Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE
+        )
 
         if group_id is not None:
             query = query.filter(Document.group_id == group_id)
 
         if view_type == "my":
             query = query.filter(Document.uploader_user_id == user_id)
-        elif user_role != UserRole.ADMIN.value:
-            query = query.filter(
-                or_(Document.uploader_user_id == user_id, User.role == UserRole.ADMIN)
-            )
 
         if category and category != "전체":
             query = query.join(Document.categories).filter(Category.name == category)
@@ -110,11 +139,54 @@ class DocumentRepository:
     def get_by_id(self, document_id: int) -> Document | None:
         return self.db.query(Document).filter(Document.id == document_id).first()
 
-    def delete_document(self, document_id: int, user_id: int, user_role: str) -> None:
-        document = self.db.query(Document).filter(Document.id == document_id).first()
-        if not document:
-            raise AppException(ErrorCode.DOC_NOT_FOUND)
-        if document.uploader_user_id != user_id and user_role != UserRole.ADMIN.value:
-            raise AppException(ErrorCode.AUTH_FORBIDDEN)
-        self.db.delete(document)
+    def delete_document(self, document: Document, user_id: int) -> None:
+        now = utc_now_naive()
+        document.lifecycle_status = DocumentLifecycleStatus.DELETE_PENDING
+        document.delete_requested_at = now
+        document.delete_scheduled_at = now + timedelta(days=7)
+        document.deleted_by_user_id = user_id
         self.db.commit()
+
+    def get_deleted_list(
+        self,
+        skip,
+        limit,
+        user_id,
+        group_id=None,
+    ) -> tuple[list[Document], int]:
+        query = (
+            self.db.query(Document)
+            .options(
+                joinedload(Document.owner),
+                joinedload(Document.summary),
+            )
+            .filter(Document.lifecycle_status == DocumentLifecycleStatus.DELETE_PENDING)
+        )
+
+        if group_id is not None:
+            query = query.filter(Document.group_id == group_id)
+
+        query = query.filter(
+            or_(
+                Document.uploader_user_id == user_id,
+                self.db.query(GroupMember.id)
+                .filter(
+                    GroupMember.group_id == Document.group_id,
+                    GroupMember.user_id == user_id,
+                    GroupMember.status == MembershipStatus.ACTIVE,
+                    GroupMember.role.in_([MembershipRole.OWNER, MembershipRole.ADMIN]),
+                )
+                .exists(),
+            )
+        )
+
+        total = query.count()
+
+        documents = (
+            query.order_by(Document.delete_requested_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+        return documents, total

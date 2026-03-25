@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -6,17 +6,16 @@ from pydantic import BaseModel
 
 class DocumentListItemResponse(BaseModel):
     id: int
-    summary_id: Optional[int] = None
+    summary_id: int | None
     title: str
     preview: str
     status: str
     created_at: datetime
-    court_name: Optional[str] = None
-    judgment_date: Optional[date] = None
-    uploader: Optional[str] = None
+    uploader: str | None
 
-    class Config:
-        from_attributes = True
+    delete_requested_at: datetime | None = None
+    delete_scheduled_at: datetime | None = None
+    deleted_by: int | None = None
 
 
 class DocumentDetailResponse(BaseModel):
@@ -28,12 +27,6 @@ class DocumentDetailResponse(BaseModel):
     summary_text: Optional[str] = None
     key_points: list[str] = []
     metadata: dict = {}
-    case_number: Optional[str] = None
-    case_name: Optional[str] = None
-    court_name: Optional[str] = None
-    judgment_date: Optional[date] = None
-    plaintiff: Optional[str] = None
-    defendant: Optional[str] = None
     created_at: datetime
 
     class Config:
