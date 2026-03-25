@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 class ExtractedDocument:
     markdown: str  # 본문 구조 원본
     json_data: dict | None  # 표/구조 원본
-    plain_text: str  # fallback용 markdown 평문화 값
 
 
 class DocumentExtractService:
@@ -124,25 +123,7 @@ class DocumentExtractService:
                         pass
                     break
 
-        plain_text = _markdown_to_plain(markdown)
-
         return ExtractedDocument(
             markdown=markdown,
             json_data=json_data,
-            plain_text=plain_text,
         )
-
-
-def _markdown_to_plain(markdown: str) -> str:
-    """markdown을 평문화한다. 표 행(| ... |)은 제거한다."""
-    lines = []
-    for line in markdown.splitlines():
-        stripped = line.strip()
-        # 표 행 제거
-        if stripped.startswith("|"):
-            continue
-        # 헤딩 기호 제거
-        if stripped.startswith("#"):
-            stripped = stripped.lstrip("#").strip()
-        lines.append(stripped)
-    return "\n".join(lines).strip()

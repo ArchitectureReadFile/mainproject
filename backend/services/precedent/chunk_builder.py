@@ -332,24 +332,3 @@ def build_precedent_document(
         "detail_table": detail_table,
         "sections": sections,
     }
-
-
-# ── 하위호환 래퍼 ─────────────────────────────────────────────────────────────
-
-
-def build_precedent_chunks(precedent_id: int, text: str) -> list[PrecedentChunk]:
-    """
-    [legacy wrapper] text 한 덩어리를 받아 PrecedentDocument로 감싼 뒤 청킹한다.
-
-    이 함수는 하위호환 목적으로만 유지된다.
-    신규 코드는 build_precedent_document + build_chunks_from_precedent_document를 사용할 것.
-    """
-    doc = build_precedent_document(
-        precedent_id=precedent_id,
-        source_url="",
-        title=None,
-        gist=None,
-        detail_table=None,
-        detail_text=text,
-    )
-    return build_chunks_from_precedent_document(doc)

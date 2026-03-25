@@ -278,13 +278,12 @@ class GroupRepository:
             )
             .first()
         )
-    
-    def transfer_owner(self, group: Group, old_owner_id: int, new_owner_id: int) -> None:
+
+    def transfer_owner(
+        self, group: Group, old_owner_id: int, new_owner_id: int
+    ) -> None:
         locked_group = (
-            self.db.query(Group)
-            .filter(Group.id == group.id)
-            .with_for_update()
-            .first()
+            self.db.query(Group).filter(Group.id == group.id).with_for_update().first()
         )
 
         if not locked_group:
@@ -301,14 +300,10 @@ class GroupRepository:
 
         locked_group.owner_user_id = new_owner_id
 
-    
     def exists_active_owned_group(self, user_id: int) -> bool:
         return (
             self.db.query(Group)
-            .filter(
-                Group.owner_user_id == user_id,
-                Group.status == GroupStatus.ACTIVE
-            )
+            .filter(Group.owner_user_id == user_id, Group.status == GroupStatus.ACTIVE)
             .first()
             is not None
         )
