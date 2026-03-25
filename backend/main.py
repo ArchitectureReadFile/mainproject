@@ -13,7 +13,6 @@ from routers.chat import router as chat_router
 from routers.document import router as document_router
 from routers.email import router as email_router
 from routers.group import router as group_router
-from routers.search import router as search_router
 from routers.summarize import router as summarize_router
 from routers.ws import router as ws_router
 
@@ -62,5 +61,4 @@ app.include_router(document_router, prefix="/api")
 app.include_router(email_router, prefix="/api")
 app.include_router(ws_router, prefix="/api")
 app.include_router(group_router, prefix="/api")
-app.include_router(search_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
