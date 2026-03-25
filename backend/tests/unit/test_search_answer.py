@@ -33,6 +33,9 @@ def test_search_answer_success_with_citations(client):
                 {
                     "precedent_id": 12,
                     "title": "대법원 2021도1234",
+                    "case_number": None,
+                    "case_name": None,
+                    "court_name": None,
                     "source_url": "https://example.com/case/12",
                     "score": 0.91,
                 }
@@ -106,6 +109,9 @@ def test_rag_answer_service_filters_unknown_citations():
             "precedent_id": 3,
             "score": 0.88,
             "title": "대법원 2020도9999",
+            "case_number": None,
+            "case_name": None,
+            "court_name": None,
             "source_url": "https://example.com/case/3",
             "text": "설시 내용",
         }
@@ -113,10 +119,15 @@ def test_rag_answer_service_filters_unknown_citations():
 
     citations = service._build_citations([999, 3], results)
 
+    # precedent_id=999는 results에 없으므로 필터링됨
+    # precedent_id=3만 반환, optional 필드 포함
     assert citations == [
         {
             "precedent_id": 3,
             "title": "대법원 2020도9999",
+            "case_number": None,
+            "case_name": None,
+            "court_name": None,
             "source_url": "https://example.com/case/3",
             "score": 0.88,
         }
@@ -139,6 +150,9 @@ def test_rag_answer_service_fallback_on_llm_error():
             "precedent_id": 7,
             "score": 0.77,
             "title": "대법원 2019도7777",
+            "case_number": None,
+            "case_name": None,
+            "court_name": None,
             "source_url": "https://example.com/case/7",
             "text": "관련 내용",
         }
@@ -149,10 +163,14 @@ def test_rag_answer_service_fallback_on_llm_error():
     assert payload["answer"] == (
         "검색 결과를 바탕으로 답변을 생성하지 못했습니다. 아래 참고 판례를 확인해주세요."
     )
+    # _fallback_citations() 반환값: optional 필드 포함
     assert payload["citations"] == [
         {
             "precedent_id": 7,
             "title": "대법원 2019도7777",
+            "case_number": None,
+            "case_name": None,
+            "court_name": None,
             "source_url": "https://example.com/case/7",
             "score": 0.77,
         }
@@ -172,3 +190,18 @@ def test_rag_answer_service_sanitizes_internal_tokens():
     assert "source_url" not in cleaned
     assert "score:" not in cleaned
     assert "주식매수선택권 행사이익은 시가 기준으로 판단할 수 있습니다." in cleaned
+
+
+def test_rag_answer_service_sanitizes_korean_labels():
+    """context header의 한글 레이블 형태도 sanitize에서 제거되는지 확인."""
+    from services.rag.answer_service import RagAnswerService
+
+    service = RagAnswerService()
+
+    cleaned = service._sanitize_answer(
+        "이 판례는 부가가치세에 관한 것입니다. 출처: https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=123"
+    )
+
+    assert "출처:" not in cleaned
+    assert "taxlaw.nts.go.kr" not in cleaned
+    assert "이 판례는 부가가치세에 관한 것입니다." in cleaned

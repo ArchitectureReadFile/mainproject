@@ -8,6 +8,7 @@ from services.chat_service import ChatService
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 
+
 @celery_app.task(name="tasks.process_chat_message")
 def process_chat_message(payload: dict):
     user_id = payload.get("user_id")

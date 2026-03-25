@@ -1,7 +1,8 @@
 from unittest.mock import patch
+
 from errors import ErrorCode
-from tests.dummy_data import email_verification_data
 from services.email_service import EmailService
+from tests.dummy_data import email_verification_data
 
 email_service = EmailService()
 
@@ -33,7 +34,8 @@ def test_send_verification_code_failure_smtp_error_A(client, fake_redis):
     email = email_verification_data["payload"]["valid_email"]
 
     with patch(
-        "services.email_service.EmailService._send_email", side_effect=Exception("SMTP Failed")
+        "services.email_service.EmailService._send_email",
+        side_effect=Exception("SMTP Failed"),
     ):
         response = client.post(
             "/api/email/send-verification-code", json={"email": email}
@@ -56,7 +58,9 @@ def test_verify_code_success(client, fake_redis):
 
     fake_redis.setex(f"email_verify:{email}", 180, code)
 
-    response = client.post("/api/email/verify-code", json={"email": email, "code": code})
+    response = client.post(
+        "/api/email/verify-code", json={"email": email, "code": code}
+    )
 
     assert response.status_code == 200
     assert fake_redis.get(f"email_verify:{email}") is None
@@ -67,7 +71,9 @@ def test_verify_code_failure_not_found_A(client, fake_redis):
     email = email_verification_data["payload"]["valid_email"]
     code = email_verification_data["payload"]["valid_code"]
 
-    response = client.post("/api/email/verify-code", json={"email": email, "code": code})
+    response = client.post(
+        "/api/email/verify-code", json={"email": email, "code": code}
+    )
 
     assert response.status_code == 400
     assert response.json()["code"] == ErrorCode.EMAIL_CODE_NOT_FOUND.code

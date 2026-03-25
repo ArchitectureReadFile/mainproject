@@ -4,20 +4,24 @@ import os
 import requests
 from redis import Redis
 from sqlalchemy.orm import Session
+
+from errors.error_codes import ErrorCode
+from errors.exceptions import AppException
 from models.model import (
-    ChatSession,
     ChatMessage,
     ChatMessageRole,
+    ChatSession,
     Document,
     GroupMember,
 )
-from prompts.chat_prompt import CHAT_SYSTEM_PROMPT, CHAT_SUMMARY_PROMPT
-from services.summary.process_service import ProcessService
-from errors.error_codes import ErrorCode
-from errors.exceptions import AppException
+from prompts.chat_prompt import CHAT_SUMMARY_PROMPT, CHAT_SYSTEM_PROMPT
+from services.document_extract_service import DocumentExtractService
+from services.document_input_builder import build_chat_input
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
+
+_extractor = DocumentExtractService()
 
 
 class ChatService:
@@ -220,15 +224,8 @@ class ChatService:
 
     def _extract_text_from_bytes(self, file_bytes: bytes) -> str:
         try:
-            process_service = ProcessService()
-            pages = process_service.extract_pages_from_bytes(file_bytes)
-            if process_service.is_text_too_short("\n".join(pages)):
-                pages = process_service.extract_pages_from_bytes_ocr(file_bytes)
-
-            extracted_text = "\n".join(pages).strip()
-            if not extracted_text:
-                raise AppException(ErrorCode.LLM_EMPTY_PAGES)
-            return extracted_text
+            extracted = _extractor.extract_bytes(file_bytes)
+            return build_chat_input(extracted)
         except AppException:
             raise
         except Exception:
@@ -283,9 +280,8 @@ class ChatService:
             raise AppException(ErrorCode.FILE_NOT_FOUND)
 
         try:
-            with open(file_path, "rb") as f:
-                file_bytes = f.read()
-            return self._extract_text_from_bytes(file_bytes)
+            extracted = _extractor.extract(file_path)
+            return build_chat_input(extracted)
         except AppException:
             raise
         except Exception:

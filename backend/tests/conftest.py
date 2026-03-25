@@ -17,11 +17,11 @@ from models.model import Document, Group, Summary, User
 from redis_client import redis_client
 from routers.auth import get_current_user
 from services.auth_service import AuthService
-
-auth_service = AuthService()
-from tests.dummy_data import documents, summaries, users
+from tests.dummy_data import documents, groups, summaries, users
 
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+
+auth_service = AuthService()
 
 engine = create_engine(
     os.environ["DATABASE_URL"],
@@ -66,6 +66,8 @@ def client(db_session):
     with TestClient(app, base_url="http://testserver") as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
 @pytest.fixture
 def registered_user(db_session):
     user_data = users[0].copy()
@@ -80,7 +82,6 @@ def registered_user(db_session):
 @pytest.fixture
 def authenticated_client(client, db_session):
     """users[0]로 로그인 + seed_documents 적용된 클라이언트"""
-    # 유저 등록
     for user_data in users:
         u = user_data.copy()
         u["password"] = auth_service.hash_password(u["password"])
@@ -125,7 +126,6 @@ def registered_admin(db_session):
     db_session.commit()
     db_session.refresh(user)
     return user
-
 
 
 @pytest.fixture

@@ -1,8 +1,9 @@
 import os
 import random
-import string
 import smtplib
+import string
 from email.message import EmailMessage
+
 from redis import Redis
 
 from errors import AppException, ErrorCode
@@ -34,7 +35,7 @@ class EmailService:
         stored_code = redis_client.get(f"email_verify:{email}")
 
         if isinstance(stored_code, bytes):
-            stored_code = stored_code.decode('utf-8')
+            stored_code = stored_code.decode("utf-8")
 
         if not stored_code:
             raise AppException(ErrorCode.EMAIL_CODE_NOT_FOUND)

@@ -1,13 +1,15 @@
-from fastapi import APIRouter, Depends, Form, UploadFile, File, status
 from typing import List
+
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from sqlalchemy.orm import Session
 
-from dependencies import get_chat_service, get_current_user, get_db, get_redis
-from services.chat_service import ChatService
+from dependencies import get_chat_service, get_current_user, get_db
 from models.model import User
-from schemas.chat import ChatSessionRequest, ChatSessionResponse, ChatMessageResponse
+from schemas.chat import ChatMessageResponse, ChatSessionRequest, ChatSessionResponse
+from services.chat_service import ChatService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
 
 @router.get("/sessions", response_model=List[ChatSessionResponse])
 def get_sessions(
@@ -16,6 +18,7 @@ def get_sessions(
     chat_service: ChatService = Depends(get_chat_service),
 ):
     return chat_service.get_sessions(db, current_user.id)
+
 
 @router.post("/sessions", response_model=ChatSessionResponse)
 def create_session(
@@ -26,6 +29,7 @@ def create_session(
 ):
     return chat_service.create_session(db, current_user.id, session_data.title)
 
+
 @router.put("/sessions/{session_id}", response_model=ChatSessionResponse)
 def update_session(
     session_id: int,
@@ -34,7 +38,10 @@ def update_session(
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
-    return chat_service.update_session(db, current_user.id, session_id, session_data.title)
+    return chat_service.update_session(
+        db, current_user.id, session_id, session_data.title
+    )
+
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_session(
@@ -45,6 +52,7 @@ def delete_session(
 ):
     chat_service.delete_session(db, current_user.id, session_id)
 
+
 @router.get("/sessions/{session_id}/messages", response_model=List[ChatMessageResponse])
 def get_messages(
     session_id: int,
@@ -53,6 +61,7 @@ def get_messages(
     chat_service: ChatService = Depends(get_chat_service),
 ):
     return chat_service.get_messages(db, current_user.id, session_id)
+
 
 @router.post("/sessions/{session_id}/messages")
 async def send_message(

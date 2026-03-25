@@ -3,28 +3,41 @@ from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session
 from redis import Redis
+from sqlalchemy.orm import Session
 
 from errors import AppException, ErrorCode
-from models.model import User, Subscription, SubscriptionPlan, SubscriptionStatus
-from schemas.auth import SignupRequest, LoginRequest, ResetPasswordRequest, UserResponse, ConfirmAccountRequest
+from models.model import Subscription, SubscriptionPlan, SubscriptionStatus, User
+from schemas.auth import (
+    ConfirmAccountRequest,
+    LoginRequest,
+    ResetPasswordRequest,
+    SignupRequest,
+    UserResponse,
+)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(
+    os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30")
+)
 JWT_REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
 LOGIN_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv("LOGIN_RATE_LIMIT_MAX_ATTEMPTS", "5"))
-LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("LOGIN_RATE_LIMIT_WINDOW_SECONDS", "300"))
+LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(
+    os.getenv("LOGIN_RATE_LIMIT_WINDOW_SECONDS", "300")
+)
 LOGIN_RATE_LIMIT_BLOCK_SECONDS = int(os.getenv("LOGIN_RATE_LIMIT_BLOCK_SECONDS", "300"))
 
+
 class AuthService:
-    def signup(self, db: Session, redis_client: Redis, payload: SignupRequest) -> UserResponse:
+    def signup(
+        self, db: Session, redis_client: Redis, payload: SignupRequest
+    ) -> UserResponse:
         email = payload.email.strip().lower()
-        
+
         if not redis_client.get(f"email_verified:{email}"):
             raise AppException(ErrorCode.USER_EMAIL_NOT_VERIFIED)
 
@@ -49,14 +62,16 @@ class AuthService:
         )
         db.add(subscription)
         db.commit()
-        
+
         redis_client.delete(f"email_verified:{email}")
         return self.to_user_response(user)
 
-    def login(self, db: Session, redis_client: Redis, payload: LoginRequest, client_ip: str):
+    def login(
+        self, db: Session, redis_client: Redis, payload: LoginRequest, client_ip: str
+    ):
         email = payload.email.strip().lower()
         limit_key = f"{client_ip}:{email}"
-        
+
         self._check_login_rate_limit(redis_client, limit_key)
 
         user = db.query(User).filter(User.email == email).first()
@@ -82,7 +97,7 @@ class AuthService:
             raise AppException(ErrorCode.AUTH_REFRESH_TOKEN_EXPIRED)
 
         if isinstance(stored_email, bytes):
-            stored_email = stored_email.decode('utf-8')
+            stored_email = stored_email.decode("utf-8")
 
         email = self.decode_refresh_token(refresh_token)
         user = db.query(User).filter(User.email == email).first()
@@ -91,15 +106,19 @@ class AuthService:
             raise AppException(ErrorCode.AUTH_USER_INVALID)
 
         redis_client.delete(f"refresh_token:{refresh_token}")
-        new_access_token, new_refresh_token = self._issue_tokens(redis_client, user.email)
-        
+        new_access_token, new_refresh_token = self._issue_tokens(
+            redis_client, user.email
+        )
+
         return self.to_user_response(user), new_access_token, new_refresh_token
 
     def logout(self, redis_client: Redis, refresh_token: str | None):
         if refresh_token:
             redis_client.delete(f"refresh_token:{refresh_token}")
 
-    def confirm_account(self, db: Session, redis_client: Redis, payload: ConfirmAccountRequest) -> UserResponse:
+    def confirm_account(
+        self, db: Session, redis_client: Redis, payload: ConfirmAccountRequest
+    ) -> UserResponse:
         email = payload.email.strip().lower()
 
         if not redis_client.get(f"email_verified:{email}"):
@@ -111,7 +130,9 @@ class AuthService:
 
         return self.to_user_response(user)
 
-    def reset_password(self, db: Session, redis_client: Redis, payload: ResetPasswordRequest):
+    def reset_password(
+        self, db: Session, redis_client: Redis, payload: ResetPasswordRequest
+    ):
         email = payload.email.strip().lower()
 
         if not redis_client.get(f"email_verified:{email}"):
@@ -126,7 +147,9 @@ class AuthService:
 
         redis_client.delete(f"email_verified:{email}")
 
-    def update_username(self, db: Session, user_id: int, new_username: str) -> UserResponse:
+    def update_username(
+        self, db: Session, user_id: int, new_username: str
+    ) -> UserResponse:
         existing = db.query(User).filter(User.username == new_username).first()
         if existing and existing.id != user_id:
             raise AppException(ErrorCode.USER_USERNAME_ALREADY_EXISTS)
@@ -135,7 +158,7 @@ class AuthService:
         user.username = new_username
         db.commit()
         return self.to_user_response(user)
-    
+
     def hash_password(self, password: str) -> str:
         if len(password.encode("utf-8")) > 72:
             raise AppException(ErrorCode.USER_PASSWORD_TOO_LONG)
@@ -146,12 +169,18 @@ class AuthService:
             return False
         return pwd_context.verify(plain_password, hashed_password)
 
-    def create_access_token(self, subject: str, expire_minutes: int = JWT_ACCESS_TOKEN_EXPIRE_MINUTES) -> str:
+    def create_access_token(
+        self, subject: str, expire_minutes: int = JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+    ) -> str:
         expire_at = datetime.now(timezone.utc) + timedelta(minutes=expire_minutes)
         payload = {"sub": subject, "exp": expire_at, "type": "access"}
         return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
-    def create_refresh_token(self, subject: str, expire_minutes: int = JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60) -> str:
+    def create_refresh_token(
+        self,
+        subject: str,
+        expire_minutes: int = JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60,
+    ) -> str:
         expire_at = datetime.now(timezone.utc) + timedelta(minutes=expire_minutes)
         payload = {"sub": subject, "exp": expire_at, "type": "refresh"}
         return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
@@ -193,10 +222,10 @@ class AuthService:
     def get_user_from_token(self, db: Session, token: str | None) -> User:
         if not token:
             raise AppException(ErrorCode.AUTH_TOKEN_MISSING)
-        
+
         email = self.decode_access_token(token)
         user = db.query(User).filter(User.email == email).first()
-        
+
         if not user or not user.is_active:
             raise AppException(ErrorCode.AUTH_USER_INVALID)
         return user
@@ -204,10 +233,10 @@ class AuthService:
     def _issue_tokens(self, redis_client: Redis, email: str):
         access_token = self.create_access_token(email)
         refresh_token = self.create_refresh_token(email)
-        
+
         ttl = JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
         redis_client.setex(f"refresh_token:{refresh_token}", ttl, email)
-        
+
         return access_token, refresh_token
 
     def _check_login_rate_limit(self, redis_client: Redis, key: str):
