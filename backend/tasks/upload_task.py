@@ -5,6 +5,7 @@ sys.path.insert(0, "/app")
 
 from celery_app import celery_app
 from database import SessionLocal
+from errors import AppException
 from repositories.document_repository import DocumentRepository
 from services.summary.process_service import ProcessService
 
@@ -38,9 +39,21 @@ def process_next_pending_document(self):
         logger.info("[ProcessService 완료] doc_id=%s", document_id)
         return {"processed": True, "document_id": document_id}
 
+    except AppException as e:
+        logger.error(f"[처리 실패] doc_id={document_id}, error={e}", exc_info=True)
+        return {
+            "processed": False,
+            "document_id": document_id,
+            "error_code": e.code,
+            "message": e.message,
+        }
     except Exception as e:
         logger.error(f"[처리 실패] doc_id={document_id}, error={e}", exc_info=True)
-        raise
+        return {
+            "processed": False,
+            "document_id": document_id,
+            "error": str(e),
+        }
     finally:
         db.close()
         if claimed_document:

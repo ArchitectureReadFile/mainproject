@@ -2,7 +2,7 @@
 fastapi==0.115.12
 pydantic==2.11.1
 uvicorn[standard]==0.34.0
-python-multipart==0.0.20
+python-multipart==0.0.22
 
 sqlalchemy==2.0.40
 pymysql==1.1.1
@@ -22,7 +22,7 @@ requests==2.32.3
 httpx==0.28.1
 
 reportlab==4.4.0
-opendataloader-pdf==2.0.2
+opendataloader-pdf[hybrid]==2.0.2
 beautifulsoup4==4.13.4
 
 # RAG dependencies

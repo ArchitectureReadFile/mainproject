@@ -15,9 +15,13 @@ OpenDataLoader JSON 구조:
     텍스트는 항상 leaf paragraph의 "content" 필드에 있다.
 """
 
-import re
+from __future__ import annotations
 
-from services.document_extract_service import ExtractedDocument
+import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from services.document_extract_service import ExtractedDocument
 
 _TABLE_ROW_RE = re.compile(r"^\|.*\|$")
 _TABLE_SEP_RE = re.compile(r"^\|[\s\-|:]+\|$")
@@ -163,6 +167,25 @@ def extract_body_from_markdown(markdown: str) -> str:
     return body.strip()
 
 
+def extract_body_from_json(json_data: dict | list | None) -> str:
+    """
+    OpenDataLoader JSON에서 paragraph/content 기반 본문 텍스트를 재구성한다.
+
+    markdown 산출물이 비어 있거나 지나치게 짧은 경우 fallback 본문으로 사용한다.
+    """
+    if not json_data:
+        return ""
+
+    lines: list[str] = []
+    _collect_body_lines(json_data, lines)
+
+    filtered_lines = [line.rstrip() for line in lines if line and line.strip()]
+    reflowed_lines = _reflow_body_lines(filtered_lines)
+    merged_lines = _merge_weak_paragraph_breaks(reflowed_lines)
+    body = re.sub(r"\n{3,}", "\n\n", "\n".join(merged_lines))
+    return body.strip()
+
+
 def extract_tables_from_json(json_data: dict | None) -> list[str]:
     """
     json_data에서 type == "table"인 요소를 찾아
@@ -212,6 +235,8 @@ def build_summary_input(extracted: ExtractedDocument) -> str:
     표가 없으면 [표] 섹션은 생략한다.
     """
     body = extract_body_from_markdown(extracted.markdown)
+    if not body:
+        body = extract_body_from_json(extracted.json_data)
     tables = extract_tables_from_json(extracted.json_data)
 
     parts = [f"[본문]\n{body}"]
@@ -227,6 +252,8 @@ def build_chat_input(extracted: ExtractedDocument) -> str:
     본문 6000자, 표 2000자 상한.
     """
     body = extract_body_from_markdown(extracted.markdown)
+    if not body:
+        body = extract_body_from_json(extracted.json_data)
     tables = extract_tables_from_json(extracted.json_data)
 
     body = body[:6000]
@@ -250,6 +277,8 @@ def build_rag_source(extracted: ExtractedDocument) -> dict:
         }
     """
     body = extract_body_from_markdown(extracted.markdown)
+    if not body:
+        body = extract_body_from_json(extracted.json_data)
     tables = extract_tables_from_json(extracted.json_data)
     return {
         "body_text": body,
@@ -289,3 +318,32 @@ def _extract_cell_text(cell: dict) -> str:
             parts.append(str(content).strip())
 
     return " ".join(parts)
+
+
+def _collect_body_lines(node: dict | list, lines: list[str]) -> None:
+    """
+    paragraph/content 중심으로 JSON 트리를 순회하며 본문 줄을 수집한다.
+    """
+    if isinstance(node, list):
+        for item in node:
+            _collect_body_lines(item, lines)
+        return
+
+    if not isinstance(node, dict):
+        return
+
+    node_type = node.get("type")
+    content = node.get("content")
+
+    if isinstance(content, str) and content.strip():
+        if node_type not in {"table cell", "table row", "table"}:
+            lines.append(content.strip())
+
+    for child in node.get("kids", []):
+        _collect_body_lines(child, lines)
+
+    for row in node.get("rows", []):
+        _collect_body_lines(row, lines)
+
+    for cell in node.get("cells", []):
+        _collect_body_lines(cell, lines)
