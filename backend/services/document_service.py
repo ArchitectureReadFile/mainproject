@@ -68,6 +68,9 @@ class DocumentService:
                     title=title,
                     preview=preview,
                     status=doc.processing_status.value,
+                    document_type=get_summary_field(summary, "document_type")
+                    if summary
+                    else None,
                     created_at=doc.created_at,
                     uploader=doc.owner.username if doc.owner else None,
                     delete_requested_at=None,
@@ -91,11 +94,13 @@ class DocumentService:
             raise AppException(ErrorCode.DOC_NOT_FOUND)
 
         summary = getattr(doc, "summary", None)
+        title = self._build_document_title(doc, summary)
 
         response_data = {
             "id": doc.id,
             "uploader": doc.owner.username if doc.owner else None,
             "summary_id": summary.id if summary else None,
+            "title": title,
             "status": doc.processing_status.value,
             "created_at": doc.created_at,
         }
@@ -158,6 +163,9 @@ class DocumentService:
                     title=self._build_document_title(doc, summary),
                     preview=self._build_preview(summary),
                     status=doc.processing_status.value,
+                    document_type=get_summary_field(summary, "document_type")
+                    if summary
+                    else None,
                     created_at=doc.created_at,
                     uploader=doc.owner.username if doc.owner else None,
                     delete_requested_at=doc.delete_requested_at,

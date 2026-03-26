@@ -10,6 +10,7 @@ import {
 import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import UploadPage from '@/pages/Upload/index'
+import DocumentsTab from '@/pages/Workspace/DocumentsTab'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/features/auth/index'
 import { toast } from 'sonner'
@@ -28,6 +29,9 @@ const TABS = [
     { key: 'members', label: '멤버', roles: ['OWNER', 'ADMIN', 'EDITOR', 'VIEWER'], hideOnPending: true },
     { key: 'workspace', label: '워크스페이스', roles: ['OWNER', 'ADMIN', 'EDITOR', 'VIEWER'] },
 ]
+
+
+const GROUP_POLLING_INTERVAL = 5000
 
 
 // D-DAY 계산
@@ -615,6 +619,19 @@ export default function GroupDetailPage() {
     const [searchParams, setSearchParams] = useSearchParams()
     const tabFromUrl = searchParams.get("tab")
 
+    useEffect(() => {
+        const timerId = window.setInterval(async () => {
+            try {
+                const updated = await getGroupDetail(group_id)
+                setGroup(updated)
+            } catch (e) {
+                console.error('그룹 상세 polling 실패:', e)
+            }
+        }, GROUP_POLLING_INTERVAL)
+
+        return () => window.clearInterval(timerId)
+    }, [group_id])
+
 
     useEffect(() => {
         setActiveTab(tabFromUrl || "documents")
@@ -675,7 +692,8 @@ export default function GroupDetailPage() {
                 <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => navigate("/workspace")} className="gap-1.5 mb-3 -ml-2">
+                    onClick={() => navigate("/workspace")} className="gap-1.5 mb-3 -ml-2"
+                >
                     <ArrowLeft size={15} />
                     그룹 목록
                 </Button>
@@ -725,7 +743,8 @@ export default function GroupDetailPage() {
 
         {/* 컨텐츠 — 추가 예정 */}
         {activeTab === 'upload' && <UploadPage />}
-        {activeTab === 'documents' && <div>문서 섹션</div>}
+        {activeTab === 'documents' && (<DocumentsTab group={group} />
+        )}
         {activeTab === 'trash'     && <div>휴지통 섹션</div>}
         {activeTab === 'members'   && (
             <TooltipProvider>

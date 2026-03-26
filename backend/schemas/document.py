@@ -10,6 +10,7 @@ class DocumentListItemResponse(BaseModel):
     title: str
     preview: str
     status: str
+    document_type: Optional[str] = None
     created_at: datetime
     uploader: str | None
 
@@ -22,6 +23,7 @@ class DocumentDetailResponse(BaseModel):
     id: int
     uploader: Optional[str] = None
     summary_id: Optional[int] = None
+    title: str | None = None
     status: str
     document_type: Optional[str] = None
     summary_text: Optional[str] = None
