@@ -2,6 +2,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/Avatar.jsx";
 import { Button } from "@/components/ui/Button.jsx";
 import { Input } from "@/components/ui/Input.jsx";
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   IoAdd,
   IoArrowBack,
@@ -9,7 +11,6 @@ import {
   IoCloseCircle,
   IoCloudUploadOutline,
   IoDocumentTextOutline,
-  IoEllipsisHorizontal,
   IoFolderOpenOutline,
   IoPeopleOutline,
   IoSend
@@ -88,6 +89,35 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
     setShowDocSelect(false);
   };
 
+  const MarkdownComponents = {
+    p: ({ children }) => <p className="mb-2 last:mb-0 whitespace-pre-wrap">{children}</p>,
+    ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
+    ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
+    li: ({ children }) => <li className="mb-0">{children}</li>,
+    code: ({ inline, children }) => (
+      inline
+        ? <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded text-pink-600 dark:text-pink-400 font-mono text-xs">{children}</code>
+        : <code className="block bg-slate-100 dark:bg-slate-800 p-2 rounded-lg font-mono text-xs overflow-x-auto my-2 border border-slate-200 dark:border-slate-700">{children}</code>
+    ),
+    blockquote: ({ children }) => (
+      <blockquote className="border-l-4 border-slate-200 dark:border-slate-700 pl-3 italic my-2 text-slate-600 dark:text-slate-400">
+        {children}
+      </blockquote>
+    ),
+    h1: ({ children }) => <h1 className="text-lg font-bold mb-2 border-b pb-1">{children}</h1>,
+    h2: ({ children }) => <h2 className="text-base font-bold mb-1.5">{children}</h2>,
+    h3: ({ children }) => <h3 className="text-sm font-bold mb-1">{children}</h3>,
+    table: ({ children }) => (
+      <div className="overflow-x-auto my-3">
+        <table className="min-w-full border-collapse border border-slate-200 dark:border-slate-700 text-xs">
+          {children}
+        </table>
+      </div>
+    ),
+    th: ({ children }) => <th className="border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2 font-bold">{children}</th>,
+    td: ({ children }) => <td className="border border-slate-200 dark:border-slate-700 p-2">{children}</td>,
+  };
+
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 relative">
       <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shadow-sm z-10">
@@ -109,10 +139,10 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
         </Button>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-5">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-6">
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl shadow-sm text-[14.5px] leading-relaxed flex flex-col ${msg.sender === 'user'
+          <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+            <div className={`max-w-[85%] px-4 py-3 rounded-2xl shadow-sm text-[14px] leading-relaxed flex flex-col ${msg.sender === 'user'
               ? 'bg-blue-600 text-white rounded-br-sm'
               : msg.isError
                 ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 rounded-bl-sm'
@@ -120,22 +150,30 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
               }`}>
 
               {(msg.referenceDoc || msg.referenceGroup) && (
-                <div className="flex flex-col gap-1 mb-2">
+                <div className="flex flex-col gap-1 mb-2.5">
                   {msg.referenceDoc && (
-                    <div className="flex items-center gap-1.5 bg-white/20 dark:bg-white/10 text-blue-50 dark:text-blue-200 px-2 py-1 rounded-md text-xs w-fit border border-blue-400/30">
-                      <IoDocumentTextOutline size={14} /> {msg.referenceDoc.title}
+                    <div className="flex items-center gap-1.5 bg-blue-50/20 dark:bg-blue-900/20 text-blue-50 dark:text-blue-200 px-2 py-1 rounded-md text-[11px] w-fit border border-blue-400/30">
+                      <IoDocumentTextOutline size={13} /> {msg.referenceDoc.title}
                     </div>
                   )}
                   {msg.referenceGroup && (
-                    <div className="flex items-center gap-1.5 bg-white/20 dark:bg-white/10 text-blue-50 dark:text-blue-200 px-2 py-1 rounded-md text-xs w-fit border border-blue-400/30">
-                      <IoPeopleOutline size={14} /> {msg.referenceGroup.name}
+                    <div className="flex items-center gap-1.5 bg-blue-50/20 dark:bg-blue-900/20 text-blue-50 dark:text-blue-200 px-2 py-1 rounded-md text-[11px] w-fit border border-blue-400/30">
+                      <IoPeopleOutline size={13} /> {msg.referenceGroup.name}
                     </div>
                   )}
                 </div>
               )}
 
-              <p>{msg.text}</p>
-              <p className={`text-[10px] mt-1.5 text-right ${msg.sender === 'user' ? 'text-blue-200' : 'text-slate-400 dark:text-slate-500'}`}>
+              <div className={`markdown-content ${msg.sender === 'user' ? 'text-white' : ''}`}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={MarkdownComponents}
+                >
+                  {msg.text}
+                </ReactMarkdown>
+              </div>
+
+              <p className={`text-[10px] mt-2 text-right opacity-70 ${msg.sender === 'user' ? 'text-blue-50' : 'text-slate-400 dark:text-slate-500'}`}>
                 {msg.timestamp}
               </p>
             </div>
@@ -143,9 +181,14 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
         ))}
 
         {isLoading && (
-          <div className="flex justify-start">
-            <div className="max-w-[75%] px-4 py-3 rounded-2xl shadow-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-bl-sm flex items-center gap-2">
-              <IoEllipsisHorizontal className="text-slate-400 dark:text-slate-500 animate-pulse" size={20} />
+          <div className="flex justify-start animate-in fade-in duration-300">
+            <div className="px-4 py-3 rounded-2xl shadow-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-bl-sm flex items-center gap-2">
+              <span className="flex gap-1">
+                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></span>
+              </span>
+              <span className="text-xs text-slate-400 font-medium">AI 분석 중...</span>
             </div>
           </div>
         )}
