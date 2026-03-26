@@ -90,10 +90,10 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
   };
 
   const MarkdownComponents = {
-    p: ({ children }) => <p className="mb-2 last:mb-0 whitespace-pre-wrap">{children}</p>,
+    p: ({ children }) => <p className="mb-2 last:mb-0 whitespace-pre-wrap break-words">{children}</p>,
     ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
     ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-    li: ({ children }) => <li className="mb-0">{children}</li>,
+    li: ({ children }) => <li className="mb-0 break-all break-words">{children}</li>,
     code: ({ inline, children }) => (
       inline
         ? <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded text-pink-600 dark:text-pink-400 font-mono text-xs">{children}</code>
