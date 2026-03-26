@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 
 class DocumentListItemResponse(BaseModel):
@@ -33,3 +33,29 @@ class DocumentDetailResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PendingDocumentListItemResponse(BaseModel):
+    id: int
+    summary_id: Optional[int] = None
+    title: str
+    preview: str
+    status: str
+    approval_status: str
+    document_type: Optional[str] = None
+    created_at: datetime
+    uploader: Optional[str] = None
+    assignee_user_id: Optional[int] = None
+    assignee_username: Optional[str] = None
+
+
+class DocumentRejectRequest(BaseModel):
+    feedback: str = Field(..., min_length=1, max_length=1000)
+
+    @field_validator("feedback")
+    @classmethod
+    def strip_feedback(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("반려 사유는 공백만 입력할 수 없습니다.")
+        return v

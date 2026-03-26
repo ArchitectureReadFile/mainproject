@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
@@ -26,6 +28,7 @@ def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
 def upload(
     file: UploadFile = File(...),
     group_id: int = Form(...),
+    assignee_user_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     group_service: GroupService = Depends(get_group_service),
@@ -40,7 +43,13 @@ def upload(
     if file_size > MAX_FILE_SIZE_BYTES:
         raise AppException(ErrorCode.DOC_FILE_TOO_LARGE)
 
-    group_service.assert_upload_permission(current_user.id, group_id)
+    _, role = group_service.assert_upload_permission(current_user.id, group_id)
 
-    service = UploadService(DocumentRepository(db))
-    return service.handle_upload([file], user_id=current_user.id, group_id=group_id)
+    service = UploadService(DocumentRepository(db), group_service)
+    return service.handle_upload(
+        [file],
+        user_id=current_user.id,
+        group_id=group_id,
+        uploader_role=role,
+        assignee_user_id=assignee_user_id,
+    )

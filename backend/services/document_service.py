@@ -1,9 +1,15 @@
 from errors import AppException, ErrorCode
 from models.model import (
     DocumentLifecycleStatus,
+    ReviewStatus,
+    utc_now_naive,
 )
 from repositories.document_repository import DocumentRepository
-from schemas.document import DocumentDetailResponse, DocumentListItemResponse
+from schemas.document import (
+    DocumentDetailResponse,
+    DocumentListItemResponse,
+    PendingDocumentListItemResponse,
+)
 from services.summary.summary_mapper import (
     SUMMARY_METADATA_FIELDS,
     build_document_title,
@@ -175,3 +181,106 @@ class DocumentService:
             )
 
         return results, total
+
+    def get_pending_list(
+        self,
+        skip: int,
+        limit: int,
+        keyword: str,
+        group_id: int,
+    ) -> tuple[list[PendingDocumentListItemResponse], int]:
+        """그룹 내 승인 대기 문서 전체 조회"""
+        limit = min(limit, 50)
+
+        documents, total = self.repository.get_pending_list(
+            skip, limit, keyword, group_id
+        )
+
+        results: list[PendingDocumentListItemResponse] = []
+
+        for doc in documents:
+            summary = getattr(doc, "summary", None)
+            approval = getattr(doc, "approval", None)
+            assignee = getattr(approval, "assignee", None) if approval else None
+
+            results.append(
+                PendingDocumentListItemResponse(
+                    id=doc.id,
+                    summary_id=summary.id if summary else None,
+                    title=self._build_document_title(doc, summary),
+                    preview=self._build_preview(summary),
+                    status=doc.processing_status.value,
+                    approval_status=approval.status.value if approval else "",
+                    document_type=get_summary_field(summary, "document_type")
+                    if summary
+                    else None,
+                    created_at=doc.created_at,
+                    uploader=doc.owner.username if doc.owner else None,
+                    assignee_user_id=approval.assignee_user_id if approval else None,
+                    assignee_username=assignee.username if assignee else None,
+                )
+            )
+
+        return results, total
+
+    def approve_document(self, doc_id: int, user_id: int, group_id: int):
+        """승인"""
+        doc = self.repository.get_review_target(doc_id)
+
+        if not doc:
+            raise AppException(ErrorCode.DOC_NOT_FOUND)
+
+        if doc.group_id != group_id:
+            raise AppException(ErrorCode.DOC_NOT_FOUND)
+
+        if doc.lifecycle_status != DocumentLifecycleStatus.ACTIVE:
+            raise AppException(ErrorCode.DOC_NOT_FOUND)
+
+        approval = getattr(doc, "approval", None)
+
+        if not approval or approval.status != ReviewStatus.PENDING_REVIEW:
+            raise AppException(ErrorCode.DOC_NOT_PENDING_REVIEW)
+
+        self.repository.update_document_approval(
+            approval=approval,
+            status=ReviewStatus.APPROVED,
+            reviewer_user_id=user_id,
+            reviewed_at=utc_now_naive(),
+        )
+        self.repository.db.commit()
+
+        from tasks.group_document_task import index_approved_document
+
+        index_approved_document.delay(doc.id)
+
+        return {"message": "문서가 승인되었습니다."}
+
+    def reject_document(self, doc_id: int, user_id: int, group_id: int, feedback: str):
+        """반려"""
+        doc = self.repository.get_review_target(doc_id)
+
+        if not doc:
+            raise AppException(ErrorCode.DOC_NOT_FOUND)
+
+        if doc.group_id != group_id:
+            raise AppException(ErrorCode.DOC_NOT_FOUND)
+
+        if doc.lifecycle_status != DocumentLifecycleStatus.ACTIVE:
+            raise AppException(ErrorCode.DOC_NOT_FOUND)
+
+        approval = getattr(doc, "approval", None)
+
+        if not approval or approval.status != ReviewStatus.PENDING_REVIEW:
+            raise AppException(ErrorCode.DOC_NOT_PENDING_REVIEW)
+
+        self.repository.update_document_approval(
+            approval=approval,
+            status=ReviewStatus.REJECTED,
+            reviewer_user_id=user_id,
+            feedback=feedback,
+            reviewed_at=utc_now_naive(),
+        )
+
+        self.repository.db.commit()
+
+        return {"message": "문서가 반려되었습니다."}

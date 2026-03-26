@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { fetchDocuments } from '@/api/documents.js'
+import { getGroupDocuments } from '@/api/groups.js'
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import FileDropzone from '../../features/upload/components/FileDropzone.jsx'
@@ -43,10 +43,10 @@ function UploadPageInner() {
     if (!groupId) return
 
     const [pendingRes, processingRes, doneRes, failedRes] = await Promise.all([
-      fetchDocuments({ skip: 0, limit: 1, status: 'PENDING', viewType: 'my', groupId }),
-      fetchDocuments({ skip: 0, limit: 1, status: 'PROCESSING', viewType: 'my', groupId }),
-      fetchDocuments({ skip: 0, limit: 1, status: 'DONE', viewType: 'my', groupId }),
-      fetchDocuments({ skip: 0, limit: 1, status: 'FAILED', viewType: 'my', groupId }),
+      getGroupDocuments(groupId, { skip: 0, limit: 1, status: 'PENDING', viewType: 'my' }),
+      getGroupDocuments(groupId, { skip: 0, limit: 1, status: 'PROCESSING', viewType: 'my' }),
+      getGroupDocuments(groupId, { skip: 0, limit: 1, status: 'DONE', viewType: 'my' }),
+      getGroupDocuments(groupId, { skip: 0, limit: 1, status: 'FAILED', viewType: 'my' }),
     ])
 
     setStatusCounts({
@@ -55,6 +55,7 @@ function UploadPageInner() {
       failed: failedRes.total,
     })
   }, [groupId])
+
 
   useEffect(() => {
     loadStatusCounts()
