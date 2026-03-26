@@ -3,7 +3,6 @@ from services.rag import bm25_store, vector_store
 from services.rag.embedding_service import embed_query
 from services.rag.grouping_service import group_chunks_by_precedent
 
-
 def retrieve_precedents(
     query: str,
     top_k: int,

@@ -4,7 +4,7 @@ import redis
 
 from celery_app import celery_app
 from database import SessionLocal
-from services.chat_service import ChatService
+from services.chat.chat_processor import ChatProcessor
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 
@@ -18,8 +18,8 @@ def process_chat_message(payload: dict):
     db = SessionLocal()
 
     try:
-        chat_service = ChatService()
-        chat_service.process_chat(
+        processor = ChatProcessor()
+        processor.process_chat(
             db=db,
             redis_client=redis_client,
             user_id=user_id,

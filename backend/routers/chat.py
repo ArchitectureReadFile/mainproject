@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from dependencies import get_chat_service, get_current_user, get_db
 from models.model import User
 from schemas.chat import ChatMessageResponse, ChatSessionRequest, ChatSessionResponse
-from services.chat_service import ChatService
+from services.chat.chat_service import ChatService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
