@@ -11,7 +11,6 @@ import {
   IoCloseCircle,
   IoCloudUploadOutline,
   IoDocumentTextOutline,
-  IoEllipsisHorizontal,
   IoFolderOpenOutline,
   IoPencilOutline,
   IoPeopleOutline,

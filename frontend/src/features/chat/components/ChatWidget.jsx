@@ -61,7 +61,12 @@ export default function ChatWidget() {
   return (
     <>
       {isOpen && (
-        <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[10000] w-[calc(100%-32px)] min-w-[400px] max-w-[800px] h-[600px] flex flex-col overflow-hidden shadow-2xl border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
+        <Card 
+          className="fixed right-[20px] z-[10000] w-[360px] h-[550px] flex flex-col overflow-hidden shadow-2xl border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200 origin-bottom-right"
+          style={{
+            bottom: `${30 + footerOffset}px`
+          }}
+        >
           <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900">
             {activeSession ? (
               <ChatSession
@@ -91,7 +96,7 @@ export default function ChatWidget() {
         >
           <button
             onClick={() => setIsOpen(true)}
-            className={`w-[90px] h-[90px] rounded-full transition-all duration-300 hover:scale-110 active:scale-90 flex items-center justify-center overflow-hidden }`}
+            className="w-[90px] h-[90px] rounded-full transition-all duration-300 hover:scale-110 active:scale-90 flex items-center justify-center overflow-hidden"
           >
             <img
               src={nongdamgom}
