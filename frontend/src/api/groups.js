@@ -84,3 +84,51 @@ export async function transferOwner(groupId, targetId) {
     await client.post(`/groups/${groupId}/members/${targetId}/transfer`)
 }
 
+// GET /groups/{group_id}/documents 그룹 기반 문서 목록 조회
+export async function getGroupDocuments(groupId, {
+    skip = 0,
+    limit = 5,
+    keyword = "",
+    status = "",
+    viewType = "all",
+    category = "전체",
+}) {
+    const { data } = await client.get(`/groups/${groupId}/documents`, {
+        params: {
+            skip,
+            limit,
+            keyword,
+            status,
+            view_type: viewType,
+            category,
+        },
+    })
+    return data
+}
+
+
+// GET /groups/{group_id}/documents/deleted — 휴지통 목록
+export async function getDeletedGroupDocuments(groupId, {
+    skip = 0, 
+    limit = 5,
+}) {
+    const { data } = await client.get(`/groups/${groupId}/documents/deleted`, {
+        params: {
+            skip,
+            limit,
+        },
+    })     
+    return data
+}
+
+
+// GET /groups/{group_id}/documents/{doc_id} — 그룹 문서 상세
+export async function getGroupDocumentDetail(groupId, docId) {
+    const { data } = await client.get(`/groups/${groupId}/documents/${docId}`)
+    return data
+}
+
+// DELETE /groups/{group_id}/documents/{doc_id} — 문서 삭제
+export async function deleteGroupDocument(groupId, docId) {
+  await client.delete(`/groups/${groupId}/documents/${docId}`)
+}

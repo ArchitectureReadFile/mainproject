@@ -207,7 +207,7 @@ def list_documents(
     limit: int = 5,
     keyword: str = "",
     status: str = "",
-    view_type: str = "my",
+    view_type: str = "all",
     category: str = "전체",
     service: DocumentService = Depends(get_document_service),
     group_service: GroupService = Depends(get_group_service),
