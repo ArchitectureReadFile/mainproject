@@ -1,6 +1,7 @@
 import os
 
 from sqlalchemy.orm import Session
+
 from errors.error_codes import ErrorCode
 from errors.exceptions import AppException
 from models.model import (
@@ -14,6 +15,7 @@ from services.document_extract_service import DocumentExtractService
 from services.document_input_builder import build_chat_input
 
 _extractor = DocumentExtractService()
+
 
 class ChatService:
     def get_sessions(self, db: Session, user_id: int):

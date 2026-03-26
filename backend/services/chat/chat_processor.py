@@ -1,5 +1,6 @@
 import json
 import logging
+
 from redis import Redis
 from sqlalchemy.orm import Session
 
@@ -91,9 +92,6 @@ class ChatProcessor:
                     )
                     if rag_hits:
                         logger.info(f"[RAG_HITS] {len(rag_hits)} precedents found.")
-                        for i, h in enumerate(rag_hits):
-                            title = h.get("title") or "제목 없음"
-                            url = h.get("source_url") or "출처 없음"
 
                         rag_context_parts = []
                         for h in rag_hits:

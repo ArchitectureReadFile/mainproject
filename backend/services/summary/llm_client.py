@@ -104,7 +104,7 @@ class LLMClient:
             logger.error(f"[OLLAMA_STREAM_FAILED] {e}")
             self.unload_model()
             raise AppException(ErrorCode.LLM_CONNECT_FAILED) from e
-        
+
     def summarize_chat(self, messages: list, num_predict: int = 1024) -> str:
         endpoint = f"{self._host}/api/chat"
         payload = {
@@ -127,4 +127,3 @@ class LLMClient:
             logger.error(f"[OLLAMA_CHAT_FAILED] {e}")
             self.unload_model()
             raise AppException(ErrorCode.LLM_CONNECT_FAILED) from e
-
