@@ -1,14 +1,15 @@
 """
 services/document_extract_service.py
 
-opendataloader-pdf (Java-only) 기반 문서 추출 서비스.
-PDF 파일 경로 또는 bytes를 받아 ExtractedDocument를 반환한다.
+PDF 문서 추출 서비스.
 
-출력 포맷:
-    format="markdown,json"
-    image_output="off"   (이미지 추출 비활성화)
-    quiet=True           (콘솔 로그 억제)
+담당:
+    - 기본 opendataloader-pdf 추출 시도
+    - body 비어 있으면 LocalOcrService.extract_text() 호출
+    - ExtractedDocument 조립
 """
+
+from __future__ import annotations
 
 import json
 import logging
@@ -19,53 +20,64 @@ from dataclasses import dataclass
 import opendataloader_pdf as odl
 
 from errors import AppException, ErrorCode
+from services.document_input_builder import (
+    extract_body_from_json,
+    extract_body_from_markdown,
+)
+from services.ocr.local_ocr_service import LocalOcrService
+from services.ocr.ocr_service import OcrService
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class ExtractedDocument:
-    markdown: str  # 본문 구조 원본
-    json_data: dict | None  # 표/구조 원본
+    markdown: str
+    json_data: dict | None
 
 
 class DocumentExtractService:
+    def __init__(self, ocr_service: OcrService | None = None) -> None:
+        self.format = os.getenv("ODL_OUTPUT_FORMAT", "markdown,json")
+        self.image_output = os.getenv("ODL_IMAGE_OUTPUT", "off")
+        self._ocr: OcrService = ocr_service or LocalOcrService()
+
+    # ── public ───────────────────────────────────────────────────────────────
+
     def extract(self, file_path: str) -> ExtractedDocument:
-        """
-        PDF 파일 경로를 받아 ExtractedDocument를 반환한다.
-        추출 결과 파일은 임시 디렉터리에 쓰고 읽은 뒤 삭제한다.
-        """
         if not os.path.exists(file_path):
             raise AppException(ErrorCode.FILE_NOT_FOUND)
 
-        with tempfile.TemporaryDirectory() as output_dir:
-            try:
-                odl.convert(
-                    input_path=file_path,
-                    output_dir=output_dir,
-                    format="markdown,json",
-                    image_output="off",
-                    quiet=True,
-                )
-            except Exception as exc:
-                logger.error(
-                    "[문서 추출 실패] path=%s, error=%s", file_path, exc, exc_info=True
-                )
-                raise AppException(ErrorCode.DOC_INTERNAL_PARSE_ERROR)
+        logger.info("[문서 추출] 1차 시도: path=%s", file_path)
+        extracted: ExtractedDocument | None = None
 
-            return self._load_results(output_dir, os.path.basename(file_path))
+        try:
+            with tempfile.TemporaryDirectory() as output_dir:
+                self._convert(file_path, output_dir)
+                extracted = self._load_results(output_dir, os.path.basename(file_path))
+        except AppException:
+            raise
+        except Exception as exc:
+            logger.info(
+                "[문서 추출] 1차 변환 오류 → OCR fallback: path=%s error=%s",
+                file_path,
+                exc,
+            )
 
-    def extract_bytes(
-        self, file_bytes: bytes, filename: str = "document.pdf"
-    ) -> ExtractedDocument:
-        """
-        bytes 입력을 임시 파일로 저장한 뒤 extract()에 위임한다.
-        채팅 첨부파일 등 파일 경로 없이 bytes만 있는 소비처에서 사용한다.
-        """
+        if extracted is not None and self._extract_body(extracted).strip():
+            return extracted
+
+        if extracted is not None:
+            logger.info(
+                "[문서 추출] 1차 body 비어 있음 → OCR fallback: path=%s", file_path
+            )
+
+        return self._extract_with_ocr(file_path)
+
+    def extract_bytes(self, file_bytes: bytes) -> ExtractedDocument:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
             tmp.write(file_bytes)
             tmp_path = tmp.name
-
         try:
             return self.extract(tmp_path)
         finally:
@@ -74,56 +86,93 @@ class DocumentExtractService:
             except OSError:
                 pass
 
+    # ── private ──────────────────────────────────────────────────────────────
+
+    def _extract_with_ocr(self, file_path: str) -> ExtractedDocument:
+        logger.info("[문서 추출] OCR fallback 시도: path=%s", file_path)
+
+        try:
+            text = self._ocr.extract_text(file_path)
+        except Exception as exc:
+            logger.error(
+                "[문서 추출] OCR 오류: path=%s error=%s", file_path, exc, exc_info=True
+            )
+            raise AppException(ErrorCode.DOC_INTERNAL_PARSE_ERROR) from exc
+
+        if not text or not text.strip():
+            logger.warning("[문서 추출] OCR 후에도 body 비어 있음: path=%s", file_path)
+            raise AppException(ErrorCode.DOC_PDF_TEXT_TOO_SHORT)
+
+        logger.info(
+            "[문서 추출] OCR fallback 성공: path=%s chars=%d", file_path, len(text)
+        )
+        return ExtractedDocument(markdown=text, json_data=None)
+
+    def _extract_body(self, extracted: ExtractedDocument) -> str:
+        return (
+            extract_body_from_markdown(extracted.markdown)
+            or extract_body_from_json(extracted.json_data)
+            or ""
+        )
+
+    def _convert(self, file_path: str, output_dir: str) -> None:
+        try:
+            odl.convert(
+                input_path=file_path,
+                output_dir=output_dir,
+                format=self.format,
+                image_output=self.image_output,
+                quiet=True,
+            )
+        except Exception as exc:
+            logger.error(
+                "[문서 추출] 기본 변환 오류: path=%s error=%s",
+                file_path,
+                exc,
+                exc_info=True,
+            )
+            raise
+
     def _load_results(
         self, output_dir: str, original_filename: str
     ) -> ExtractedDocument:
-        """
-        output_dir에서 .md / .json 결과 파일을 읽어 ExtractedDocument로 조립한다.
-        파일명 stem은 입력 PDF stem과 동일하다.
-        """
         stem = os.path.splitext(original_filename)[0]
-
         md_path = os.path.join(output_dir, f"{stem}.md")
         json_path = os.path.join(output_dir, f"{stem}.json")
 
-        # markdown 읽기
-        markdown = ""
-        if os.path.exists(md_path):
-            with open(md_path, encoding="utf-8") as f:
-                markdown = f.read()
-        else:
-            # 디렉터리에서 첫 번째 .md 파일 fallback
-            for fname in os.listdir(output_dir):
-                if fname.endswith(".md"):
-                    with open(os.path.join(output_dir, fname), encoding="utf-8") as f:
-                        markdown = f.read()
-                    break
+        markdown = self._read_first_matching_file(output_dir, md_path, ".md")
+        json_data = self._read_json_with_fallback(output_dir, json_path)
 
-        if not markdown.strip():
-            logger.warning("[문서 추출] markdown 결과가 비어 있음: stem=%s", stem)
-            raise AppException(ErrorCode.LLM_EMPTY_PAGES)
+        return ExtractedDocument(markdown=markdown, json_data=json_data)
 
-        # json 읽기 (없어도 계속 진행)
-        json_data: dict | None = None
-        if os.path.exists(json_path):
-            try:
-                with open(json_path, encoding="utf-8") as f:
-                    json_data = json.load(f)
-            except json.JSONDecodeError:
-                logger.warning("[문서 추출] json 파싱 실패: %s", json_path)
-        else:
-            for fname in os.listdir(output_dir):
-                if fname.endswith(".json"):
-                    try:
-                        with open(
-                            os.path.join(output_dir, fname), encoding="utf-8"
-                        ) as f:
-                            json_data = json.load(f)
-                    except json.JSONDecodeError:
-                        pass
-                    break
+    def _read_first_matching_file(
+        self, output_dir: str, preferred_path: str, suffix: str
+    ) -> str:
+        if os.path.exists(preferred_path):
+            with open(preferred_path, encoding="utf-8") as f:
+                return f.read()
+        for fname in os.listdir(output_dir):
+            if fname.endswith(suffix):
+                with open(os.path.join(output_dir, fname), encoding="utf-8") as f:
+                    return f.read()
+        return ""
 
-        return ExtractedDocument(
-            markdown=markdown,
-            json_data=json_data,
+    def _read_json_with_fallback(
+        self, output_dir: str, preferred_path: str
+    ) -> dict | None:
+        candidates = []
+        if os.path.exists(preferred_path):
+            candidates.append(preferred_path)
+        candidates.extend(
+            os.path.join(output_dir, fname)
+            for fname in os.listdir(output_dir)
+            if fname.endswith(".json")
+            and os.path.join(output_dir, fname) != preferred_path
         )
+        for path in candidates:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    return json.load(f)
+            except json.JSONDecodeError:
+                logger.warning("[문서 추출] json 파싱 실패: %s", path)
+        return None
