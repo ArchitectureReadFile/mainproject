@@ -2,8 +2,11 @@ import logging
 import os
 import re
 from datetime import datetime
+from typing import Optional
 
+from models.model import MembershipRole, ReviewStatus, utc_now_naive
 from repositories.document_repository import DocumentRepository
+from services.group_service import GroupService
 from tasks.upload_task import process_next_pending_document
 
 logger = logging.getLogger(__name__)
@@ -12,12 +15,31 @@ logger = logging.getLogger(__name__)
 class UploadService:
     UPLOAD_DIR = "uploads/documents"
 
-    def __init__(self, repository: DocumentRepository):
+    def __init__(self, repository: DocumentRepository, group_service: GroupService):
         self.repository = repository
+        self.group_service = group_service
         os.makedirs(self.UPLOAD_DIR, exist_ok=True)
 
-    def handle_upload(self, files, *, user_id: int, group_id: int):
+    def handle_upload(
+        self,
+        files,
+        *,
+        user_id: int,
+        group_id: int,
+        uploader_role: MembershipRole,
+        assignee_user_id: Optional[int] = None,
+    ):
         doc_ids = []
+
+        # 자동 승인 대상자
+        is_auto_approved = uploader_role in (
+            MembershipRole.OWNER,
+            MembershipRole.ADMIN,
+        )
+
+        # 승인 담당자가 지정 됐을 때만
+        if not is_auto_approved and assignee_user_id is not None:
+            self.group_service.assert_reviewer_assignable(assignee_user_id, group_id)
 
         for file in files:
             filename = file.filename or "unknown.pdf"
@@ -37,6 +59,21 @@ class UploadService:
                 original_filename=filename,
                 stored_path=file_path,
             )
+
+            if is_auto_approved:
+                self.repository.create_document_approval(
+                    document_id=document.id,
+                    status=ReviewStatus.APPROVED,
+                    reviewer_user_id=user_id,
+                    reviewed_at=utc_now_naive(),
+                )
+            else:
+                self.repository.create_document_approval(
+                    document_id=document.id,
+                    status=ReviewStatus.PENDING_REVIEW,
+                    assignee_user_id=assignee_user_id,
+                )
+
             self.repository.db.commit()
             self.repository.db.refresh(document)
             doc_ids.append(document.id)

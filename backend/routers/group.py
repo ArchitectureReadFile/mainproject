@@ -6,7 +6,7 @@ from models.model import User
 from repositories.document_repository import DocumentRepository
 from repositories.group_repository import GroupRepository
 from routers.auth import get_current_user
-from schemas.document import DocumentDetailResponse
+from schemas.document import DocumentDetailResponse, DocumentRejectRequest
 from schemas.group import (
     GroupCreateRequest,
     GroupDetailResponse,
@@ -228,6 +228,28 @@ def list_documents(
     return {"items": items, "total": total}
 
 
+# 그룹 내 승인 대기 문서 전체 조회
+@router.get("/{group_id}/documents/pending")
+def list_pending_documents(
+    group_id: int,
+    skip: int = 0,
+    limit: int = 5,
+    keyword: str = "",
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group_service.assert_review_permission(current_user.id, group_id)
+    items, total = service.get_pending_list(
+        skip,
+        limit,
+        keyword,
+        group_id,
+    )
+
+    return {"items": items, "total": total}
+
+
 @router.get("/{group_id}/documents/deleted")
 def list_deleted_documents(
     group_id: int,
@@ -257,9 +279,14 @@ def get_detail_document(
     document_service: DocumentService = Depends(get_document_service),
     current_user: User = Depends(get_current_user),
 ):
-    group_service.assert_view_permission(current_user.id, group_id)
+    _, role = group_service.assert_view_permission(current_user.id, group_id)
 
-    return document_service.get_detail_in_group(doc_id, group_id)
+    return document_service.get_detail_in_group(
+        doc_id=doc_id,
+        group_id=group_id,
+        current_user_id=current_user.id,
+        current_user_role=role,
+    )
 
 
 @router.delete("/{group_id}/documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -272,3 +299,28 @@ def delete_document(
 ):
     group_service.assert_view_permission(current_user.id, group_id)
     service.delete_document(doc_id, current_user.id, group_id)
+
+
+@router.post("/{group_id}/documents/{doc_id}/approve")
+def approve_document(
+    group_id: int,
+    doc_id: int,
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group_service.assert_review_permission(current_user.id, group_id)
+    return service.approve_document(doc_id, current_user.id, group_id)
+
+
+@router.post("/{group_id}/documents/{doc_id}/reject")
+def reject_document(
+    group_id: int,
+    doc_id: int,
+    payload: DocumentRejectRequest,
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group_service.assert_review_permission(current_user.id, group_id)
+    return service.reject_document(doc_id, current_user.id, group_id, payload.feedback)

@@ -1,5 +1,6 @@
 import logging
 from datetime import timedelta
+from typing import Optional
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
@@ -7,11 +8,13 @@ from sqlalchemy.orm import Session, joinedload
 from models.model import (
     Category,
     Document,
+    DocumentApproval,
     DocumentLifecycleStatus,
     DocumentStatus,
     GroupMember,
     MembershipRole,
     MembershipStatus,
+    ReviewStatus,
     Summary,
     utc_now_naive,
 )
@@ -35,6 +38,29 @@ class DocumentRepository:
             .first()
             is not None
         )
+
+    def create_document_approval(
+        self,
+        *,
+        document_id: int,
+        assignee_user_id: Optional[int] = None,
+        reviewer_user_id: Optional[int] = None,
+        status: ReviewStatus,
+        feedback: Optional[str] = None,
+        reviewed_at=None,
+    ) -> DocumentApproval:
+        """업로드 직후 문서 승인 레코드 생성"""
+        approval = DocumentApproval(
+            document_id=document_id,
+            status=status,
+            assignee_user_id=assignee_user_id,
+            reviewer_user_id=reviewer_user_id,
+            feedback=feedback,
+            reviewed_at=reviewed_at,
+        )
+        self.db.add(approval)
+        self.db.flush()
+        return approval
 
     def create_pending_document(
         self,
@@ -94,12 +120,10 @@ class DocumentRepository:
             .options(
                 joinedload(Document.owner),
                 joinedload(Document.summary),
+                joinedload(Document.approval).joinedload(DocumentApproval.assignee),
             )
             .outerjoin(Document.summary)
-        )
-
-        query = query.filter(
-            Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE
+            .filter(Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE)
         )
 
         if group_id is not None:
@@ -107,6 +131,10 @@ class DocumentRepository:
 
         if view_type == "my":
             query = query.filter(Document.uploader_user_id == user_id)
+        else:
+            query = query.join(Document.approval).filter(
+                DocumentApproval.status == ReviewStatus.APPROVED
+            )
 
         if category and category != "전체":
             query = query.join(Document.categories).filter(Category.name == category)
@@ -131,7 +159,11 @@ class DocumentRepository:
     def get_detail(self, doc_id: int):
         return (
             self.db.query(Document)
-            .options(joinedload(Document.summary))
+            .options(
+                joinedload(Document.summary),
+                joinedload(Document.owner),
+                joinedload(Document.approval).joinedload(DocumentApproval.assignee),
+            )
             .filter(Document.id == doc_id)
             .first()
         )
@@ -190,3 +222,65 @@ class DocumentRepository:
         )
 
         return documents, total
+
+    def get_pending_list(
+        self,
+        skip: int,
+        limit: int,
+        keyword: str,
+        group_id: int,
+    ) -> tuple[list[Document], int]:
+        """그룹 내 승인 대기 문서 전체 조회"""
+        query = (
+            self.db.query(Document)
+            .join(Document.approval)
+            .options(
+                joinedload(Document.owner),
+                joinedload(Document.summary),
+                joinedload(Document.approval).joinedload(DocumentApproval.assignee),
+            )
+            .filter(
+                Document.group_id == group_id,
+                Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE,
+                DocumentApproval.status == ReviewStatus.PENDING_REVIEW,
+            )
+        )
+
+        if keyword:
+            query = query.filter(Document.original_filename.contains(keyword))
+
+        total = query.count()
+        documents = (
+            query.order_by(Document.created_at.desc()).offset(skip).limit(limit).all()
+        )
+
+        return documents, total
+
+    def get_review_target(self, doc_id: int) -> Optional[Document]:
+        """승인/반려 처리에 필요한 문서 단건 조회"""
+        return (
+            self.db.query(Document)
+            .options(
+                joinedload(Document.owner),
+                joinedload(Document.approval),
+            )
+            .filter(Document.id == doc_id)
+            .first()
+        )
+
+    def update_document_approval(
+        self,
+        approval: DocumentApproval,
+        status: ReviewStatus,
+        reviewer_user_id: int,
+        feedback: Optional[str] = None,
+        reviewed_at=None,
+    ) -> DocumentApproval:
+        """문서 승인 상태를 갱신"""
+        approval.status = status
+        approval.reviewer_user_id = reviewer_user_id
+        approval.feedback = feedback
+        approval.reviewed_at = reviewed_at
+        self.db.flush()
+
+        return approval

@@ -174,6 +174,12 @@ class User(Base):
         back_populates="actor",
     )
 
+    assigned_document_approvals = relationship(
+        "DocumentApproval",
+        foreign_keys="DocumentApproval.assignee_user_id",
+        back_populates="assignee",
+    )
+
     reviewed_documents = relationship(
         "DocumentApproval",
         foreign_keys="DocumentApproval.reviewer_user_id",
@@ -389,6 +395,12 @@ class DocumentApproval(Base):
         nullable=False,
     )
 
+    assignee_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     reviewer_user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -409,7 +421,16 @@ class DocumentApproval(Base):
     )
 
     document = relationship("Document", back_populates="approval")
-    reviewer = relationship("User", back_populates="reviewed_documents")
+    reviewer = relationship(
+        "User",
+        foreign_keys=[reviewer_user_id],
+        back_populates="reviewed_documents",
+    )
+    assignee = relationship(
+        "User",
+        foreign_keys=[assignee_user_id],
+        back_populates="assigned_document_approvals",
+    )
 
 
 class Summary(Base):

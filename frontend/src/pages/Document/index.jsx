@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useAuth } from '@/features/auth/context/AuthContext'
 import { ArrowLeft, Download, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
@@ -13,40 +12,46 @@ import { toast } from 'sonner'
 export default function DocumentPage() {
     const { group_id, doc_id } = useParams()
     const navigate = useNavigate()
+    const location = useLocation()
+
     const [doc, setDoc] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
-    const { user } = useAuth()
     const [showDeleteModal, setShowDeleteModal] = useState(false)
-    const location = useLocation()
-    const backToListUrl = `/workspace/${group_id}${location.search || '?tab=documents'}`
 
+    const backToListUrl = `/workspace/${group_id}${location.search || '?tab=documents'}`
 
     useEffect(() => {
         const load = async () => {
             try {
-                const data = await getGroupDocumentDetail(group_id, doc_id)
-                setDoc(data)
-            } catch {
-                setError('문서를 불러오지 못했습니다.')
+                const docData = await getGroupDocumentDetail(group_id, doc_id)
+                setDoc(docData)
+            } catch (e) {
+                setError(e.message || '문서를 불러오지 못했습니다.')
             } finally {
                 setLoading(false)
             }
         }
+
         load()
     }, [group_id, doc_id])
 
-    if (loading) return (
-        <div className="max-w-3xl mx-auto px-4 py-12 text-center text-muted-foreground">
-            불러오는 중...
-        </div>
-    )
 
-    if (error || !doc) return (
-        <div className="max-w-3xl mx-auto px-4 py-12 text-center text-destructive">
-            {error || '문서를 찾을 수 없습니다.'}
-        </div>
-    )
+    if (loading) {
+        return (
+            <div className="max-w-3xl mx-auto px-4 py-12 text-center text-muted-foreground">
+                불러오는 중...
+            </div>
+        )
+    }
+
+    if (error || !doc) {
+        return (
+            <div className="max-w-3xl mx-auto px-4 py-12 text-center text-destructive">
+                {error || '문서를 찾을 수 없습니다.'}
+            </div>
+        )
+    }
 
     const STATUS_MESSAGE = {
         PENDING: 'AI 요약 대기 중입니다. 잠시 후 다시 확인해주세요.',
@@ -55,13 +60,10 @@ export default function DocumentPage() {
     }
 
     const s = doc
-
     const statusMessage = STATUS_MESSAGE[s.status] ?? null
     const hasSummary = Boolean(s.summary_text)
 
-    const isAdmin = user?.role === 'ADMIN'
-    const isOwner = user?.username === doc?.uploader
-    const canDelete = isAdmin || isOwner
+    const canDelete = Boolean(doc?.can_delete)
 
     const handleDownload = async () => {
         if (!s.summary_id) return
@@ -76,25 +78,20 @@ export default function DocumentPage() {
         try {
             await deleteGroupDocument(group_id, doc_id)
             navigate(backToListUrl, { state: { deleted: true } })
-        } catch {
-            toast.error('삭제에 실패했습니다.')
+        } catch (e) {
+            toast.error(e.message || '삭제에 실패했습니다.')
             setShowDeleteModal(false)
         }
     }
 
     return (
         <div className="max-w-3xl mx-auto px-4 py-8 flex flex-col gap-5">
-
-            {/* 상단 액션 */}
             <div className="flex items-center justify-between">
-              <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate(backToListUrl)}
-              >
-                  <ArrowLeft size={15} />
-                  문서 목록으로
-              </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate(backToListUrl)}>
+                    <ArrowLeft size={15} />
+                    문서 목록으로
+                </Button>
+
                 <div className="flex gap-2">
                     {doc.summary_id && (
                         <Tooltip>
@@ -107,10 +104,16 @@ export default function DocumentPage() {
                             <TooltipContent>요약본 PDF를 다운로드합니다</TooltipContent>
                         </Tooltip>
                     )}
+
                     {canDelete && (
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button variant="destructive" size="sm" onClick={() => setShowDeleteModal(true)} className="gap-1.5">
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => setShowDeleteModal(true)}
+                                    className="gap-1.5"
+                                >
                                     <Trash2 size={14} />
                                     삭제
                                 </Button>

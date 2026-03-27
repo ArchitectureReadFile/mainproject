@@ -3,6 +3,7 @@ from typing import Optional
 from errors import AppException, ErrorCode
 from models.model import (
     Group,
+    GroupMember,
     GroupStatus,
     MembershipRole,
     MembershipStatus,
@@ -64,14 +65,42 @@ class GroupService:
 
         return group, role
 
-    def assert_view_permission(self, user_id: int, group_id: int):
+    def assert_view_permission(
+        self, user_id: int, group_id: int
+    ) -> tuple[Group, MembershipRole]:
         result = self.repository.get_group_with_role(user_id, group_id)
         if not result:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
-        group, _ = result
+        group, role = result
         if group.status != GroupStatus.ACTIVE:
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
+
+        return group, role
+
+    def _assert_owner_or_admin_member(self, user_id: int, group_id: int) -> GroupMember:
+        """사용자가 해당 그룹의 활성 OWNER 또는 ADMIN인지 확인"""
+        member = self.repository.get_active_member(user_id, group_id)
+        if not member:
+            raise AppException(ErrorCode.GROUP_MEMBER_NOT_FOUND)
+
+        if member.role not in (
+            MembershipRole.OWNER,
+            MembershipRole.ADMIN,
+        ):
+            raise AppException(ErrorCode.GROUP_NOT_ADMIN_OR_OWNER)
+
+        return member
+
+    def assert_reviewer_assignable(
+        self, assignee_user_id: int, group_id: int
+    ) -> GroupMember:
+        """지정된 사용자가 담당 승인자로 지정 가능한지 확인"""
+        return self._assert_owner_or_admin_member(assignee_user_id, group_id)
+
+    def assert_review_permission(self, user_id: int, group_id: int) -> GroupMember:
+        """사용자가 해당 그룹에서 문서 승인 권한이 있는지 확인"""
+        return self._assert_owner_or_admin_member(user_id, group_id)
 
     # 그룹 생성
     def create_group(
