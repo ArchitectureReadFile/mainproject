@@ -279,9 +279,14 @@ def get_detail_document(
     document_service: DocumentService = Depends(get_document_service),
     current_user: User = Depends(get_current_user),
 ):
-    group_service.assert_view_permission(current_user.id, group_id)
+    _, role = group_service.assert_view_permission(current_user.id, group_id)
 
-    return document_service.get_detail_in_group(doc_id, group_id)
+    return document_service.get_detail_in_group(
+        doc_id=doc_id,
+        group_id=group_id,
+        current_user_id=current_user.id,
+        current_user_role=role,
+    )
 
 
 @router.delete("/{group_id}/documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -120,7 +120,7 @@ class DocumentRepository:
             .options(
                 joinedload(Document.owner),
                 joinedload(Document.summary),
-                joinedload(Document.approval),
+                joinedload(Document.approval).joinedload(DocumentApproval.assignee),
             )
             .outerjoin(Document.summary)
             .filter(Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE)
@@ -159,7 +159,11 @@ class DocumentRepository:
     def get_detail(self, doc_id: int):
         return (
             self.db.query(Document)
-            .options(joinedload(Document.summary))
+            .options(
+                joinedload(Document.summary),
+                joinedload(Document.owner),
+                joinedload(Document.approval).joinedload(DocumentApproval.assignee),
+            )
             .filter(Document.id == doc_id)
             .first()
         )

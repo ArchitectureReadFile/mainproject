@@ -65,14 +65,18 @@ class GroupService:
 
         return group, role
 
-    def assert_view_permission(self, user_id: int, group_id: int):
+    def assert_view_permission(
+        self, user_id: int, group_id: int
+    ) -> tuple[Group, MembershipRole]:
         result = self.repository.get_group_with_role(user_id, group_id)
         if not result:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
-        group, _ = result
+        group, role = result
         if group.status != GroupStatus.ACTIVE:
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
+
+        return group, role
 
     def _assert_owner_or_admin_member(self, user_id: int, group_id: int) -> GroupMember:
         """사용자가 해당 그룹의 활성 OWNER 또는 ADMIN인지 확인"""

@@ -1,6 +1,7 @@
 from errors import AppException, ErrorCode
 from models.model import (
     DocumentLifecycleStatus,
+    MembershipRole,
     ReviewStatus,
     utc_now_naive,
 )
@@ -64,6 +65,7 @@ class DocumentService:
 
         for doc in documents:
             summary = getattr(doc, "summary", None)
+            approval = getattr(doc, "approval", None)
             title = self._build_document_title(doc, summary)
             preview = self._build_preview(summary)
 
@@ -74,6 +76,7 @@ class DocumentService:
                     title=title,
                     preview=preview,
                     status=doc.processing_status.value,
+                    approval_status=approval.status.value if approval else None,
                     document_type=get_summary_field(summary, "document_type")
                     if summary
                     else None,
@@ -87,7 +90,13 @@ class DocumentService:
 
         return results, total
 
-    def get_detail_in_group(self, doc_id: int, group_id: int) -> DocumentDetailResponse:
+    def get_detail_in_group(
+        self,
+        doc_id: int,
+        group_id: int,
+        current_user_id: int,
+        current_user_role: MembershipRole | None,
+    ) -> DocumentDetailResponse:
         doc = self.repository.get_detail(doc_id)
 
         if not doc:
@@ -99,6 +108,20 @@ class DocumentService:
         if doc.lifecycle_status != DocumentLifecycleStatus.ACTIVE:
             raise AppException(ErrorCode.DOC_NOT_FOUND)
 
+        approval = getattr(doc, "approval", None)
+        approval_status = approval.status if approval else None
+        assignee = getattr(approval, "assignee", None) if approval else None
+
+        is_uploader = doc.uploader_user_id == current_user_id
+        is_owner_or_admin = current_user_role in (
+            MembershipRole.OWNER,
+            MembershipRole.ADMIN,
+        )
+
+        if approval_status != ReviewStatus.APPROVED:
+            if not (is_uploader or is_owner_or_admin):
+                raise AppException(ErrorCode.AUTH_FORBIDDEN)
+
         summary = getattr(doc, "summary", None)
         title = self._build_document_title(doc, summary)
 
@@ -108,7 +131,14 @@ class DocumentService:
             "summary_id": summary.id if summary else None,
             "title": title,
             "status": doc.processing_status.value,
+            "approval_status": approval.status.value if approval else None,
+            "assignee_user_id": approval.assignee_user_id if approval else None,
+            "assignee_username": assignee.username if assignee else None,
+            "feedback": approval.feedback
+            if approval and approval.status == ReviewStatus.REJECTED
+            else None,
             "created_at": doc.created_at,
+            "can_delete": is_uploader or is_owner_or_admin,
         }
 
         if summary:

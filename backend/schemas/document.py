@@ -10,6 +10,7 @@ class DocumentListItemResponse(BaseModel):
     title: str
     preview: str
     status: str
+    approval_status: str | None = None
     document_type: Optional[str] = None
     created_at: datetime
     uploader: str | None
@@ -25,6 +26,11 @@ class DocumentDetailResponse(BaseModel):
     summary_id: Optional[int] = None
     title: str | None = None
     status: str
+    approval_status: str | None = None
+    assignee_user_id: Optional[int] = None
+    assignee_username: Optional[str] = None
+    feedback: Optional[str] = None
+    can_delete: bool = False
     document_type: Optional[str] = None
     summary_text: Optional[str] = None
     key_points: list[str] = []
