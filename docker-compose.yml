@@ -1,10 +1,11 @@
 x-backend-common: &backend-common
-  image: python:3.11-slim
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
   restart: unless-stopped
   working_dir: /app
   volumes:
     - ./backend:/app
-    - backend_pip_cache:/root/.cache/pip
   env_file:
     - ./backend/.env
   environment:
@@ -12,11 +13,6 @@ x-backend-common: &backend-common
     - REDIS_HOST=redis
     - QDRANT_HOST=qdrant
     - QDRANT_PORT=6333
-    - ODL_HYBRID_BACKEND=docling-fast
-    - ODL_HYBRID_URL=http://pdf_hybrid:5002
-    - ODL_HYBRID_TIMEOUT_MS=300000
-    - ODL_OCR_HYBRID_URL=http://pdf_hybrid_ocr:5003
-    - ODL_OCR_HYBRID_TIMEOUT_MS=300000
     - TZ=UTC
   depends_on:
     db:
@@ -25,17 +21,6 @@ x-backend-common: &backend-common
       condition: service_started
     qdrant:
       condition: service_started
-    pdf_hybrid:
-      condition: service_started
-    pdf_hybrid_ocr:
-      condition: service_started
-
-# NOTE: backend / celery_worker 이미지는 현재 런타임에서 apt-get + pip install을 수행한다.
-# cold start 개선을 위한 다음 단계:
-#   1. backend/Dockerfile, celery_worker/Dockerfile 작성
-#   2. docker-compose build 단계로 의존성 설치를 옮기기
-#   3. 본 command는 app 기동만 담당하도록 변경
-# 현재는 pip cache 볼륨(backend_pip_cache)으로 재설치 비용을 줄이고 있음.
 
 services:
   frontend:
@@ -59,7 +44,7 @@ services:
     container_name: backend_container
     ports:
       - "8000:8000"
-    command: sh -c "apt-get update && apt-get install -y --no-install-recommends default-jre-headless libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 libxcb1 && rm -rf /var/lib/apt/lists/* && pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   db:
     image: mariadb:10.11
@@ -158,25 +143,7 @@ services:
   celery_worker:
     <<: *backend-common
     container_name: celery_worker_container
-    command: sh -c "apt-get update && apt-get install -y --no-install-recommends default-jre-headless libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 libxcb1 && rm -rf /var/lib/apt/lists/* && pip install -r requirements.txt && celery -A celery_app worker --loglevel=info --concurrency=1"
-
-  pdf_hybrid:
-    image: python:3.11-slim
-    container_name: pdf_hybrid_container
-    restart: unless-stopped
-    working_dir: /app
-    volumes:
-      - backend_pip_cache:/root/.cache/pip
-    command: sh -c "apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 libxcb1 && rm -rf /var/lib/apt/lists/* && pip install 'opendataloader-pdf[hybrid]==2.0.2' && opendataloader-pdf-hybrid --host 0.0.0.0 --port 5002 --ocr-lang ko,en"
-
-  pdf_hybrid_ocr:
-    image: python:3.11-slim
-    container_name: pdf_hybrid_ocr_container
-    restart: unless-stopped
-    working_dir: /app
-    volumes:
-      - backend_pip_cache:/root/.cache/pip
-    command: sh -c "apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 libxcb1 && rm -rf /var/lib/apt/lists/* && pip install 'opendataloader-pdf[hybrid]==2.0.2' && opendataloader-pdf-hybrid --host 0.0.0.0 --port 5003 --force-ocr --ocr-lang ko,en"
+    command: celery -A celery_app worker --loglevel=info --concurrency=1
 
 
 volumes:
@@ -186,4 +153,3 @@ volumes:
   qdrant_data:
   frontend_node_modules:
   frontend_npm_cache:
-  backend_pip_cache:

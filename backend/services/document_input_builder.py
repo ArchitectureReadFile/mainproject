@@ -17,173 +17,29 @@ OpenDataLoader JSON 구조:
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from services.document_extract_service import ExtractedDocument
 
-_TABLE_ROW_RE = re.compile(r"^\|.*\|$")
-_TABLE_SEP_RE = re.compile(r"^\|[\s\-|:]+\|$")
-_HEADING_RE = re.compile(r"^#{1,6}\s")
-_LIST_RE = re.compile(r"^(\s*[-*]\s|\s*\d+\.\s|\s*[가나다라마바사아자차카타파하]\.\s)")
-_SHORT_HEADING_RE = re.compile(r"^[가-힣A-Za-z0-9\s]{1,20}$")
-
-
-def _is_list_like_line(line: str) -> bool:
-    return bool(_LIST_RE.match(line))
-
-
-def _is_heading_line(line: str) -> bool:
-    stripped = line.strip()
-    if not stripped:
-        return False
-    if _HEADING_RE.match(stripped):
-        return True
-    # 표·목록·일반 본문 제외
-    if _TABLE_ROW_RE.match(stripped) or _TABLE_SEP_RE.match(stripped):
-        return False
-    if _is_list_like_line(stripped):
-        return False
-    # 공백 제거 후 12자 이하의 짧은 독립 줄 → heading-like 보호
-    compact = stripped.replace(" ", "")
-    if _SHORT_HEADING_RE.match(stripped) and 1 <= len(compact) <= 12:
-        return True
-    return False
-
-
-def _is_blank_line(line: str) -> bool:
-    return not line.strip()
-
-
-def _is_plain_body_line(line: str) -> bool:
-    """heading / list-like / 표 / 빈 줄이 아닌 일반 본문 줄 여부."""
-    stripped = line.strip()
-    if not stripped:
-        return False
-    if _is_heading_line(stripped):
-        return False
-    if _is_list_like_line(stripped):
-        return False
-    if _TABLE_ROW_RE.match(stripped) or _TABLE_SEP_RE.match(stripped):
-        return False
-    return True
-
-
-def _reflow_body_lines(lines: list[str]) -> list[str]:
-    """
-    같은 문단 내부 soft line break를 공백 1개로 이어붙인다.
-
-    규칙:
-    - 빈 줄 → 문단 경계: 현재 누적 버퍼를 flush하고 빈 줄 출력
-    - heading / list-like 줄 → standalone block: 버퍼 flush 후 그 줄만 단독 출력
-    - 일반 본문 줄 → 버퍼에 누적
-    """
-    output: list[str] = []
-    buffer: list[str] = []
-
-    def flush():
-        if buffer:
-            output.append(" ".join(buffer))
-            buffer.clear()
-
-    for line in lines:
-        stripped = line.rstrip()
-
-        if stripped == "":
-            flush()
-            output.append("")
-        elif _is_heading_line(stripped) or _is_list_like_line(stripped):
-            flush()
-            output.append(stripped)
-        else:
-            buffer.append(stripped)
-
-    flush()
-    return output
-
-
-def _merge_weak_paragraph_breaks(lines: list[str]) -> list[str]:
-    """
-    _reflow_body_lines() 이후, 빈 줄 1개를 사이에 둔 두 일반 본문 블록을 병합한다.
-
-    알고리즘: blank 위치(i)에서 앞(result[-1])과 뒤(lines[i+1])를 동시에 확인한다.
-    - 앞: result[-1]이 plain body
-    - 뒤: lines[i+1]이 plain body
-    → 조건 충족 시 blank + next를 소비하고 result[-1]에 " "로 이어붙인다.
-    → 이 방식으로 A/blank/B/blank/C 연쇄 병합이 자연스럽게 처리된다.
-
-    병합하지 않는 경우:
-    - 앞이나 뒤가 heading / list / 표
-    - 빈 줄이 2개 이상 연속 (blank 다음도 blank이면 조건 불충족)
-    """
-    result: list[str] = []
-    i = 0
-
-    while i < len(lines):
-        line = lines[i]
-
-        if (
-            _is_blank_line(line)
-            and result
-            and _is_plain_body_line(result[-1])
-            and i + 1 < len(lines)
-            and _is_plain_body_line(lines[i + 1])
-        ):
-            # blank + next 소비, result[-1]에 이어붙임
-            prev = result.pop()
-            result.append(prev.rstrip() + " " + lines[i + 1].lstrip())
-            i += 2
-            continue
-
-        result.append(line)
-        i += 1
-
-    return result
-
 
 def extract_body_from_markdown(markdown: str) -> str:
-    """
-    markdown에서 표 행을 제거하고 본문 텍스트를 reflow + weak paragraph merge 후 반환한다.
-
-    처리 순서:
-    1. splitlines + table lines 제거
-    2. _reflow_body_lines (soft line break → 공백 이어붙임)
-    3. _merge_weak_paragraph_breaks (빈 줄 1개 사이 일반 본문 블록 병합)
-    4. \\n{3,} → \\n\\n 압축
-    5. strip 후 반환
-    """
-    filtered_lines = []
-    for line in markdown.splitlines():
-        stripped = line.rstrip()
-        if _TABLE_ROW_RE.match(stripped) or _TABLE_SEP_RE.match(stripped):
-            continue
-        filtered_lines.append(stripped)
-
-    reflowed_lines = _reflow_body_lines(filtered_lines)
-    merged_lines = _merge_weak_paragraph_breaks(reflowed_lines)
-
-    body = re.sub(r"\n{3,}", "\n\n", "\n".join(merged_lines))
-    return body.strip()
+    """markdown 원문을 그대로 반환한다. 후처리 없음."""
+    return markdown.strip()
 
 
 def extract_body_from_json(json_data: dict | list | None) -> str:
     """
-    OpenDataLoader JSON에서 paragraph/content 기반 본문 텍스트를 재구성한다.
+    OpenDataLoader JSON에서 paragraph/content 기반 본문 텍스트를 수집해 반환한다.
 
-    markdown 산출물이 비어 있거나 지나치게 짧은 경우 fallback 본문으로 사용한다.
+    markdown 산출물이 비어 있을 때 fallback으로 사용한다.
     """
     if not json_data:
         return ""
 
     lines: list[str] = []
     _collect_body_lines(json_data, lines)
-
-    filtered_lines = [line.rstrip() for line in lines if line and line.strip()]
-    reflowed_lines = _reflow_body_lines(filtered_lines)
-    merged_lines = _merge_weak_paragraph_breaks(reflowed_lines)
-    body = re.sub(r"\n{3,}", "\n\n", "\n".join(merged_lines))
-    return body.strip()
+    return "\n".join(line for line in lines if line.strip()).strip()
 
 
 def extract_tables_from_json(json_data: dict | None) -> list[str]:

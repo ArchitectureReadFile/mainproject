@@ -22,7 +22,7 @@ requests==2.32.3
 httpx==0.28.1
 
 reportlab==4.4.0
-opendataloader-pdf[hybrid]==2.0.2
+opendataloader-pdf==2.0.2
 beautifulsoup4==4.13.4
 
 # RAG dependencies
@@ -31,6 +31,12 @@ torch==2.7.0
 qdrant-client==1.13.3
 rank_bm25==0.2.2
 soynlp==0.0.493
+
+# OCR dependencies (subprocess-per-page 방식, paddlepaddle은 Dockerfile에서 선설치)
+paddleocr==3.3.2
+paddlepaddle==3.2.0
+pypdfium2==4.30.0
+Pillow
 
 # Test dependencies
 pytest==8.3.5
