@@ -9,12 +9,19 @@ from models.model import (
     ChatMessageRole,
     ChatSession,
     Document,
+    Group,
     GroupMember,
+    GroupStatus,
+    MembershipStatus,
 )
+from schemas.knowledge import WorkspaceSelection
+from services.chat.session_document_payload_service import SessionDocumentPayloadService
 from services.document_extract_service import DocumentExtractService
-from services.document_input_builder import build_chat_input
+from services.document_normalize_service import DocumentNormalizeService
 
 _extractor = DocumentExtractService()
+_normalizer = DocumentNormalizeService()
+_session_payload = SessionDocumentPayloadService()
 
 
 class ChatService:
@@ -63,9 +70,7 @@ class ChatService:
         file_bytes: bytes,
     ):
         session = self._get_session_with_permission(db, user_id, session_id)
-
         extracted_text = self._extract_text_from_bytes(file_bytes)
-
         session.reference_document_title = file_name
         session.reference_document_text = extracted_text
         db.commit()
@@ -74,7 +79,6 @@ class ChatService:
 
     def delete_reference_document(self, db: Session, user_id: int, session_id: int):
         session = self._get_session_with_permission(db, user_id, session_id)
-
         session.reference_document_title = None
         session.reference_document_text = None
         db.commit()
@@ -90,8 +94,13 @@ class ChatService:
         document_id: int = None,
         file_name: str = None,
         file_bytes: bytes = None,
+        group_id: int | None = None,
+        workspace_selection: WorkspaceSelection | None = None,
     ):
         session = self._get_session_with_permission(db, user_id, session_id)
+
+        if workspace_selection is not None:
+            self._require_group_membership(db, user_id, group_id)
 
         user_msg = ChatMessage(
             session_id=session_id, role=ChatMessageRole.USER, content=text
@@ -118,10 +127,47 @@ class ChatService:
         payload = {
             "user_id": user_id,
             "session_id": session_id,
+            "group_id": group_id,
+            "workspace_selection": (
+                {
+                    "mode": workspace_selection.mode,
+                    "document_ids": workspace_selection.document_ids,
+                }
+                if workspace_selection is not None
+                else None
+            ),
         }
         process_chat_message.delay(payload)
 
         return {"status": "success", "message": "Task queued"}
+
+    # ── 권한 헬퍼 ─────────────────────────────────────────────────────────────
+
+    def _require_group_membership(
+        self, db: Session, user_id: int, group_id: int | None
+    ) -> None:
+        if group_id is None:
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+
+        group = (
+            db.query(Group)
+            .filter(Group.id == group_id, Group.status == GroupStatus.ACTIVE)
+            .first()
+        )
+        if not group:
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+
+        member = (
+            db.query(GroupMember)
+            .filter(
+                GroupMember.user_id == user_id,
+                GroupMember.group_id == group_id,
+                GroupMember.status == MembershipStatus.ACTIVE,
+            )
+            .first()
+        )
+        if not member:
+            raise AppException(ErrorCode.AUTH_FORBIDDEN)
 
     def _get_session_with_permission(
         self, db: Session, user_id: int, session_id: int
@@ -136,7 +182,8 @@ class ChatService:
     def _extract_text_from_bytes(self, file_bytes: bytes) -> str:
         try:
             extracted = _extractor.extract_bytes(file_bytes)
-            return build_chat_input(extracted)
+            document = _normalizer.normalize(extracted)
+            return _session_payload.build(document)
         except AppException:
             raise
         except Exception:
@@ -164,13 +211,12 @@ class ChatService:
         file_path = getattr(document, "stored_path", None) or getattr(
             document, "url", None
         )
-
         if not file_path or not os.path.exists(file_path):
             raise AppException(ErrorCode.FILE_NOT_FOUND)
-
         try:
             extracted = _extractor.extract(file_path)
-            return build_chat_input(extracted)
+            document_schema = _normalizer.normalize(extracted)
+            return _session_payload.build(document_schema)
         except AppException:
             raise
         except Exception:
