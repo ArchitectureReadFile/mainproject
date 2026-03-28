@@ -1,7 +1,7 @@
 """
 services/rag/group_document_indexing_service.py
 
-그룹 문서 PDF → extract → chunk → Qdrant + BM25 인덱싱 파이프라인.
+그룹 문서 PDF → extract → normalize → chunk → Qdrant + BM25 인덱싱 파이프라인.
 
 사용처:
     tasks/group_document_task.py (Celery background task)
@@ -11,18 +11,17 @@ services/rag/group_document_indexing_service.py
 import logging
 
 from services.document_extract_service import DocumentExtractService
-from services.document_input_builder import build_rag_source
+from services.document_normalize_service import DocumentNormalizeService
 from services.rag import bm25_store, vector_store
+from services.rag.document_chunk_service import DocumentChunkService
 from services.rag.embedding_service import embed_passages
-from services.rag.group_document_chunk_builder import (
-    GroupDocument,
-    GroupDocumentChunk,
-    build_chunks_from_group_document,
-)
+from services.rag.group_document_chunk_builder import GroupDocumentChunk
 
 logger = logging.getLogger(__name__)
 
 _extract_service = DocumentExtractService()
+_normalize_service = DocumentNormalizeService()
+_chunk_service = DocumentChunkService()
 
 
 def index_group_document(
@@ -32,7 +31,7 @@ def index_group_document(
     file_path: str,
 ) -> int:
     """
-    PDF 파일을 추출 → chunk → Qdrant + BM25에 저장한다.
+    PDF 파일을 추출 → normalize → chunk → Qdrant + BM25에 저장한다.
 
     Returns:
         저장된 chunk 수
@@ -51,18 +50,16 @@ def index_group_document(
     # 2. PDF 추출
     extracted = _extract_service.extract(file_path)
 
-    # 3. RAG source 조립
-    rag_source = build_rag_source(extracted)
-    doc = GroupDocument(
+    # 3. normalize
+    document = _normalize_service.normalize(extracted)
+
+    # 4. chunk 생성
+    chunks: list[GroupDocumentChunk] = _chunk_service.build_group_document_chunks(
+        document,
         document_id=document_id,
         group_id=group_id,
         file_name=file_name,
-        body_text=rag_source["body_text"],
-        table_blocks=rag_source["table_blocks"],
     )
-
-    # 4. chunk 생성
-    chunks: list[GroupDocumentChunk] = build_chunks_from_group_document(doc)
     if not chunks:
         logger.warning("[그룹문서 인덱싱] chunk 없음: document_id=%s", document_id)
         return 0
