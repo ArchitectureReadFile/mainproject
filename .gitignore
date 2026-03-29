@@ -16,12 +16,27 @@ __pycache__/
 # 로컬 환경 설정
 docker-compose.override.yml
 
+# 환경변수 (시크릿 포함, 절대 커밋 금지)
+# ※ .env.example, .env.server(템플릿)은 예외 처리
+.env
+.env.*
+!.env.example
+backend/.env.server
+
+# Cloudflare tunnel credentials (토큰/인증서)
+deploy/cloudflared/*.json
+deploy/cloudflared/*.pem
+
 # 업로드 파일
 backend/uploads/
 
-# AI 관련
-backend/.model_cache/
+# 캐시 / 테스트 산출물
+.pytest_cache/
+.ruff_cache/
 backend/services/rag/chroma_data/
+
+# AI 모델 관련
+backend/.model_cache/
 training/output/
 training/checkpoints/
 *.gguf
@@ -30,3 +45,11 @@ training/checkpoints/
 
 # 빌드 결과물
 frontend/dist/
+
+# 로그
+*.log
+*.log.*
+
+# 임시 디렉토리
+tmp/
+temp/

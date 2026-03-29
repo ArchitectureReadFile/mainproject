@@ -1,0 +1,127 @@
+# 서버 배포용 overlay compose
+# 사용법: docker compose -f docker-compose.yml -f docker-compose.server.yml up -d
+#
+# 개발용 docker-compose.yml은 그대로 유지됨.
+# 이 파일은 서버 전용 설정만 추가/override 한다.
+# nginx, cloudflared는 이 파일에서만 정의된다.
+#
+# [네트워크 구조]
+# base compose는 네트워크를 별도 선언하지 않으므로 기본 네트워크(team_default)를 사용한다.
+# server overlay에서 모든 서비스를 동일한 app-network로 명시해 서비스명 통신을 보장한다.
+# db, redis, qdrant 포함 전 서비스가 app-network에 속한다.
+
+services:
+  # ───────────────────────────────────────────
+  # Frontend: production image 사용
+  # base compose의 command(npm run dev)가 상속되지 않도록 명시적으로 덮어씀
+  # ───────────────────────────────────────────
+  frontend:
+    image: ${DOCKER_HUB_USER}/jiyun-frontend:latest
+    container_name: frontend_container
+    restart: unless-stopped
+    command: ["nginx", "-g", "daemon off;"]
+    volumes: []
+    ports: []
+    networks:
+      - app-network
+
+  # ───────────────────────────────────────────
+  # Backend: production command, 외부 env 참조
+  # ───────────────────────────────────────────
+  backend:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: backend_container
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+    env_file:
+      - /opt/jiyun/env/backend.env
+    restart: unless-stopped
+    volumes: []
+    ports: []
+    networks:
+      - app-network
+
+  # ───────────────────────────────────────────
+  # Celery: 동일한 외부 env 경로 참조
+  # ───────────────────────────────────────────
+  celery_worker:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: celery_worker_container
+    command: celery -A celery_app worker --loglevel=info --concurrency=1
+    env_file:
+      - /opt/jiyun/env/backend.env
+    volumes: []
+    networks:
+      - app-network
+
+  # ───────────────────────────────────────────
+  # DB / Redis / Qdrant
+  # 외부 포트 노출 제거 + app-network 명시
+  # (backend/celery와 서비스명으로 통신 가능하게 동일 네트워크에 배치)
+  # ───────────────────────────────────────────
+  db:
+    ports: []
+    networks:
+      - app-network
+
+  redis:
+    ports: []
+    networks:
+      - app-network
+
+  qdrant:
+    ports: []
+    networks:
+      - app-network
+
+  # ───────────────────────────────────────────
+  # Ollama: 서버에서는 실행하지 않음
+  # 서버용 OLLAMA_HOST는 backend.env에서 외부 엔드포인트로 직접 지정
+  # (예: 개발 PC의 ngrok 주소, 또는 외부 API)
+  # ───────────────────────────────────────────
+  ollama:
+    profiles:
+      - dev-only
+
+  # ───────────────────────────────────────────
+  # PhpMyAdmin: 서버에서 비활성화
+  # ───────────────────────────────────────────
+  phpmyadmin:
+    profiles:
+      - dev-only
+
+  # ───────────────────────────────────────────
+  # Nginx: 서버용에서만 실행
+  # ───────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: nginx_container
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app-network
+
+  # ───────────────────────────────────────────
+  # Cloudflared: 서버용에서만 실행
+  # tunnel token은 환경변수로 주입
+  # ───────────────────────────────────────────
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared_container
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - nginx
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

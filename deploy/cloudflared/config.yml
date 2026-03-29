@@ -1,0 +1,26 @@
+# deploy/cloudflared/config.yml
+#
+# ※ 이 파일은 템플릿입니다.
+# ※ tunnel / credentials-file 값은 실제 서버에서 채워야 합니다.
+# ※ 실제 인증 정보(token, credentials)는 절대 repo에 커밋하지 마세요.
+#
+# 사용 방식:
+#   cloudflared tunnel login
+#   cloudflared tunnel create jiyun-tunnel
+#   → credentials 파일 생성됨 (~/.cloudflared/<UUID>.json)
+#
+# docker-compose.server.yml에서는 TUNNEL_TOKEN 환경변수 방식을 사용합니다.
+# (credentials-file 방식 대신 token 방식 권장 — 파일 마운트 불필요)
+#
+# token 발급:
+#   Cloudflare Zero Trust 대시보드 → Tunnels → 터널 선택 → Configure → Token 복사
+#   서버에서: export CLOUDFLARE_TUNNEL_TOKEN=<token>
+#   또는 서버 로컬 .env.server 파일에 추가
+
+tunnel: <YOUR_TUNNEL_ID>
+credentials-file: /etc/cloudflared/<YOUR_TUNNEL_ID>.json
+
+ingress:
+  - hostname: jiyun.dev
+    service: http://nginx:80
+  - service: http_status:404

@@ -1,11 +1,32 @@
+# backend build context 제외 목록
+# Dockerfile.prod 기준: COPY . . 로 전체 복사하므로
+# 이미지에 들어가면 안 되는 파일을 명시적으로 제외한다.
+
+# 환경변수 (이미지에 시크릿 포함 방지)
+.env
+.env.*
+!.env.example
+
+# Python 캐시
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# 테스트 / 린트 산출물
+tests/
 .pytest_cache/
 .ruff_cache/
-.env
+
+# 로컬 데이터 / 모델 캐시 (이미지 크기 방지)
 uploads/
 output/
 .model_cache/
-tests/
+
+# 개발 문서 / 스크립트 (빌드 불필요)
+docs/
+scripts/
+seed_data/
+
+# 로그
+*.log

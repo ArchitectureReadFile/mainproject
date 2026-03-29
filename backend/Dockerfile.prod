@@ -1,0 +1,37 @@
+# backend/Dockerfile.prod
+# 개발용 Dockerfile과 동일한 베이스 유지, --reload 없이 production 실행
+
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    default-jre-headless \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libxcb1 \
+    libgomp1 \
+    curl \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir \
+    -i https://www.paddlepaddle.org.cn/packages/stable/cpu/ \
+    paddlepaddle==3.2.0
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# 불필요한 개발 파일 제거
+RUN rm -rf tests/ .pytest_cache/ .ruff_cache/ .env .env.example
+
+EXPOSE 8000
+
+# command는 docker-compose.server.yml에서 주입
+# 직접 실행 시 기본값
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
