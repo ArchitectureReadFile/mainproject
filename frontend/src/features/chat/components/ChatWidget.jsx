@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import nongdamgom from '../../../assets/nongdamgom.png';
-import { Card } from "@/components/ui/card.jsx";
+import { Card } from "@/components/ui/Card.jsx";
 import ChatList from './ChatList';
 import ChatSession from './ChatSession';
 

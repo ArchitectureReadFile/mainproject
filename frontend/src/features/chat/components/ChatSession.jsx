@@ -1,6 +1,6 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar.jsx";
+import { Avatar, AvatarFallback } from "@/components/ui/Avatar.jsx";
 import { Button } from "@/components/ui/Button.jsx";
-import { Input } from "@/components/ui/input.jsx";
+import { Input } from "@/components/ui/Input.jsx";
 import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';

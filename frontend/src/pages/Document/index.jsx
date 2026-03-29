@@ -1,7 +1,7 @@
 import { deleteGroupDocument, getGroupDocumentDetail } from '@/api/groups'
 import { downloadSummaryPdf } from '@/api/documents'
 import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/card'
+import { Card } from '@/components/ui/Card'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ArrowLeft, Download, Trash2 } from 'lucide-react'
