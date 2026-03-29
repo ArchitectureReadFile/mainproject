@@ -1,5 +1,5 @@
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { useTheme } from '@/hooks/useTheme'
 import { LogIn, Menu, Moon, Scale, Sun, X } from 'lucide-react'
 import { useState } from 'react'

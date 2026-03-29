@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
 import { getGroupDocuments } from '@/api/groups.js'
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
