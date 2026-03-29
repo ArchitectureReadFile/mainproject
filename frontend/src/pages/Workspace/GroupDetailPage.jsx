@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
-
+import { UploadProvider } from '@/features/upload/context/UploadContext'
 
 
 // 역할별 허용 탭
@@ -678,82 +678,84 @@ export default function GroupDetailPage() {
     )
 
     return (
-        <div className="p-6 max-w-5xl mx-auto">
+        <UploadProvider groupId={group_id}>
+            <div className="p-6 max-w-5xl mx-auto">
 
-        {/* 삭제 예정 배너 */}
-        {group.status == "DELETE_PENDING" && (
-            <DeletePendingBanner scheduledAt={group.delete_scheduled_at} />
-        )}
+            {/* 삭제 예정 배너 */}
+            {group.status == "DELETE_PENDING" && (
+                <DeletePendingBanner scheduledAt={group.delete_scheduled_at} />
+            )}
 
-        {/* 헤더 */}
-        <div className="mb-6">
-            {/* 뒤로가기 버튼 */}
-            <div className="mb-6 flex items-center gap-2">
-                <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => navigate("/workspace")} className="gap-1.5 mb-3 -ml-2"
-                >
-                    <ArrowLeft size={15} />
-                    그룹 목록
-                </Button>
-            </div>
-            <div className="flex items-center gap-2">
-                <Home className="h-8 w-8 "/>
-                <h1 className="text-2xl font-bold">{group.name}</h1>
-                <Badge 
-                variant={group.my_role === 'OWNER' ? 'default' : 'secondary'}
-                className="text-[10px] px-2 py-0.5 rounded-sm font-semibold tracking-tight"
-                >
-                {group.my_role}
-                </Badge>
-            </div>
-            <div className="flex items-center gap-4 mt-3 text-sm">
-
-                <div className="flex items-center gap-1">
-                    <Users className="h-4 w-4" /> 
-                    <span>멤버 {group.member_count}명</span>
+            {/* 헤더 */}
+            <div className="mb-6">
+                {/* 뒤로가기 버튼 */}
+                <div className="mb-6 flex items-center gap-2">
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => navigate("/workspace")} className="gap-1.5 mb-3 -ml-2"
+                    >
+                        <ArrowLeft size={15} />
+                        그룹 목록
+                    </Button>
                 </div>
+                <div className="flex items-center gap-2">
+                    <Home className="h-8 w-8 "/>
+                    <h1 className="text-2xl font-bold">{group.name}</h1>
+                    <Badge 
+                    variant={group.my_role === 'OWNER' ? 'default' : 'secondary'}
+                    className="text-[10px] px-2 py-0.5 rounded-sm font-semibold tracking-tight"
+                    >
+                    {group.my_role}
+                    </Badge>
+                </div>
+                <div className="flex items-center gap-4 mt-3 text-sm">
 
-                <div className="h-3 w-px bg-border" /> 
+                    <div className="flex items-center gap-1">
+                        <Users className="h-4 w-4" /> 
+                        <span>멤버 {group.member_count}명</span>
+                    </div>
 
-                <div className="flex items-center gap-1">
-                    <FileText className="h-4 w-4" /> 
-                    <span>문서 {group.document_count}개</span>
+                    <div className="h-3 w-px bg-border" /> 
+
+                    <div className="flex items-center gap-1">
+                        <FileText className="h-4 w-4" /> 
+                        <span>문서 {group.document_count}개</span>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        {/* 탭 */}
-        <div className="flex gap-2 border-b mb-6">
-            {visibleTabs.map((tab) => (
-            <button
-                key={tab.key}
-                onClick={() => handleTabChange(tab.key)}
-                className={`px-4 py-2 text-sm font-medium text-slate-900 border-b-2 transition-colors ${
-                activeTab === tab.key
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-            >
-                {tab.label}
-            </button>
-            ))}
-        </div>
+            {/* 탭 */}
+            <div className="flex gap-2 border-b mb-6">
+                {visibleTabs.map((tab) => (
+                <button
+                    key={tab.key}
+                    onClick={() => handleTabChange(tab.key)}
+                    className={`px-4 py-2 text-sm font-medium text-slate-900 border-b-2 transition-colors ${
+                    activeTab === tab.key
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    {tab.label}
+                </button>
+                ))}
+            </div>
 
-        {/* 컨텐츠 — 추가 예정 */}
-        {activeTab === 'upload' && <UploadPage />}
-        {activeTab === 'documents' && (<DocumentsTab group={group} />
-        )}
-        {activeTab === 'trash'     && <div>휴지통 섹션</div>}
-        {activeTab === 'members'   && (
-            <TooltipProvider>
-                <MembersTab group={group} setGroup={setGroup}/>
-            </TooltipProvider>
-        )}
-        {activeTab === "workspace" && (
-            <WorkspaceTab group={group} onUpdated={(updated) => setGroup(updated)} />
-        )}
-        </div>
+            {/* 컨텐츠 — 추가 예정 */}
+            {activeTab === 'upload' && <UploadPage />}
+            {activeTab === 'documents' && (<DocumentsTab group={group} />
+            )}
+            {activeTab === 'trash'     && <div>휴지통 섹션</div>}
+            {activeTab === 'members'   && (
+                <TooltipProvider>
+                    <MembersTab group={group} setGroup={setGroup}/>
+                </TooltipProvider>
+            )}
+            {activeTab === "workspace" && (
+                <WorkspaceTab group={group} onUpdated={(updated) => setGroup(updated)} />
+            )}
+            </div>
+        </UploadProvider>
     )
 }

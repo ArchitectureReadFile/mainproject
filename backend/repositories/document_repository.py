@@ -93,7 +93,10 @@ class DocumentRepository:
     def claim_next_pending_document(self) -> Document | None:
         document = (
             self.db.query(Document)
-            .filter(Document.processing_status == DocumentStatus.PENDING)
+            .filter(
+                Document.processing_status == DocumentStatus.PENDING,
+                Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE,
+            )
             .order_by(Document.created_at.asc(), Document.id.asc())
             .first()
         )

@@ -2,6 +2,7 @@
 
 import { useCallback, useRef } from 'react'
 import { toast } from 'sonner'
+import { deleteGroupDocument } from '@/api/groups'
 import { uploadDocumentApi } from '../api/uploadApi.js'
 import {
   isSameFile,
@@ -34,6 +35,7 @@ export function useUploadQueue({
         it.summaryStatus === 'queued' ||
         it.summaryStatus === 'processing'
       ).length
+
       if (occupiedCount >= MAX_FILES) {
         toast.warning(`진행 중인 파일은 최대 ${MAX_FILES}개까지 유지할 수 있습니다.`)
         return prev
@@ -44,12 +46,17 @@ export function useUploadQueue({
           .filter((it) => it.uploadStatus !== 'upload_failed' && it.summaryStatus !== 'failed')
           .map((it) => it.file.name)
       )
+
       const deduped = pdfs.filter((f) => !existingNames.has(f.name))
-      if (deduped.length !== pdfs.length) toast.warning('이미 추가된 파일은 제외되었습니다.')
+      if (deduped.length !== pdfs.length) {
+        toast.warning('이미 추가된 파일은 제외되었습니다.')
+      }
 
       const availableSlots = MAX_FILES - occupiedCount
       const limited = deduped.slice(0, availableSlots)
-      if (limited.length !== deduped.length) toast.warning(`진행 중인 파일은 최대 ${MAX_FILES}개까지 유지할 수 있습니다.`)
+      if (limited.length !== deduped.length) {
+        toast.warning(`진행 중인 파일은 최대 ${MAX_FILES}개까지 유지할 수 있습니다.`)
+      }
 
       return [...prev, ...limited.map(makeItem)]
     })
@@ -81,9 +88,34 @@ export function useUploadQueue({
     fileInputRef.current?.click()
   }, [fileInputRef])
 
-  const removeItem = useCallback((fileObj) => {
-    setItems((prev) => prev.filter((it) => !isSameFile(it, fileObj)))
-  }, [setItems])
+  const removeItem = useCallback(async (target) => {
+    if (!target) return
+
+    const targetItem = items.find((it) => {
+      if (target.docId && it.docId) return it.docId === target.docId
+      return isSameFile(it, target.file)
+    })
+
+    if (!targetItem) return
+
+    if (targetItem.uploadStatus === 'waiting') {
+      setItems((prev) => prev.filter((it) => !isSameFile(it, targetItem.file)))
+      return
+    }
+
+    if (target.docId && target.serverDoc?.status === 'PENDING') {
+      try {
+        await deleteGroupDocument(groupId, target.docId)
+        setItems((prev) => prev.filter((it) => {
+          if (it.docId) return it.docId !== target.docId
+          return !isSameFile(it, targetItem.file)
+        }))
+        toast.success('요약 대기 중인 파일을 삭제했습니다.')
+      } catch (err) {
+        toast.error(err?.message || '파일 삭제에 실패했습니다.')
+      }
+    }
+  }, [groupId, items, setItems])
 
   const isAbortError = useCallback((err) => (
     err?.code === 'ERR_CANCELED' ||
@@ -114,8 +146,10 @@ export function useUploadQueue({
           progress: 5,
           error: null,
         })
+
         const uploadData = await uploadDocumentApi(it.file, groupId, controller.signal)
         const docId = uploadData.document_ids[0]
+
         updateItem(it.file, {
           docId,
           uploadStatus: 'uploaded',
