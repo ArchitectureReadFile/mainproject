@@ -743,7 +743,7 @@ export default function GroupDetailPage() {
             </div>
 
             {/* 컨텐츠 — 추가 예정 */}
-            {activeTab === 'upload' && <UploadPage />}
+            {activeTab === 'upload' && <UploadPage myRole={group.my_role} />}
             {activeTab === 'documents' && (<DocumentsTab group={group} />
             )}
             {activeTab === 'trash'     && <div>휴지통 섹션</div>}

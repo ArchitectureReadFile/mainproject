@@ -20,7 +20,7 @@ import { MAX_FILES } from '../../features/upload/uploadState.js'
 
 const STATUS_POLLING_INTERVAL = 5000
 
-function UploadPageInner() {
+function UploadPageInner({ myRole }) {
   const {
     groupId,
     fileInputRef,
@@ -35,6 +35,7 @@ function UploadPageInner() {
     openFilePicker,
     removeItem,
     handleUpload,
+    syncServerStatuses,
   } = useUpload()
 
   const [statusCounts, setStatusCounts] = useState({
@@ -46,6 +47,7 @@ function UploadPageInner() {
   const [membersLoading, setMembersLoading] = useState(false)
   const [assigneeValue, setAssigneeValue] = useState('unassigned')
   const [serverDocuments, setServerDocuments] = useState([])
+  const shouldShowAssigneeSelect = myRole === 'EDITOR'
 
   const hasUploadingItems = uploadItems.some(
     (it) => it.uploadStatus === 'uploading'
@@ -96,9 +98,7 @@ function UploadPageInner() {
       const members = data?.members ?? []
 
       const reviewers = members.filter(
-        (member) =>
-          member.status === 'ACTIVE' &&
-          (member.role === 'OWNER' || member.role === 'ADMIN')
+        (member) => member.role === 'OWNER' || member.role === 'ADMIN'
       )
 
       setReviewerOptions(reviewers)
@@ -113,6 +113,10 @@ function UploadPageInner() {
     loadServerDocuments()
     loadReviewerOptions()
   }, [loadServerDocuments, loadReviewerOptions])
+
+  useEffect(() => {
+    syncServerStatuses(serverDocuments)
+  }, [serverDocuments, syncServerStatuses])
 
   useEffect(() => {
     const hasTrackableItems =
@@ -144,7 +148,11 @@ function UploadPageInner() {
   }, [uploadItems, serverDocuments])
 
   const handleStartUpload = async () => {
-    await handleUpload()
+    const assigneeUserId = shouldShowAssigneeSelect
+      ? (assigneeValue === 'unassigned' ? null : Number(assigneeValue))
+      : null
+
+    await handleUpload({ assigneeUserId })
     await loadServerDocuments()
   }
 
@@ -169,29 +177,31 @@ function UploadPageInner() {
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="assignee">승인 담당자 (선택)</Label>
-          <Select
-            value={assigneeValue}
-            onValueChange={setAssigneeValue}
-            disabled={membersLoading || hasUploadingItems}
-          >
-            <SelectTrigger id="assignee" className="w-full">
-              <SelectValue placeholder="담당자 미지정" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="unassigned">담당자 미지정</SelectItem>
-              {reviewerOptions.map((member) => (
-                <SelectItem key={member.user_id} value={String(member.user_id)}>
-                  {member.username} ({member.role})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            담당자를 지정하지 않으면 개별 알림은 발송되지 않습니다.
-          </p>
-        </div>
+        {shouldShowAssigneeSelect && (
+          <div className="space-y-2">
+            <Label htmlFor="assignee">승인 담당자 (선택)</Label>
+            <Select
+              value={assigneeValue}
+              onValueChange={setAssigneeValue}
+              disabled={membersLoading || hasUploadingItems}
+            >
+              <SelectTrigger id="assignee" className="w-full">
+                <SelectValue placeholder="담당자 미지정" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">담당자 미지정</SelectItem>
+                {reviewerOptions.map((member) => (
+                  <SelectItem key={member.user_id} value={String(member.user_id)}>
+                    {member.username} ({member.role})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              담당자를 지정하지 않으면 개별 알림은 발송되지 않습니다.
+            </p>
+          </div>
+        )}
 
         {showDropzone && (
           <FileDropzone
@@ -236,7 +246,6 @@ function UploadPageInner() {
           </ul>
         )}
 
-
         <Button
           onClick={handleStartUpload}
           disabled={waitingItems.length === 0 || isUploadingFiles}
@@ -264,13 +273,12 @@ function UploadPageInner() {
               />
             ))}
           </ul>
-
         </Card>
       )}
     </div>
   )
 }
 
-export default function UploadPage() {
-  return <UploadPageInner />
+export default function UploadPage({ myRole }) {
+  return <UploadPageInner myRole={myRole} />
 }

@@ -132,3 +132,23 @@ export async function getGroupDocumentDetail(groupId, docId) {
 export async function deleteGroupDocument(groupId, docId) {
   await client.delete(`/groups/${groupId}/documents/${docId}`)
 }
+
+
+export async function getPendingDocuments(groupId, { skip = 0, limit = 20, keyword = '' } = {}) {
+  const { data } = await client.get(`/groups/${groupId}/documents/pending`, {
+    params: { skip, limit, keyword },
+  })
+  return data
+}
+
+export async function approveDocument(groupId, docId) {
+  const { data } = await client.post(`/groups/${groupId}/documents/${docId}/approve`)
+  return data
+}
+
+export async function rejectDocument(groupId, docId, feedback) {
+  const { data } = await client.post(`/groups/${groupId}/documents/${docId}/reject`, {
+    feedback,
+  })
+  return data
+}

@@ -20,6 +20,42 @@ export function useUploadQueue({
   const uploadControllersRef = useRef(new Map())
   const abortRequestedRef = useRef(false)
 
+  const syncServerStatuses = useCallback((serverDocuments = []) => {
+    const statusByDocId = new Map(
+      serverDocuments.map((doc) => [doc.id, doc.status])
+    )
+
+    setItems((prev) =>
+      prev.map((it) => {
+        if (!it.docId) return it
+
+        const serverStatus = statusByDocId.get(it.docId)
+        if (!serverStatus) return it
+
+        const nextSummaryStatus =
+          serverStatus === 'PENDING'
+            ? 'queued'
+            : serverStatus === 'PROCESSING'
+              ? 'processing'
+              : serverStatus === 'DONE'
+                ? 'done'
+                : serverStatus === 'FAILED'
+                  ? 'failed'
+                  : it.summaryStatus
+
+        if (nextSummaryStatus === it.summaryStatus) {
+          return it
+        }
+
+        return {
+          ...it,
+          summaryStatus: nextSummaryStatus,
+        }
+      })
+    )
+  }, [setItems])
+
+
   const updateItem = useCallback((file, patch) => {
     setItems((prev) => prev.map((it) => (isSameFile(it, file) ? { ...it, ...patch } : it)))
   }, [setItems])
@@ -123,7 +159,7 @@ export function useUploadQueue({
     err?.name === 'AbortError'
   ), [])
 
-  const handleUpload = useCallback(async () => {
+  const handleUpload = useCallback(async ({ assigneeUserId = null } = {}) => {
     if (!groupId) {
       toast.error('업로드할 워크스페이스 정보를 확인할 수 없습니다.')
       return
@@ -147,7 +183,12 @@ export function useUploadQueue({
           error: null,
         })
 
-        const uploadData = await uploadDocumentApi(it.file, groupId, controller.signal)
+        const uploadData = await uploadDocumentApi(
+          it.file,
+          groupId,
+          assigneeUserId,
+          controller.signal
+        )
         const docId = uploadData.document_ids[0]
 
         updateItem(it.file, {
@@ -190,6 +231,7 @@ export function useUploadQueue({
     openFilePicker,
     removeItem,
     handleUpload,
+    syncServerStatuses,
     cancelUploadsAndReset,
     resetUploadState,
     waitingItems: items.filter((it) => it.uploadStatus === 'waiting'),
