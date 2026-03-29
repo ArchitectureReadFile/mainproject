@@ -65,7 +65,7 @@ jobs:
           if (-not (Test-Path "D:\jiyun-env\backend.env")) {
             Write-Host "❌ D:\jiyun-env\backend.env 가 없습니다. 서버 최초 셋업 문서를 참고하세요."
             exit 1
-          fi
+          }
 
       - name: Docker Hub 로그인
         uses: docker/login-action@v3
