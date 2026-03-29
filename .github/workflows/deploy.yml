@@ -75,6 +75,9 @@ jobs:
 
       - name: 최신 이미지 pull
         shell: pwsh
+        env:
+          DOCKER_HUB_USER: ${{ secrets.DOCKER_HUB_USER }}
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
         run: |
           docker compose -f docker-compose.yml -f docker-compose.server.yml pull frontend backend
 
