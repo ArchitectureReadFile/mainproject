@@ -35,7 +35,7 @@ team/
     └── deploy.yml                  # Docker Hub 푸시 + 홈서버 배포
 
 # 서버 로컬 (repo 밖, gitignore/checkout 영향 없음)
-/opt/jiyun/env/
+D:\jiyun-env\
 └── backend.env                     # 운영 환경변수 (시크릿 포함)
 ```
 
@@ -76,7 +76,7 @@ ollama, phpmyadmin은 서버에서 실행하지 않는다 (`profiles: dev-only`)
 | 별도 외부 Ollama 서버 | `http://<IP>:11434` |
 | 외부 OpenAI-compatible API | 별도 설정 |
 
-`/opt/jiyun/env/backend.env`에서 아래와 같이 지정한다:
+`D:\jiyun-env\backend.env`에서 아래와 같이 지정한다:
 
 ```env
 # 서버용: ollama 컨테이너 없이 외부 엔드포인트 직접 지정
@@ -91,21 +91,17 @@ OLLAMA_HOST=http://192.168.0.10:11434  # 로컬 네트워크 내 다른 PC
 
 ## 최초 서버 셋업
 
-### 1. 운영 env 파일 생성 (repo 밖 경로)
+### 1. 운영 env 파일 생성 (repo 밖 경로, Windows 기준)
 
 운영 환경변수는 **repo 내부가 아닌 서버 로컬 고정 경로**에 둔다.  
 `actions/checkout`은 repo 디렉토리만 건드리므로, 이 경로는 deploy 시 절대 삭제되지 않는다.
 
-```bash
-sudo mkdir -p /opt/jiyun/env
-sudo touch /opt/jiyun/env/backend.env
-
-# runner 사용자가 읽을 수 있도록 권한 설정
-sudo chown $USER:$USER /opt/jiyun/env/backend.env
-chmod 600 /opt/jiyun/env/backend.env
+```powershell
+New-Item -ItemType Directory -Force D:\jiyun-env
+notepad D:\jiyun-env\backend.env
 ```
 
-`/opt/jiyun/env/backend.env` 주요 항목 (`backend/.env.server` 템플릿 전체 참고):
+`D:\jiyun-env\backend.env` 주요 항목 (`backend/.env.server` 템플릿 전체 참고):
 
 ```env
 DATABASE_URL=mysql+pymysql://user:PASSWORD@db:3306/readfile
@@ -131,10 +127,11 @@ GitHub → Settings → Actions → Runners → New self-hosted runner
 
 label을 `home-server`로 지정해야 `deploy.yml`이 올바른 runner에서 실행됨.
 
-```bash
-./run.sh
+```powershell
+.\run.cmd
 # 또는 서비스로 등록
-sudo ./svc.sh install && sudo ./svc.sh start
+.\svc.cmd install
+.\svc.cmd start
 ```
 
 ### 3. GitHub Secrets 등록
@@ -169,22 +166,19 @@ main push
       docker build backend → Docker Hub push
       docker build frontend → Docker Hub push
   → deploy.yml job2 (self-hosted, home-server):
-      git checkout (repo만 갱신, /opt/jiyun/env/ 무관)
-      /opt/jiyun/env/backend.env 존재 확인
+      git checkout (repo만 갱신, D:\jiyun-env\ 무관)
+      D:\jiyun-env\backend.env 존재 확인
       docker compose pull
       docker compose up -d --remove-orphans
 ```
 
 ### 수동 배포 (서버에서 직접)
 
-```bash
-cd /path/to/team
-
-DOCKER_HUB_USER=<user> CLOUDFLARE_TUNNEL_TOKEN=<token> \
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.server.yml \
-  up -d --remove-orphans
+```powershell
+cd D:\mainproject
+$env:DOCKER_HUB_USER="<user>"
+$env:CLOUDFLARE_TUNNEL_TOKEN="<token>"
+docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --remove-orphans
 ```
 
 ---
@@ -208,7 +202,7 @@ nginx, cloudflared는 절대 뜨지 않음.
 | nginx/cloudflared가 개발 경로와 분리 | ✅ docker-compose.yml에 없음 |
 | frontend가 dev command를 실행하지 않음 | ✅ `command: ["nginx", "-g", "daemon off;"]` 명시 |
 | production image CMD만 사용 | ✅ base compose command 상속 차단 |
-| 운영 env가 deploy 시 삭제되지 않음 | ✅ `/opt/jiyun/env/` (repo 밖 고정 경로) |
+| 운영 env가 deploy 시 삭제되지 않음 | ✅ `D:\jiyun-env\` (repo 밖 고정 경로) |
 | 시크릿과 코드 분리 | ✅ repo checkout 영향 범위 밖 |
 | ollama 컨테이너 서버 미실행 | ✅ `profiles: dev-only`로 비활성화 |
 | 서버 LLM 연결 방식 명시 | ✅ `OLLAMA_HOST` 외부 엔드포인트 지정 |

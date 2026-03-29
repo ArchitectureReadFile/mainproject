@@ -4,6 +4,7 @@
 # 개발용 docker-compose.yml은 그대로 유지됨.
 # 이 파일은 서버 전용 설정만 추가/override 한다.
 # nginx, cloudflared는 이 파일에서만 정의된다.
+# Windows 홈서버 기준 운영 env는 D:/jiyun-env/backend.env 를 사용한다.
 #
 # [네트워크 구조]
 # base compose는 네트워크를 별도 선언하지 않으므로 기본 네트워크(team_default)를 사용한다.
@@ -33,7 +34,7 @@ services:
     container_name: backend_container
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
     env_file:
-      - /opt/jiyun/env/backend.env
+      - D:/jiyun-env/backend.env
     restart: unless-stopped
     volumes: []
     ports: []
@@ -48,7 +49,7 @@ services:
     container_name: celery_worker_container
     command: celery -A celery_app worker --loglevel=info --concurrency=1
     env_file:
-      - /opt/jiyun/env/backend.env
+      - D:/jiyun-env/backend.env
     volumes: []
     networks:
       - app-network
