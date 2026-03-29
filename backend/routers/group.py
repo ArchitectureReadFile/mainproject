@@ -250,6 +250,50 @@ def list_pending_documents(
     return {"items": items, "total": total}
 
 
+@router.get("/{group_id}/documents/approved")
+def list_approved_documents(
+    group_id: int,
+    skip: int = 0,
+    limit: int = 10,
+    keyword: str = "",
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group_service.assert_review_permission(current_user.id, group_id)
+    items, total = service.get_approved_list(
+        skip,
+        limit,
+        keyword,
+        group_id,
+        current_user.id,
+    )
+
+    return {"items": items, "total": total}
+
+
+@router.get("/{group_id}/documents/rejected")
+def list_rejected_documents(
+    group_id: int,
+    skip: int = 0,
+    limit: int = 10,
+    keyword: str = "",
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group_service.assert_review_permission(current_user.id, group_id)
+    items, total = service.get_rejected_list(
+        skip,
+        limit,
+        keyword,
+        group_id,
+        current_user.id,
+    )
+
+    return {"items": items, "total": total}
+
+
 @router.get("/{group_id}/documents/deleted")
 def list_deleted_documents(
     group_id: int,

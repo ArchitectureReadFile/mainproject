@@ -287,3 +287,83 @@ class DocumentRepository:
         self.db.flush()
 
         return approval
+
+    def get_approved_list(
+        self,
+        skip: int,
+        limit: int,
+        keyword: str,
+        group_id: int,
+        reviewer_user_id: int,
+    ) -> tuple[list[Document], int]:
+        """그룹 내 내가 승인한 문서 조회"""
+        query = (
+            self.db.query(Document)
+            .join(Document.approval)
+            .options(
+                joinedload(Document.owner),
+                joinedload(Document.summary),
+                joinedload(Document.approval).joinedload(DocumentApproval.assignee),
+                joinedload(Document.approval).joinedload(DocumentApproval.reviewer),
+            )
+            .filter(
+                Document.group_id == group_id,
+                Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE,
+                DocumentApproval.status == ReviewStatus.APPROVED,
+                DocumentApproval.reviewer_user_id == reviewer_user_id,
+            )
+        )
+
+        if keyword:
+            query = query.filter(Document.original_filename.contains(keyword))
+
+        total = query.count()
+
+        documents = (
+            query.order_by(DocumentApproval.reviewed_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+        return documents, total
+
+    def get_rejected_list(
+        self,
+        skip: int,
+        limit: int,
+        keyword: str,
+        group_id: int,
+        reviewer_user_id: int,
+    ) -> tuple[list[Document], int]:
+        """그룹 내 내가 반려한 문서 조회"""
+        query = (
+            self.db.query(Document)
+            .join(Document.approval)
+            .options(
+                joinedload(Document.owner),
+                joinedload(Document.summary),
+                joinedload(Document.approval).joinedload(DocumentApproval.assignee),
+                joinedload(Document.approval).joinedload(DocumentApproval.reviewer),
+            )
+            .filter(
+                Document.group_id == group_id,
+                Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE,
+                DocumentApproval.status == ReviewStatus.REJECTED,
+                DocumentApproval.reviewer_user_id == reviewer_user_id,
+            )
+        )
+
+        if keyword:
+            query = query.filter(Document.original_filename.contains(keyword))
+
+        total = query.count()
+
+        documents = (
+            query.order_by(DocumentApproval.reviewed_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+        return documents, total
