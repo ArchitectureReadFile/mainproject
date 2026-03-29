@@ -33,8 +33,10 @@ services:
     image: ${DOCKER_HUB_USER}/jiyun-backend:latest
     container_name: backend_container
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
-    env_file:
+    env_file: !override
       - D:/jiyun-env/backend.env
+    environment: !override
+      - TZ=UTC
     restart: unless-stopped
     volumes: []
     ports: []
@@ -48,8 +50,10 @@ services:
     image: ${DOCKER_HUB_USER}/jiyun-backend:latest
     container_name: celery_worker_container
     command: celery -A celery_app worker --loglevel=info --concurrency=1
-    env_file:
+    env_file: !override
       - D:/jiyun-env/backend.env
+    environment: !override
+      - TZ=UTC
     volumes: []
     networks:
       - app-network
