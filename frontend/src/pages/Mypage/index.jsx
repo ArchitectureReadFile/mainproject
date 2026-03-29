@@ -1,5 +1,5 @@
 import client from '@/api/client'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Input } from '@/components/ui/input'

@@ -4,7 +4,7 @@ import { Inbox, Loader2, Search } from 'lucide-react'
 
 import { getGroupDocuments } from '@/api/groups'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Input } from '@/components/ui/input'
 
 const STATUS_LABEL = {
     DONE: { text: '완료', color: 'text-green-600' },

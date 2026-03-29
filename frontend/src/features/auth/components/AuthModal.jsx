@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { useEffect, useState } from 'react'
 import ConfirmAccountForm from './forms/ConfirmAccountForm.jsx'
 import LoginSignupForm from './forms/LoginSignupForm.jsx'
