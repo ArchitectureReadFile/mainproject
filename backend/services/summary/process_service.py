@@ -5,7 +5,10 @@ from models.model import DocumentStatus
 from repositories.document_repository import DocumentRepository
 from repositories.summary_repository import SummaryRepository
 from services.document_extract_service import DocumentExtractService
-from services.document_input_builder import build_summary_input
+from services.document_normalize_service import DocumentNormalizeService
+from services.summary.document_summary_payload_service import (
+    DocumentSummaryPayloadService,
+)
 from services.summary.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
@@ -17,6 +20,8 @@ class ProcessService:
     def __init__(self):
         self.llm = LLMService()
         self.extractor = DocumentExtractService()
+        self.normalizer = DocumentNormalizeService()
+        self.summary_payload = DocumentSummaryPayloadService()
 
     def _normalize_summary_data(self, data: dict) -> dict:
         """LLM 응답의 타입을 DB 저장 가능한 형태로 정규화합니다."""
@@ -51,7 +56,8 @@ class ProcessService:
                 db.commit()
 
             extracted = self.extractor.extract(file_path)
-            summary_input = build_summary_input(extracted)
+            document = self.normalizer.normalize(extracted)
+            summary_input = self.summary_payload.build(document)
 
             raw_data = self.llm.summarize([summary_input])
             summary_data = self._normalize_summary_data(raw_data)
@@ -83,7 +89,6 @@ class ProcessService:
             )
             repository.update_status(document_id, DocumentStatus.FAILED)
             db.commit()
-            # 원본 파일은 재처리를 위해 보존한다
             raise
         finally:
             db.close()

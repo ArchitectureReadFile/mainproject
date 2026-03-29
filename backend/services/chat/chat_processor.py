@@ -8,9 +8,11 @@ from errors.error_codes import ErrorCode
 from errors.exceptions import AppException
 from models.model import ChatMessage, ChatMessageRole, ChatSession
 from prompts.chat_prompt import CHAT_SUMMARY_PROMPT, CHAT_SYSTEM_PROMPT
-from schemas.search import SearchMode
-from services.rag.retrieval_service import retrieve_precedents
+from schemas.knowledge import KnowledgeRetrievalRequest, WorkspaceSelection
+from services.knowledge.answer_context_builder import AnswerContextBuilder
+from services.knowledge.knowledge_retrieval_service import KnowledgeRetrievalService
 from services.summary.llm_client import LLMClient
+from settings.knowledge import DEFAULT_KNOWLEDGE_RETRIEVAL_TOP_K
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +20,26 @@ logger = logging.getLogger(__name__)
 class ChatProcessor:
     def __init__(self):
         self.llm_client = LLMClient()
+        self.knowledge_retrieval = KnowledgeRetrievalService()
+        self.answer_context_builder = AnswerContextBuilder()
 
     def process_chat(
-        self, db: Session, redis_client: Redis, user_id: int, session_id: int
+        self,
+        db: Session,
+        redis_client: Redis,
+        user_id: int,
+        session_id: int,
+        group_id: int | None = None,
+        workspace_selection: WorkspaceSelection | None = None,
     ):
+        """
+        group_id / workspace_selection:
+            - 미전달: include_workspace=False (기존 동작 유지)
+            - 전달 시: include_workspace=True
+
+        주의: WorkspaceKnowledgeRetriever의 mode="documents" 필터는
+              현재 미구현(fail-closed → 빈 결과). 추후 지원 예정.
+        """
         self._publish_status(
             redis_client, session_id, user_id, "processing", "답변을 생성중입니다..."
         )
@@ -37,7 +55,9 @@ class ChatProcessor:
                 raise AppException(ErrorCode.CHAT_ROOM_NOT_FOUND)
 
             doc_context = session.reference_document_text or ""
+            doc_title = session.reference_document_title or None
 
+            # ── 대화 요약 (redis) ─────────────────────────────────────────────
             summary_key = f"chat_summary:{session_id}"
             last_msg_key = f"chat_last_summarized_id:{session_id}"
 
@@ -75,46 +95,50 @@ class ChatProcessor:
             else:
                 recent_msgs = unsummarized_msgs
 
+            # ── system prompt 기본 조립 ───────────────────────────────────────
             system_content = CHAT_SYSTEM_PROMPT
-
-            if doc_context:
-                system_content += f"\n\n[참고 문서 원문]\n{doc_context}"
 
             if existing_summary:
                 system_content += f"\n\n[이전 대화 핵심 요약]\n{existing_summary}"
 
+            # ── retrieval ─────────────────────────────────────────────────────
             if recent_msgs:
                 user_query = recent_msgs[-1].content
-                logger.info(f"[RAG_START] query: {user_query}")
+                logger.info("[RETRIEVAL_START] query=%s", user_query[:100])
+
+                include_workspace = workspace_selection is not None
+                request = KnowledgeRetrievalRequest(
+                    query=user_query,
+                    user_id=user_id,
+                    session_id=session_id,
+                    group_id=group_id,
+                    include_platform=True,
+                    include_workspace=include_workspace,
+                    include_session=bool(doc_context.strip()),
+                    workspace_selection=(
+                        workspace_selection
+                        if workspace_selection is not None
+                        else WorkspaceSelection()
+                    ),
+                    top_k=DEFAULT_KNOWLEDGE_RETRIEVAL_TOP_K,
+                )
+
                 try:
-                    rag_hits = retrieve_precedents(
-                        query=user_query, top_k=3, search_mode=SearchMode.dense
+                    items = self.knowledge_retrieval.retrieve(
+                        request,
+                        reference_document_text=doc_context,
+                        session_title=doc_title,
                     )
-                    if rag_hits:
-                        logger.info(f"[RAG_HITS] {len(rag_hits)} precedents found.")
+                    logger.info("[RETRIEVAL_DONE] items=%d", len(items))
 
-                        rag_context_parts = []
-                        for h in rag_hits:
-                            title = h.get("title") or "제목 없음"
-                            url = h.get("source_url") or "출처 없음"
-                            chunks = h.get("chunks") or []
-                            full_text = "\n".join(
-                                [(c.get("text") or "").strip() for c in chunks]
-                            )
-                            rag_context_parts.append(
-                                f"판례: {title}\n출처: {url}\n내용: {full_text}"
-                            )
-
-                        rag_context = "\n\n".join(rag_context_parts)
-                        system_content += f"\n\n[관련 판례 참고]\n{rag_context}"
-                    else:
-                        logger.info(
-                            "[RAG_NO_HITS] No relevant precedents found for the query."
-                        )
+                    rag_context = self.answer_context_builder.build(items)
+                    if rag_context:
+                        logger.info("[CONTEXT_BUILT] chars=%d", len(rag_context))
+                        system_content += f"\n\n{rag_context}"
                 except Exception as e:
-                    logger.warning(f"[RAG_SEARCH_FAILED] {e}")
+                    logger.warning("[RETRIEVAL_FAILED] %s", e)
 
-            logger.info(f"[FINAL_SYSTEM_PROMPT] {system_content[:2000]}...")
+            logger.info("[FINAL_SYSTEM_PROMPT] %s...", system_content[:2000])
             chat_messages = [{"role": "system", "content": system_content.strip()}]
 
             for msg in recent_msgs:
@@ -137,7 +161,7 @@ class ChatProcessor:
         except AppException as ae:
             self._publish_error(redis_client, session_id, user_id, ae.error_code)
         except Exception as e:
-            logger.error(f"[PROCESS_CHAT_FAILED] {e}", exc_info=True)
+            logger.error("[PROCESS_CHAT_FAILED] %s", e, exc_info=True)
             self._publish_error(
                 redis_client, session_id, user_id, ErrorCode.CHAT_HISTORY_LOAD_FAILED
             )

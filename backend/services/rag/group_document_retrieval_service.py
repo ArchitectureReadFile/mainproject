@@ -3,6 +3,19 @@ services/rag/group_document_retrieval_service.py
 
 그룹 문서 RAG 검색 + document_id 기준 그룹핑.
 
+mode="all":
+    group_id 전체 범위 검색.
+
+mode="documents" (document_ids whitelist):
+    BM25: group_id ∩ document_ids whitelist
+    dense(Qdrant): group_id + source_type + document_id MatchAny 필터
+    hybrid: 양쪽 모두 whitelist 적용 + 최종 Python 재검증
+
+fail-closed 이중 보장:
+    1. 저장소 레벨 필터 (Qdrant query_filter / BM25 allowed_ids)
+    2. 최종 _group_by_document 후 document_id whitelist 재검증
+       → whitelist 밖 chunk가 섞여 들어오는 경우를 차단
+
 반환 계약:
 [
     {
@@ -14,7 +27,7 @@ services/rag/group_document_retrieval_service.py
             {
                 "chunk_id":      str,
                 "text":          str,
-                "chunk_type":    str,   # "body" | "table"
+                "chunk_type":    str,
                 "section_title": str | None,
                 "order_index":   int,
                 "score":         float,
@@ -45,43 +58,67 @@ def retrieve_group_documents(
     group_id: int,
     top_k: int,
     search_mode: SearchMode,
+    document_ids: list[int] | None = None,
 ) -> list[dict]:
     """
-    group_id 범위 내 그룹 문서 chunk를 검색하고 document_id 기준으로 그룹핑해 반환한다.
+    그룹 문서 chunk 검색 후 document_id 기준으로 그룹핑해 반환한다.
+
+    Args:
+        document_ids: None → group 전체(mode="all"),
+                      list → whitelist 범위만(mode="documents")
     """
     query_vector = embed_query(query)
     fetch_k = top_k * 4
 
-    # group_id 필터: 해당 그룹 문서만 검색
-    group_filter = qmodels.Filter(
-        must=[
-            qmodels.FieldCondition(
-                key="group_id",
-                match=qmodels.MatchValue(value=group_id),
-            ),
-            qmodels.FieldCondition(
-                key="source_type",
-                match=qmodels.MatchValue(value="pdf"),
-            ),
-        ]
-    )
+    # ── Qdrant 필터 구성 ──────────────────────────────────────────────────────
+    must_conditions: list = [
+        qmodels.FieldCondition(
+            key="group_id",
+            match=qmodels.MatchValue(value=group_id),
+        ),
+        qmodels.FieldCondition(
+            key="source_type",
+            match=qmodels.MatchValue(value="pdf"),
+        ),
+    ]
 
+    if document_ids is not None:
+        # MatchAny: document_id가 whitelist 중 하나여야 함
+        must_conditions.append(
+            qmodels.FieldCondition(
+                key="document_id",
+                match=qmodels.MatchAny(any=document_ids),
+            )
+        )
+
+    query_filter = qmodels.Filter(must=must_conditions)
+
+    # ── 검색 ──────────────────────────────────────────────────────────────────
     if search_mode == SearchMode.dense:
         chunk_hits = vector_store.search(
             query_embedding=query_vector,
             top_k=fetch_k,
-            query_filter=group_filter,
+            query_filter=query_filter,
         )
     else:
         bm25_hits = bm25_store.search_documents(
-            query=query, group_id=group_id, top_k=fetch_k * 2
+            query=query,
+            group_id=group_id,
+            top_k=fetch_k * 2,
+            document_ids=document_ids,
         )
         chunk_hits = vector_store.hybrid_search(
             query_embedding=query_vector,
             bm25_results=bm25_hits,
             top_k=fetch_k,
-            query_filter=group_filter,
+            query_filter=query_filter,
         )
+
+    # ── 최종 Python 레벨 whitelist 재검증 ────────────────────────────────────
+    # Qdrant BM25-only hit가 query_filter를 뚫는 경우를 이중으로 차단한다.
+    if document_ids is not None:
+        allowed_set = set(document_ids)
+        chunk_hits = [h for h in chunk_hits if h.get("document_id") in allowed_set]
 
     grouped = _group_by_document(chunk_hits)
     return grouped[:top_k]
@@ -122,7 +159,6 @@ def _group_by_document(chunk_hits: list[dict]) -> list[dict]:
                 grouped[doc_id]["score"] = score
             grouped[doc_id]["chunks"].append(chunk_entry)
 
-    # 각 document에서 상위 chunk만 유지 + 유사 score 중복 제거
     for group in grouped.values():
         chunks = sorted(group["chunks"], key=lambda c: c["score"], reverse=True)
         deduped: list[dict] = []

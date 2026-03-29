@@ -1,0 +1,23 @@
+# frontend build context 제외 목록
+# Dockerfile.prod 기준: npm ci → vite build → nginx 서빙
+# node_modules는 빌드 중 새로 설치되므로 제외,
+# 로컬 캐시/산출물이 이미지에 포함되지 않도록 한다.
+
+# 의존성 (이미지 내에서 npm ci로 재설치)
+node_modules/
+
+# 빌드 산출물 (이미지 내에서 vite build로 생성)
+dist/
+
+# 환경변수
+.env
+.env.*
+
+# 테스트 / 커버리지
+coverage/
+
+# 로그
+*.log
+
+# OS
+.DS_Store

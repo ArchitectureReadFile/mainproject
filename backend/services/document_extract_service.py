@@ -16,14 +16,11 @@ import logging
 import os
 import tempfile
 from dataclasses import dataclass
+from typing import Literal
 
 import opendataloader_pdf as odl
 
 from errors import AppException, ErrorCode
-from services.document_input_builder import (
-    extract_body_from_json,
-    extract_body_from_markdown,
-)
 from services.ocr.local_ocr_service import LocalOcrService
 from services.ocr.ocr_service import OcrService
 
@@ -34,6 +31,7 @@ logger = logging.getLogger(__name__)
 class ExtractedDocument:
     markdown: str
     json_data: dict | None
+    source_type: Literal["odl", "ocr"]
 
 
 class DocumentExtractService:
@@ -106,14 +104,14 @@ class DocumentExtractService:
         logger.info(
             "[문서 추출] OCR fallback 성공: path=%s chars=%d", file_path, len(text)
         )
-        return ExtractedDocument(markdown=text, json_data=None)
+        return ExtractedDocument(markdown=text, json_data=None, source_type="ocr")
 
     def _extract_body(self, extracted: ExtractedDocument) -> str:
-        return (
-            extract_body_from_markdown(extracted.markdown)
-            or extract_body_from_json(extracted.json_data)
-            or ""
-        )
+        """body 유무 판단용. markdown 우선, 없으면 json fallback."""
+        body = (extracted.markdown or "").strip()
+        if body:
+            return body
+        return _extract_body_from_json(extracted.json_data)
 
     def _convert(self, file_path: str, output_dir: str) -> None:
         try:
@@ -143,7 +141,11 @@ class DocumentExtractService:
         markdown = self._read_first_matching_file(output_dir, md_path, ".md")
         json_data = self._read_json_with_fallback(output_dir, json_path)
 
-        return ExtractedDocument(markdown=markdown, json_data=json_data)
+        return ExtractedDocument(
+            markdown=markdown,
+            json_data=json_data,
+            source_type="odl",
+        )
 
     def _read_first_matching_file(
         self, output_dir: str, preferred_path: str, suffix: str
@@ -176,3 +178,36 @@ class DocumentExtractService:
             except json.JSONDecodeError:
                 logger.warning("[문서 추출] json 파싱 실패: %s", path)
         return None
+
+
+# ── 내부 헬퍼 (body 유무 판단 전용) ──────────────────────────────────────────
+# normalize 책임은 DocumentNormalizeService에 있다.
+# 여기서는 "OCR fallback 진입 여부 판단"에만 쓰인다.
+
+
+def _extract_body_from_json(json_data: dict | list | None) -> str:
+    if not json_data:
+        return ""
+    lines: list[str] = []
+    _collect_body_lines(json_data, lines)
+    return "\n".join(line for line in lines if line.strip()).strip()
+
+
+def _collect_body_lines(node: dict | list, lines: list[str]) -> None:
+    if isinstance(node, list):
+        for item in node:
+            _collect_body_lines(item, lines)
+        return
+    if not isinstance(node, dict):
+        return
+    node_type = node.get("type")
+    content = node.get("content")
+    if isinstance(content, str) and content.strip():
+        if node_type not in {"table cell", "table row", "table"}:
+            lines.append(content.strip())
+    for child in node.get("kids", []):
+        _collect_body_lines(child, lines)
+    for row in node.get("rows", []):
+        _collect_body_lines(row, lines)
+    for cell in node.get("cells", []):
+        _collect_body_lines(cell, lines)
