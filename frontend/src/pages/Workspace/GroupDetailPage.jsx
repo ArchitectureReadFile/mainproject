@@ -19,12 +19,14 @@ import { Input } from '@/components/ui/Input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
 import { UploadProvider } from '@/features/upload/context/UploadContext'
+import ApprovalsTab from '@/pages/Workspace/ApprovalsTab'
 
 
 // 역할별 허용 탭
 const TABS = [
-    { key: 'upload', label: '업로드', roles: ['OWNER', 'ADMIN', 'EDITOR'], hideOnPending: true},
+    { key: 'upload', label: '업로드', roles: ['OWNER', 'ADMIN', 'EDITOR'], hideOnPending: true },
     { key: 'documents', label: '문서', roles: ['OWNER', 'ADMIN', 'EDITOR', 'VIEWER'] },
+    { key: 'approvals', label: '승인', roles: ['OWNER', 'ADMIN'] },
     { key: 'trash', label: '휴지통', roles: ['OWNER', 'ADMIN', 'EDITOR'] },
     { key: 'members', label: '멤버', roles: ['OWNER', 'ADMIN', 'EDITOR', 'VIEWER'], hideOnPending: true },
     { key: 'workspace', label: '워크스페이스', roles: ['OWNER', 'ADMIN', 'EDITOR', 'VIEWER'] },
@@ -746,6 +748,7 @@ export default function GroupDetailPage() {
             {activeTab === 'upload' && <UploadPage myRole={group.my_role} />}
             {activeTab === 'documents' && (<DocumentsTab group={group} />
             )}
+            {activeTab === 'approvals' && <ApprovalsTab group={group} />}
             {activeTab === 'trash'     && <div>휴지통 섹션</div>}
             {activeTab === 'members'   && (
                 <TooltipProvider>
