@@ -6,8 +6,11 @@ from sqlalchemy.orm import Session
 
 from errors.error_codes import ErrorCode
 from errors.exceptions import AppException
-from models.model import ChatMessage, ChatMessageRole, ChatSession
+from models.model import ChatMessage, ChatMessageRole, ChatSession, NotificationType
 from prompts.chat_prompt import CHAT_SUMMARY_PROMPT, CHAT_SYSTEM_PROMPT
+from repositories.notification_repository import NotificationRepository
+from services.summary.llm_client import LLMClient
+from services.notification_service import NotificationService
 from schemas.knowledge import KnowledgeRetrievalRequest, WorkspaceSelection
 from services.knowledge.answer_context_builder import AnswerContextBuilder
 from services.knowledge.knowledge_retrieval_service import KnowledgeRetrievalService
@@ -157,6 +160,23 @@ class ChatProcessor:
                 )
                 db.add(ai_msg)
                 db.commit()
+
+                notification_repo = NotificationRepository(db)
+                notification_service = NotificationService()
+                preview = full_answer.strip()
+                if len(preview) > 150:
+                    preview = preview[:150] + "..."
+
+                notification_service.create_notification_sync(
+                    notification_repo,
+                    user_id=user_id,
+                    type=NotificationType.AI_ANSWER_COMPLETE,
+                    title="AI 답변이 완료되었습니다.",
+                    body=preview,
+                    group_id=group_id,
+                    target_type="chat",
+                    target_id=session_id
+                )
 
         except AppException as ae:
             self._publish_error(redis_client, session_id, user_id, ae.error_code)
