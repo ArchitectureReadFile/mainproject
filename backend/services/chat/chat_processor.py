@@ -9,11 +9,10 @@ from errors.exceptions import AppException
 from models.model import ChatMessage, ChatMessageRole, ChatSession, NotificationType
 from prompts.chat_prompt import CHAT_SUMMARY_PROMPT, CHAT_SYSTEM_PROMPT
 from repositories.notification_repository import NotificationRepository
-from services.summary.llm_client import LLMClient
-from services.notification_service import NotificationService
 from schemas.knowledge import KnowledgeRetrievalRequest, WorkspaceSelection
 from services.knowledge.answer_context_builder import AnswerContextBuilder
 from services.knowledge.knowledge_retrieval_service import KnowledgeRetrievalService
+from services.notification_service import NotificationService
 from services.summary.llm_client import LLMClient
 from settings.knowledge import DEFAULT_KNOWLEDGE_RETRIEVAL_TOP_K
 
@@ -175,7 +174,7 @@ class ChatProcessor:
                     body=preview,
                     group_id=group_id,
                     target_type="chat",
-                    target_id=session_id
+                    target_id=session_id,
                 )
 
         except AppException as ae:

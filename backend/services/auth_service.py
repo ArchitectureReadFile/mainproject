@@ -166,7 +166,7 @@ class AuthService:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise AppException(ErrorCode.USER_NOT_FOUND)
-        
+
         user.is_toast_notification_enabled = is_enabled
         db.commit()
         db.refresh(user)

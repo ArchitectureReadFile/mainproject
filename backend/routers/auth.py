@@ -16,8 +16,8 @@ from schemas.auth import (
     LoginRequest,
     ResetPasswordRequest,
     SignupRequest,
-    UpdateUsernameRequest,
     UpdateNotificationRequest,
+    UpdateUsernameRequest,
     UserResponse,
 )
 from services.auth_service import AuthService
@@ -116,6 +116,7 @@ def update_username(
     auth_service: AuthService = Depends(get_auth_service),
 ):
     return auth_service.update_username(db, current_user.id, payload.username)
+
 
 @router.patch("/notification", response_model=UserResponse)
 def update_notification_settings(

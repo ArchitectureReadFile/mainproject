@@ -24,7 +24,6 @@ _normalizer = DocumentNormalizeService()
 _session_payload = SessionDocumentPayloadService()
 
 
-
 class ChatService:
     def get_sessions(self, db: Session, user_id: int):
         return (

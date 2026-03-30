@@ -1,5 +1,5 @@
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { Bell, Check, X, Loader2 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'

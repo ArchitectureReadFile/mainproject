@@ -63,5 +63,6 @@ class UpdateUsernameRequest(BaseModel):
         ..., min_length=2, max_length=10
     )  # 빈 문자열 들어오는 것 방지
 
+
 class UpdateNotificationRequest(BaseModel):
     is_toast_notification_enabled: bool
