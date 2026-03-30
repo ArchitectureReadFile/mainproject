@@ -1,5 +1,6 @@
 // TODO: 그룹/워크스페이스 API
 import client from "./client";
+
 // POST   /api/groups 그룹 생성
 export async function createGroup({ name, description }) {
     const { data } = await client.post("/groups", { name, description })
@@ -62,7 +63,7 @@ export async function acceptInvite(groupId) {
 }
 
 
-// POST /api/groups/:group_id/members/decline 초재 거절
+// POST /api/groups/:group_id/members/decline 초대 거절
 export async function declineInvite(groupId) {
     await client.post(`/groups/${groupId}/members/decline`)
 }
@@ -76,7 +77,7 @@ export async function removeMember(groupId, targetId) {
 
 // PATCH  /api/groups/:group_id/members/:user_id 권한 변경
 export async function changeMemberRole(groupId, targetId, role) {
-    await client.patch(`/groups/${groupId}/members/${targetId}`, {role})
+    await client.patch(`/groups/${groupId}/members/${targetId}`, { role })
 }
 
 // POST /api/groups/:group_id/members/:target_id/transfer — 오너 양도
@@ -109,7 +110,7 @@ export async function getGroupDocuments(groupId, {
 
 // GET /groups/{group_id}/documents/deleted — 휴지통 목록
 export async function getDeletedGroupDocuments(groupId, {
-    skip = 0, 
+    skip = 0,
     limit = 5,
 }) {
     const { data } = await client.get(`/groups/${groupId}/documents/deleted`, {
@@ -117,7 +118,7 @@ export async function getDeletedGroupDocuments(groupId, {
             skip,
             limit,
         },
-    })     
+    })
     return data
 }
 
@@ -130,5 +131,99 @@ export async function getGroupDocumentDetail(groupId, docId) {
 
 // DELETE /groups/{group_id}/documents/{doc_id} — 문서 삭제
 export async function deleteGroupDocument(groupId, docId) {
-  await client.delete(`/groups/${groupId}/documents/${docId}`)
+    await client.delete(`/groups/${groupId}/documents/${docId}`)
+}
+
+export async function getPendingDocuments(
+    groupId,
+    {
+        skip = 0,
+        limit = 20,
+        keyword = '',
+        uploader = '',
+        assigneeType = 'all',
+    } = {}
+) {
+    const { data } = await client.get(`/groups/${groupId}/documents/pending`, {
+        params: {
+            skip,
+            limit,
+            keyword,
+            uploader,
+            assignee_type: assigneeType,
+        },
+    })
+    return data
+}
+
+
+export async function getPendingUploaders(groupId) {
+  const { data } = await client.get(`/groups/${groupId}/documents/pending/uploaders`)
+  return data
+}
+
+
+export async function getApprovedDocuments(
+    groupId,
+    {
+        skip = 0,
+        limit = 10,
+        keyword = '',
+        uploader = '',
+    } = {}
+) {
+    const { data } = await client.get(`/groups/${groupId}/documents/approved`, {
+        params: {
+            skip,
+            limit,
+            keyword,
+            uploader,
+        },
+    })
+    return data
+}
+
+
+export async function getApprovedUploaders(groupId) {
+  const { data } = await client.get(`/groups/${groupId}/documents/approved/uploaders`)
+  return data
+}
+
+
+export async function getRejectedDocuments(
+    groupId,
+    {
+        skip = 0,
+        limit = 10,
+        keyword = '',
+        uploader = '',
+    } = {}
+) {
+    const { data } = await client.get(`/groups/${groupId}/documents/rejected`, {
+        params: {
+            skip,
+            limit,
+            keyword,
+            uploader,
+        },
+    })
+    return data
+}
+
+
+export async function getRejectedUploaders(groupId) {
+  const { data } = await client.get(`/groups/${groupId}/documents/rejected/uploaders`)
+  return data
+}
+
+export async function approveDocument(groupId, docId) {
+    const { data } = await client.post(`/groups/${groupId}/documents/${docId}/approve`)
+    return data
+}
+
+export async function rejectDocument(groupId, docId, feedback) {
+    const { data } = await client.post(`/groups/${groupId}/documents/${docId}/reject`, {
+        feedback,
+    })
+    return data
 }

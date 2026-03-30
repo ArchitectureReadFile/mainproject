@@ -20,6 +20,7 @@ export function UploadProvider({ children, groupId }) {
     openFilePicker,
     removeItem,
     handleUpload,
+    syncServerStatuses,
     cancelUploadsAndReset,
     resetUploadState,
   } = useUploadQueue({
@@ -45,6 +46,7 @@ export function UploadProvider({ children, groupId }) {
     openFilePicker,
     removeItem,
     handleUpload,
+    syncServerStatuses,
     cancelUploadsAndReset,
     resetUploadState,
   }), [
@@ -61,6 +63,7 @@ export function UploadProvider({ children, groupId }) {
     openFilePicker,
     removeItem,
     handleUpload,
+    syncServerStatuses,
     cancelUploadsAndReset,
     resetUploadState,
   ])

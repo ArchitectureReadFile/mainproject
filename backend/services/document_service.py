@@ -10,6 +10,7 @@ from schemas.document import (
     DocumentDetailResponse,
     DocumentListItemResponse,
     PendingDocumentListItemResponse,
+    ReviewedDocumentListItemResponse,
 )
 from services.summary.summary_mapper import (
     SUMMARY_METADATA_FIELDS,
@@ -218,12 +219,21 @@ class DocumentService:
         limit: int,
         keyword: str,
         group_id: int,
+        uploader: str = "",
+        assignee_type: str = "all",
+        current_user_id: int | None = None,
     ) -> tuple[list[PendingDocumentListItemResponse], int]:
-        """그룹 내 승인 대기 문서 전체 조회"""
+        """그룹 내 승인 대기 문서 전체 조회(목록용)"""
         limit = min(limit, 50)
 
         documents, total = self.repository.get_pending_list(
-            skip, limit, keyword, group_id
+            skip,
+            limit,
+            keyword,
+            group_id,
+            uploader,
+            assignee_type,
+            current_user_id,
         )
 
         results: list[PendingDocumentListItemResponse] = []
@@ -252,6 +262,10 @@ class DocumentService:
             )
 
         return results, total
+
+    def get_pending_uploaders(self, group_id: int) -> list[str]:
+        """그룹 내 승인 대기 문서 작성자 목록 조회(필터용)"""
+        return self.repository.get_pending_uploaders(group_id)
 
     def approve_document(self, doc_id: int, user_id: int, group_id: int):
         """승인"""
@@ -314,3 +328,115 @@ class DocumentService:
         self.repository.db.commit()
 
         return {"message": "문서가 반려되었습니다."}
+
+    def get_approved_list(
+        self,
+        skip: int,
+        limit: int,
+        keyword: str,
+        group_id: int,
+        reviewer_user_id: int,
+        uploader: str = "",
+    ) -> tuple[list[ReviewedDocumentListItemResponse], int]:
+        """그룹 내 내가 승인한 문서 조회(목록용)"""
+        limit = min(limit, 50)
+
+        documents, total = self.repository.get_approved_list(
+            skip,
+            limit,
+            keyword,
+            group_id,
+            reviewer_user_id,
+            uploader,
+        )
+
+        results: list[ReviewedDocumentListItemResponse] = []
+
+        for doc in documents:
+            summary = getattr(doc, "summary", None)
+            approval = getattr(doc, "approval", None)
+            assignee = getattr(approval, "assignee", None) if approval else None
+            reviewer = getattr(approval, "reviewer", None) if approval else None
+
+            results.append(
+                ReviewedDocumentListItemResponse(
+                    id=doc.id,
+                    summary_id=summary.id if summary else None,
+                    title=self._build_document_title(doc, summary),
+                    preview=self._build_preview(summary),
+                    status=doc.processing_status.value,
+                    approval_status=approval.status.value if approval else "",
+                    document_type=get_summary_field(summary, "document_type")
+                    if summary
+                    else None,
+                    created_at=doc.created_at,
+                    uploader=doc.owner.username if doc.owner else None,
+                    assignee_user_id=approval.assignee_user_id if approval else None,
+                    assignee_username=assignee.username if assignee else None,
+                    reviewed_at=approval.reviewed_at if approval else None,
+                    reviewer_username=reviewer.username if reviewer else None,
+                    feedback=approval.feedback if approval else None,
+                )
+            )
+
+        return results, total
+
+    def get_approved_uploaders(self, group_id: int, reviewer_user_id: int) -> list[str]:
+        """그룹 내 내가 승인한 문서 작성자 목록 조회(필터용)"""
+        return self.repository.get_approved_uploaders(group_id, reviewer_user_id)
+
+    def get_rejected_list(
+        self,
+        skip: int,
+        limit: int,
+        keyword: str,
+        group_id: int,
+        reviewer_user_id: int,
+        uploader: str = "",
+    ) -> tuple[list[ReviewedDocumentListItemResponse], int]:
+        """그룹 내 내가 반려한 문서 조회(목록용)"""
+        limit = min(limit, 50)
+
+        documents, total = self.repository.get_rejected_list(
+            skip,
+            limit,
+            keyword,
+            group_id,
+            reviewer_user_id,
+            uploader,
+        )
+
+        results: list[ReviewedDocumentListItemResponse] = []
+
+        for doc in documents:
+            summary = getattr(doc, "summary", None)
+            approval = getattr(doc, "approval", None)
+            assignee = getattr(approval, "assignee", None) if approval else None
+            reviewer = getattr(approval, "reviewer", None) if approval else None
+
+            results.append(
+                ReviewedDocumentListItemResponse(
+                    id=doc.id,
+                    summary_id=summary.id if summary else None,
+                    title=self._build_document_title(doc, summary),
+                    preview=self._build_preview(summary),
+                    status=doc.processing_status.value,
+                    approval_status=approval.status.value if approval else "",
+                    document_type=get_summary_field(summary, "document_type")
+                    if summary
+                    else None,
+                    created_at=doc.created_at,
+                    uploader=doc.owner.username if doc.owner else None,
+                    assignee_user_id=approval.assignee_user_id if approval else None,
+                    assignee_username=assignee.username if assignee else None,
+                    reviewed_at=approval.reviewed_at if approval else None,
+                    reviewer_username=reviewer.username if reviewer else None,
+                    feedback=approval.feedback if approval else None,
+                )
+            )
+
+        return results, total
+
+    def get_rejected_uploaders(self, group_id: int, reviewer_user_id: int) -> list[str]:
+        """그룹 내 내가 반려한 문서 작성자 목록 조회(필터용)"""
+        return self.repository.get_rejected_uploaders(group_id, reviewer_user_id)
