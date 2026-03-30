@@ -49,6 +49,7 @@ frontend/dist/
 # 로그
 *.log
 *.log.*
+.history/
 
 # 임시 디렉토리
 tmp/
