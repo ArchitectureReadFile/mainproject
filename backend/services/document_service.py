@@ -103,9 +103,6 @@ class DocumentService:
         if doc.group_id != group_id:
             raise AppException(ErrorCode.DOC_NOT_FOUND)
 
-        if doc.lifecycle_status != DocumentLifecycleStatus.ACTIVE:
-            raise AppException(ErrorCode.DOC_NOT_FOUND)
-
         approval = getattr(doc, "approval", None)
         approval_status = approval.status if approval else None
         assignee = getattr(approval, "assignee", None) if approval else None
@@ -116,7 +113,12 @@ class DocumentService:
             MembershipRole.ADMIN,
         )
 
-        if approval_status != ReviewStatus.APPROVED:
+        if doc.lifecycle_status == DocumentLifecycleStatus.DELETE_PENDING:
+            if not (is_uploader or is_owner_or_admin):
+                raise AppException(ErrorCode.AUTH_FORBIDDEN)
+        elif doc.lifecycle_status != DocumentLifecycleStatus.ACTIVE:
+            raise AppException(ErrorCode.DOC_NOT_FOUND)
+        elif approval_status != ReviewStatus.APPROVED:
             if not (is_uploader or is_owner_or_admin):
                 raise AppException(ErrorCode.AUTH_FORBIDDEN)
 
@@ -137,6 +139,10 @@ class DocumentService:
             else None,
             "created_at": doc.created_at,
             "can_delete": is_uploader or is_owner_or_admin,
+            "delete_requested_at": doc.delete_requested_at,
+            "delete_scheduled_at": doc.delete_scheduled_at,
+            "deleted_by": doc.deleted_by_user_id,
+            "deleted_by_username": doc.deleted_by.username if doc.deleted_by else None,
         }
 
         if summary:

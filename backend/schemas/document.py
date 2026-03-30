@@ -36,6 +36,10 @@ class DocumentDetailResponse(BaseModel):
     key_points: list[str] = []
     metadata: dict = {}
     created_at: datetime
+    delete_requested_at: Optional[datetime] = None
+    delete_scheduled_at: Optional[datetime] = None
+    deleted_by: Optional[int] = None
+    deleted_by_username: Optional[str] = None
 
     class Config:
         from_attributes = True

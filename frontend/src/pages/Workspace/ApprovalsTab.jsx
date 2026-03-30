@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Loader2, Search } from 'lucide-react'
+import { Loader2, Search, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 import {
     approveDocument,
@@ -139,6 +140,17 @@ export default function ApprovalsTab({ group }) {
             approval_tab: activeSubTab,
             approval_page: 1,
             approval_assignee: nextAssignee,
+        })
+    }
+
+    const handleResetFilters = () => {
+        setKeyword('')
+        updateApprovalParams({
+            approval_tab: activeSubTab,
+            approval_page: 1,
+            approval_keyword: '',
+            approval_author: 'all',
+            approval_assignee: 'all',
         })
     }
 
@@ -384,6 +396,20 @@ export default function ApprovalsTab({ group }) {
                         </SelectContent>
                     </Select>
                 )}
+
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={handleResetFilters}
+                            className="w-full md:w-10"
+                        >
+                            <RotateCcw className="h-4 w-4" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>필터 초기화</TooltipContent>
+                </Tooltip>
             </div>
 
             {loading ? (

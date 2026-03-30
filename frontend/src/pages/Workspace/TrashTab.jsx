@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArchiveRestore, Loader2, Trash2 } from 'lucide-react'
 import { getDeletedGroupDocuments, restoreGroupDocument } from '@/api/groups'
 import { Button } from '@/components/ui/Button'
@@ -14,6 +14,7 @@ function calcDday(isoDate) {
 }
 
 export default function TrashTab({ group }) {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const page = Number(searchParams.get('page') || '1')
@@ -74,7 +75,8 @@ export default function TrashTab({ group }) {
     setSearchParams(newParams)
   }
 
-  const handleRestore = async (docId) => {
+  const handleRestore = async (e, docId) => {
+    e.stopPropagation()
     setRestoringId(docId)
 
     try {
@@ -119,7 +121,12 @@ export default function TrashTab({ group }) {
           {items.map((doc) => (
             <div
               key={doc.id}
-              className="flex items-start justify-between px-5 py-4 gap-4"
+              onClick={() =>
+                navigate(
+                  `/workspace/${group.id}/documents/${doc.id}?tab=trash&page=${page}`
+                )
+              }
+              className="flex items-start justify-between px-5 py-4 gap-4 cursor-pointer hover:bg-muted/50 transition-colors"
             >
               <div className="flex-1 min-w-0 pr-4">
                 <p className="text-sm font-medium truncate">{doc.title}</p>
@@ -156,7 +163,7 @@ export default function TrashTab({ group }) {
                 size="sm"
                 className="shrink-0 gap-1.5"
                 disabled={restoringId === doc.id}
-                onClick={() => handleRestore(doc.id)}
+                onClick={(e) => handleRestore(e, doc.id)}
               >
                 {restoringId === doc.id ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

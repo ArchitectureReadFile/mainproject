@@ -63,7 +63,19 @@ export default function DocumentPage() {
     const statusMessage = STATUS_MESSAGE[s.status] ?? null
     const hasSummary = Boolean(s.summary_text)
 
-    const canDelete = Boolean(doc?.can_delete)
+    const isDeletedDocument = Boolean(doc?.delete_scheduled_at)
+    const canDelete = Boolean(doc?.can_delete) && !isDeletedDocument
+
+    const isPendingReview = doc?.approval_status === 'PENDING_REVIEW'
+    const isRejected = doc?.approval_status === 'REJECTED'
+
+    const calcDday = (isoDate) => {
+        if (!isoDate) return null
+        const diff = Math.ceil((new Date(isoDate) - new Date()) / (1000 * 60 * 60 * 24))
+        return diff <= 0 ? 'D-0' : `D-${diff}`
+    }
+
+    const deletedDday = calcDday(doc?.delete_scheduled_at)
 
     const handleDownload = async () => {
         if (!s.summary_id) return
@@ -131,6 +143,37 @@ export default function DocumentPage() {
                 onConfirm={handleDeleteConfirm}
                 onCancel={() => setShowDeleteModal(false)}
             />
+
+            {isDeletedDocument && (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                    <p className="font-medium">휴지통에 있는 문서입니다.</p>
+                    <p className="mt-1 text-xs">
+                        {doc.delete_scheduled_at
+                            ? `${new Date(doc.delete_scheduled_at).toLocaleDateString('ko-KR')} 삭제 예정 (${deletedDday})`
+                            : '삭제 예정 문서입니다.'}
+                        {doc.deleted_by_username ? ` · 삭제자 ${doc.deleted_by_username}` : ''}
+                    </p>
+                </div>
+            )}
+
+            {!isDeletedDocument && isPendingReview && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                    <p className="font-medium">승인 대기 중인 문서입니다.</p>
+                    <p className="mt-1 text-xs">
+                        아직 검토가 완료되지 않았습니다.
+                        {doc.assignee_username ? ` · 담당자 ${doc.assignee_username}` : ''}
+                    </p>
+                </div>
+            )}
+
+            {!isDeletedDocument && isRejected && (
+                <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    <p className="font-medium">반려된 문서입니다.</p>
+                    <p className="mt-1 text-xs">
+                        반려 사유: {doc.feedback || '반려 사유가 등록되지 않았습니다.'}
+                    </p>
+                </div>
+            )}
 
             {/* 제목 + 메타 */}
             <div className="px-1">

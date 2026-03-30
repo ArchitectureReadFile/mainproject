@@ -166,6 +166,7 @@ class DocumentRepository:
                 joinedload(Document.summary),
                 joinedload(Document.owner),
                 joinedload(Document.approval).joinedload(DocumentApproval.assignee),
+                joinedload(Document.deleted_by),
             )
             .filter(Document.id == doc_id)
             .first()
