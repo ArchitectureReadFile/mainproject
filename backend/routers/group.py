@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.model import User
 from repositories.document_repository import DocumentRepository
+from repositories.document_review_repository import DocumentReviewRepository
 from repositories.group_repository import GroupRepository
 from routers.auth import get_current_user
 from schemas.document import DocumentDetailResponse, DocumentRejectRequest
@@ -17,6 +18,7 @@ from schemas.group import (
     MemberListResponse,
     MemberRoleChangeRequest,
 )
+from services.document_review_service import DocumentReviewService
 from services.document_service import DocumentService
 from services.group_service import GroupService
 
@@ -29,6 +31,12 @@ def get_group_service(db: Session = Depends(get_db)) -> GroupService:
 
 def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
     return DocumentService(DocumentRepository(db))
+
+
+def get_document_review_service(
+    db: Session = Depends(get_db),
+) -> DocumentReviewService:
+    return DocumentReviewService(DocumentReviewRepository(db))
 
 
 # 그룹 생성
@@ -237,7 +245,7 @@ def list_pending_documents(
     keyword: str = "",
     uploader: str = "",
     assignee_type: str = "all",
-    service: DocumentService = Depends(get_document_service),
+    service: DocumentReviewService = Depends(get_document_review_service),
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
@@ -258,7 +266,7 @@ def list_pending_documents(
 @router.get("/{group_id}/documents/pending/uploaders")
 def list_pending_uploaders(
     group_id: int,
-    service: DocumentService = Depends(get_document_service),
+    service: DocumentReviewService = Depends(get_document_review_service),
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
@@ -275,7 +283,7 @@ def list_approved_documents(
     limit: int = 10,
     keyword: str = "",
     uploader: str = "",
-    service: DocumentService = Depends(get_document_service),
+    service: DocumentReviewService = Depends(get_document_review_service),
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
@@ -295,7 +303,7 @@ def list_approved_documents(
 @router.get("/{group_id}/documents/approved/uploaders")
 def list_approved_uploaders(
     group_id: int,
-    service: DocumentService = Depends(get_document_service),
+    service: DocumentReviewService = Depends(get_document_review_service),
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
@@ -312,7 +320,7 @@ def list_rejected_documents(
     limit: int = 10,
     keyword: str = "",
     uploader: str = "",
-    service: DocumentService = Depends(get_document_service),
+    service: DocumentReviewService = Depends(get_document_review_service),
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
@@ -332,7 +340,7 @@ def list_rejected_documents(
 @router.get("/{group_id}/documents/rejected/uploaders")
 def list_rejected_uploaders(
     group_id: int,
-    service: DocumentService = Depends(get_document_service),
+    service: DocumentReviewService = Depends(get_document_review_service),
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
@@ -397,7 +405,7 @@ def delete_document(
 def approve_document(
     group_id: int,
     doc_id: int,
-    service: DocumentService = Depends(get_document_service),
+    service: DocumentReviewService = Depends(get_document_review_service),
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
@@ -410,7 +418,7 @@ def reject_document(
     group_id: int,
     doc_id: int,
     payload: DocumentRejectRequest,
-    service: DocumentService = Depends(get_document_service),
+    service: DocumentReviewService = Depends(get_document_review_service),
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
