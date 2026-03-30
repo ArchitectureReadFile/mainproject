@@ -10,6 +10,7 @@ from services.summary.summary_mapper import (
     build_summary_preview,
     get_summary_field,
 )
+from tasks.group_document_task import index_approved_document
 
 
 class DocumentReviewService:
@@ -105,8 +106,6 @@ class DocumentReviewService:
             reviewed_at=utc_now_naive(),
         )
         self.review_repository.db.commit()
-
-        from tasks.group_document_task import index_approved_document
 
         index_approved_document.delay(doc.id)
 

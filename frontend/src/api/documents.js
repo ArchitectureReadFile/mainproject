@@ -1,41 +1,10 @@
 import client from './client'
 
-export async function fetchDocuments({
-  skip = 0,
-  limit = 5,
-  keyword = '',
-  status = '',
-  viewType = 'my',
-  category = '전체',
-  groupId,
-}) {
-  const { data } = await client.get('/documents', {
-    params: {
-      skip,
-      limit,
-      keyword,
-      status,
-      view_type: viewType,
-      category,
-      ...(groupId ? { group_id: groupId } : {}),
-    },
-  })
-  return data
-}
-
-export async function fetchDocumentDetail(id) {
-  const { data } = await client.get(`/documents/${id}`)
-  return data
-}
-
-export async function deleteDocument(id) {
-  await client.delete(`/documents/${id}`)
-}
-
 export async function downloadSummaryPdf(summaryId, caseNumber, summaryTitle) {
   const response = await client.get(`/summaries/${summaryId}/download`, {
     responseType: 'blob',
   })
+
   const url = window.URL.createObjectURL(new window.Blob([response.data]))
   const link = document.createElement('a')
   link.href = url
