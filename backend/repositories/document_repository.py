@@ -182,6 +182,13 @@ class DocumentRepository:
         document.deleted_by_user_id = user_id
         self.db.commit()
 
+    def restore_document(self, document: Document) -> None:
+        document.lifecycle_status = DocumentLifecycleStatus.ACTIVE
+        document.delete_requested_at = None
+        document.delete_scheduled_at = None
+        document.deleted_by_user_id = None
+        self.db.commit()
+
     def get_deleted_list(
         self,
         skip,

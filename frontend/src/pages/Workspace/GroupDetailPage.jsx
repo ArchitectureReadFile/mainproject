@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
 import { UploadProvider } from '@/features/upload/context/UploadContext'
 import ApprovalsTab from '@/pages/Workspace/ApprovalsTab'
+import TrashTab from '@/pages/Workspace/TrashTab'
 
 
 // 역할별 허용 탭
@@ -643,6 +644,7 @@ export default function GroupDetailPage() {
         setActiveTab(tab)
         const newParams = new URLSearchParams(searchParams)
         newParams.set("tab", tab)
+        newParams.set("page", "1")
 
         setSearchParams(newParams)
     }
@@ -749,7 +751,7 @@ export default function GroupDetailPage() {
             {activeTab === 'documents' && (<DocumentsTab group={group} />
             )}
             {activeTab === 'approvals' && <ApprovalsTab group={group} />}
-            {activeTab === 'trash'     && <div>휴지통 섹션</div>}
+            {activeTab === 'trash' && <TrashTab group={group} />}
             {activeTab === 'members'   && (
                 <TooltipProvider>
                     <MembersTab group={group} setGroup={setGroup}/>

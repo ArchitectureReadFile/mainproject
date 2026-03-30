@@ -256,6 +256,20 @@ def delete_document(
     service.delete_document(doc_id, current_user.id, group_id)
 
 
+@router.post(
+    "/{group_id}/documents/{doc_id}/restore", status_code=status.HTTP_204_NO_CONTENT
+)
+def restore_document(
+    group_id: int,
+    doc_id: int,
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group_service.assert_view_permission(current_user.id, group_id)
+    service.restore_document(doc_id, current_user.id, group_id)
+
+
 @router.post("/{group_id}/documents/{doc_id}/approve")
 def approve_document(
     group_id: int,

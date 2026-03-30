@@ -170,6 +170,26 @@ class DocumentService:
 
         self.repository.delete_document(doc, user_id)
 
+    def restore_document(self, doc_id: int, user_id: int, group_id: int) -> None:
+        doc = self.repository.get_detail(doc_id)
+
+        if not doc:
+            raise AppException(ErrorCode.DOC_NOT_FOUND)
+
+        if doc.group_id != group_id:
+            raise AppException(ErrorCode.DOC_NOT_FOUND)
+
+        if doc.lifecycle_status != DocumentLifecycleStatus.DELETE_PENDING:
+            raise AppException(ErrorCode.DOC_NOT_DELETE_PENDING)
+
+        is_uploader = doc.uploader_user_id == user_id
+        is_group_admin = self.repository.is_group_admin(user_id, group_id)
+
+        if not (is_uploader or is_group_admin):
+            raise AppException(ErrorCode.AUTH_FORBIDDEN)
+
+        self.repository.restore_document(doc)
+
     def get_deleted_list(
         self,
         skip,
