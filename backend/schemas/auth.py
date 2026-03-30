@@ -33,6 +33,7 @@ class UserResponse(BaseModel):
     username: str
     role: str
     is_active: bool
+    is_toast_notification_enabled: bool
     created_at: datetime
 
 
@@ -61,3 +62,6 @@ class UpdateUsernameRequest(BaseModel):
     username: str = Field(
         ..., min_length=2, max_length=10
     )  # 빈 문자열 들어오는 것 방지
+
+class UpdateNotificationRequest(BaseModel):
+    is_toast_notification_enabled: bool

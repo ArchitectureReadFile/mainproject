@@ -17,7 +17,7 @@ export default function LandingPage() {
   useEffect(() => {
     const handleScroll = () => {
       const scrollY = window.scrollY;
-      const height = window.innerHeight - 72; // Header 높이 72px 기준
+      const height = window.innerHeight - 72; 
       const index = Math.min(Math.round(scrollY / height), 2);
       setCurrentSection(index);
     };

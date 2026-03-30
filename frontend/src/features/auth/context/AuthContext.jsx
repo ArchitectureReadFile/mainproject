@@ -65,6 +65,7 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       user,
+      setUser,
       isAuthenticated: !isBootstrapping && Boolean(user),
       isBootstrapping,
       login,
@@ -78,6 +79,7 @@ export function AuthProvider({ children }) {
     }),
     [
       user,
+      setUser,
       isBootstrapping,
       login,
       signup,

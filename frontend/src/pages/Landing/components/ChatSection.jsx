@@ -22,11 +22,32 @@ import { getMyGroups } from '../../../api/groups';
 import { useAuth } from '../../../features/auth';
 import { useChat } from '../../../features/chat/hooks/useChat';
 import { useChatSessions } from '../../../features/chat/hooks/useChatSessions';
+import { useSearchParams } from 'react-router-dom';
 
 export default function ChatSection() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { sessions, createRoom, updateRoom, deleteRoom, refreshRooms } = useChatSessions();
   const [activeSessionId, setActiveSessionId] = useState(null);
+
+  useEffect(() => {
+    const sessionId = searchParams.get('sessionId');
+    if (sessionId && sessions.length > 0) {
+      const targetId = parseInt(sessionId, 10);
+      if (sessions.some(s => s.id === targetId)) {
+        setActiveSessionId(targetId);
+        
+        const height = window.innerHeight - 72;
+        window.scrollTo({
+          top: height, 
+          behavior: 'smooth'
+        });
+
+        searchParams.delete('sessionId');
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [searchParams, sessions, setSearchParams]);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || null;
 
@@ -81,7 +102,16 @@ export default function ChatSection() {
   }, [user]);
 
   const handleCreateAndStart = async () => {
-    const newName = `새로운 상담 ${sessions.length + 1}`;
+     const maxNumber = sessions.reduce((max, session) => {
+      const match = session.title.match(/새로운 상담 (\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        return num > max ? num : max;
+      }
+      return max;
+    }, 0);
+
+    const newName = `새로운 상담 ${maxNumber + 1}`;
     const newRoom = await createRoom(newName);
     if (newRoom) setActiveSessionId(newRoom.id);
   };

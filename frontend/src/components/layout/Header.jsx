@@ -5,6 +5,7 @@ import { LogIn, Menu, Moon, Scale, Sun, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AuthModal, useAuth } from '../../features/auth/index.js'
+import NotificationBell from '../../features/notification/components/NotificationBell.jsx'
 import MenuDrawer from './MenuDrawer.jsx'
 
 export default function Header() {
@@ -79,6 +80,8 @@ export default function Header() {
             >
               {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </Button>
+
+            {showUserChip && <NotificationBell />}
 
             <Button
               variant="ghost"

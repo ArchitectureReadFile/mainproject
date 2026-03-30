@@ -26,3 +26,8 @@ export const resetPassword = async (email, newPassword) => {
   const response = await client.post('/auth/reset-password', { email, new_password: newPassword })
   return response.data
 }
+
+export const updateNotificationSettings = async (isToastNotificationEnabled) => {
+  const response = await client.patch('/auth/notification', { is_toast_notification_enabled: isToastNotificationEnabled })
+  return response.data
+}

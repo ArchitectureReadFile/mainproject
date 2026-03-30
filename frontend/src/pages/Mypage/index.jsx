@@ -1,223 +1,227 @@
-import client from '@/api/client'
-import { Button } from '@/components/ui/Button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
-import { ConfirmModal } from '@/components/ui/confirm-modal'
-import { Input } from '@/components/ui/Input'
-import { Calendar, LogOut, Mail, Users } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { Shield, User, Mail, AlertTriangle, Bell, BellRing } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useAuth } from '../../features/auth'
+import { updateNotificationSettings } from '../../features/auth/api/authApi'
 import { toast } from 'sonner'
-import { meApi } from '../../features/auth/api/authApi'
-import { getMyInvitations, acceptInvite, declineInvite } from '@/api/groups'
+import { cn } from '@/lib/utils'
 
+export default function Mypage() {
+  const { user, setUser } = useAuth()
+  const [activeTab, setActiveTab] = useState("profile")
+  const [isToastEnabled, setIsToastEnabled] = useState(user?.is_toast_notification_enabled ?? true)
+  const [isUpdating, setIsUpdating] = useState(false)
 
-export default function MypagePage() {
-  const navigate = useNavigate()
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState(false)
-  const [username, setUsername] = useState('')
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const inputRef = useRef(null)
-  const [invitations, setInvitations] = useState([])
-  const [inviteError, setInviteError] = useState(null)
-  const [inviteLoading, setInviteLoading] = useState(true)
+  useEffect(() => {
+    if (user) {
+      setIsToastEnabled(user.is_toast_notification_enabled)
+    }
+  }, [user])
 
-  const fetchUser = useCallback(async () => {
+  const handleNotificationToggle = async (checked) => {
     try {
-      const data = await meApi()
-      setUser(data)
-      setUsername(data.username)
-    } catch (e) {
-      toast.error(e.message || '사용자 정보를 불러오지 못했습니다.')
-      navigate('/')
+      setIsUpdating(true)
+      const updatedUser = await updateNotificationSettings(checked)
+      setIsToastEnabled(checked)
+      setUser(updatedUser)
+      toast.success(checked ? '실시간 토스트 알림이 활성화되었습니다.' : '실시간 토스트 알림이 비활성화되었습니다.')
+    } catch (error) {
+      console.error('Failed to update notification settings:', error)
+      toast.error('알림 설정 업데이트에 실패했습니다.')
+      setIsToastEnabled(!checked)
     } finally {
-      setLoading(false)
-    }
-  }, [navigate])
-
-  useEffect(() => { fetchUser() }, [fetchUser])
-
-  const fetchInvitations = useCallback(async () => {
-      try {
-          const data = await getMyInvitations()
-          setInvitations(data)
-      } catch (e) {
-          setInviteError(e.message || '초대 목록을 불러오지 못했습니다.')
-      } finally {
-          setInviteLoading(false)
-      }
-  }, [])
-
-  useEffect(() => { fetchInvitations() }, [fetchInvitations])
-
-  const handleAccept = async (groupId) => {
-    try {
-      await acceptInvite(groupId)
-      setInvitations((prev) => prev.filter((i) => i.group_id !== groupId))
-      toast.success("초대를 수락했습니다.")
-    } catch (e) {
-      toast.error(e.message || "수락에 실패했습니다.")
+      setIsUpdating(false)
     }
   }
 
-  const handleDecline = async (groupId) => {
-    try {
-      await declineInvite(groupId)
-      setInvitations((prev) => prev.filter((i) => i.group_id !== groupId))
-      toast.success("초대를 거절했습니다.")
-    } catch (e) {
-      toast.error(e.message || "거절에 실패했습니다.")
+  const handleWithdrawal = () => {
+    if (window.confirm("정말로 탈퇴하시겠습니까? 모든 데이터가 영구적으로 삭제되며 복구할 수 없습니다.")) {
+      toast.error("회원 탈퇴 기능은 현재 준비 중입니다.")
     }
   }
-
-
-  const handleUpdateUsername = async () => {
-    try {
-      const res = await client.patch('/auth/username', { username })
-      setUser((prev) => ({ ...prev, username: res.data.username }))
-      setEditing(false)
-      toast.success('이름이 변경되었습니다.')
-    } catch {
-      toast.error('이름 변경 실패')
-    }
-  }
-
-  const handleDeleteConfirm = async () => {
-    try {
-      await client.delete('/auth/delete')
-      toast.success('회원탈퇴가 완료되었습니다.')
-      localStorage.clear()
-      navigate('/')
-      window.location.reload()
-    } catch {
-      toast.error('회원탈퇴 실패')
-      setShowDeleteModal(false)
-    }
-  }
-
-  if (loading || !user) return (
-    <div className="p-8 text-center text-muted-foreground">Loading...</div>
-  )
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-10 flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold">프로필</h1>
-        <p className="text-muted-foreground text-sm mt-1">계정 정보를 확인하고 관리하세요</p>
-      </div>
-
-      {/* 기본 정보 */}
-      <Card>
-        <CardContent className="pt-6 flex flex-col gap-4">
-          <div>
-            {editing ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  ref={inputRef}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleUpdateUsername() }}
-                  className="text-lg font-semibold max-w-[200px]"
-                  autoFocus
-                />
-                <Button size="sm" onClick={handleUpdateUsername}>저장</Button>
-                <Button size="sm" variant="outline" onClick={() => { setUsername(user.username); setEditing(false) }}>취소</Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-semibold">{user.username}</h2>
-                <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-                  이름 수정
-                </Button>
-              </div>
-            )}
+    <div className="max-w-[1000px] mx-auto px-6 py-12">
+      <div className="flex flex-col md:flex-row gap-8 items-start">
+        <div className="w-full md:w-64 space-y-6 shrink-0">
+          <div className="p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm flex flex-col items-center text-center transition-colors">
+            <div className="w-20 h-24 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center mb-4">
+              <User size={40} className="text-blue-600 dark:text-blue-400" />
+            </div>
+            <h2 className="text-xl font-black text-zinc-900 dark:text-zinc-100">{user?.username}</h2>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">{user?.email}</p>
+            <Badge variant="secondary" className="px-3 py-1 font-bold dark:bg-zinc-800 dark:text-zinc-300">
+              {user?.role === 'ADMIN' ? '관리자 계정' : '일반 회원'}
+            </Badge>
           </div>
 
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <Mail className="w-4 h-4 shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">이메일</p>
-                <p className="text-foreground">{user.email}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <Calendar className="w-4 h-4 shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">가입일</p>
-                <p className="text-foreground">{new Date(user.created_at).toLocaleDateString()}</p>
-              </div>
-            </div>
+          <div className="space-y-1">
+            <Button 
+              variant="ghost" 
+              onClick={() => setActiveTab("profile")}
+              className={cn(
+                "w-full justify-start gap-3 rounded-xl font-bold h-12 transition-all",
+                activeTab === "profile" 
+                  ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400" 
+                  : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800"
+              )}
+            >
+              <User size={18} /> 계정 정보
+            </Button>
+            <Button 
+              variant="ghost" 
+              onClick={() => setActiveTab("notification")}
+              className={cn(
+                "w-full justify-start gap-3 rounded-xl font-bold h-12 transition-all",
+                activeTab === "notification" 
+                  ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400" 
+                  : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800"
+              )}
+            >
+              <Bell size={18} /> 알림 설정
+            </Button>
+            <Button 
+              variant="ghost" 
+              onClick={() => setActiveTab("security")}
+              className={cn(
+                "w-full justify-start gap-3 rounded-xl font-bold h-12 transition-all",
+                activeTab === "security" 
+                  ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400" 
+                  : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800"
+              )}
+            >
+              <Shield size={18} /> 보안 및 인증
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* 초대 목록 */}
-      {inviteError && (
-          <Card>
-              <CardContent className="pt-6 text-sm text-destructive">{inviteError}</CardContent>
-          </Card>
-      )}
-      {inviteLoading ? null : invitations.length > 0 && (
-          <Card>
-              <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                      <Users className="w-4 h-4" />
-                      받은 초대
-                  </CardTitle>
-                  <CardDescription>워크스페이스 초대 요청입니다.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                  {invitations.map((inv) => (
-                      <div key={inv.group_id} className="flex items-center justify-between rounded-lg border p-3">
-                          <div>
-                              <p className="text-sm font-medium">{inv.group_name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                  {inv.owner_username} · {inv.role}
-                                  {inv.invited_at && ` · ${new Date(inv.invited_at).toLocaleDateString('ko-KR')}`}
-                              </p>
-                          </div>
-                          <div className="flex gap-2">
-                              <Button size="sm" onClick={() => handleAccept(inv.group_id)}>
-                                  수락
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={() => handleDecline(inv.group_id)}>
-                                  거절
-                              </Button>
-                          </div>
+        <div className="flex-1 w-full min-h-[500px]">
+          <Tabs value={activeTab} className="w-full">
+            <TabsContent value="profile" className="mt-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+              <Card className="border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm bg-white dark:bg-zinc-900 transition-colors">
+                <CardHeader>
+                  <CardTitle className="text-xl font-black dark:text-zinc-100">기본 정보</CardTitle>
+                  <CardDescription className="dark:text-zinc-400">계정의 기본 정보를 확인하고 수정할 수 있습니다.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid gap-2">
+                    <Label htmlFor="username" className="font-bold text-zinc-700 dark:text-zinc-300">사용자 이름</Label>
+                    <div className="flex gap-2">
+                      <Input id="username" defaultValue={user?.username} className="rounded-xl border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
+                      <Button variant="outline" className="rounded-xl font-bold px-6 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800 dark:bg-zinc-800/50">수정</Button>
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="email" className="font-bold text-zinc-700 dark:text-zinc-300">이메일 주소</Label>
+                    <div className="flex items-center gap-3 px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 rounded-xl">
+                      <Mail size={16} className="text-zinc-400" />
+                      <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">{user?.email}</span>
+                      <Badge className="ml-auto bg-emerald-500/10 text-emerald-600 border-none dark:bg-emerald-500/20 dark:text-emerald-400 pointer-events-none">인증됨</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="notification" className="mt-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+              <Card className="border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm bg-white dark:bg-zinc-900 transition-colors">
+                <CardHeader>
+                  <CardTitle className="text-xl font-black dark:text-zinc-100">알림 수신 설정</CardTitle>
+                  <CardDescription className="dark:text-zinc-400">실시간 답변 알림 및 서비스 소식을 관리합니다.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                    <div className="flex gap-4 items-start">
+                      <div className="w-10 h-10 bg-white dark:bg-zinc-700 rounded-xl flex items-center justify-center shadow-sm shrink-0">
+                        <BellRing size={20} className="text-blue-600 dark:text-blue-400" />
                       </div>
-                  ))}
-              </CardContent>
-          </Card>
-      )}
+                      <div>
+                        <Label className="text-base font-bold text-zinc-900 dark:text-zinc-100">실시간 토스트 알림</Label>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">AI 답변이 완료되거나 중요 소식이 있을 때 화면 우측 하단에 알림을 띄웁니다.</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant={isToastEnabled ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleNotificationToggle(!isToastEnabled)}
+                      disabled={isUpdating}
+                      className={cn(
+                        "rounded-xl font-bold px-6 h-9 transition-all",
+                        isToastEnabled 
+                          ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-100 dark:shadow-none dark:bg-blue-600 dark:hover:bg-blue-700" 
+                          : "text-zinc-500 border-zinc-200 dark:text-zinc-200 dark:border-zinc-600 dark:bg-zinc-800/50 dark:hover:bg-zinc-800"
+                      )}
+                    >
+                      {isToastEnabled ? '활성화됨' : '비활성'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-      {/* 계정 설정 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>계정 설정</CardTitle>
-          <CardDescription>계정 및 보안 관리</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            variant="destructive"
-            className="w-full gap-2"
-            onClick={() => setShowDeleteModal(true)}
-          >
-            <LogOut className="w-4 h-4" />
-            회원탈퇴
-          </Button>
-        </CardContent>
-      </Card>
+            <TabsContent value="security" className="mt-0 space-y-12 animate-in fade-in slide-in-from-right-4 duration-300">
+              <Card className="border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm bg-white dark:bg-zinc-900 transition-colors">
+                <CardHeader>
+                  <CardTitle className="text-xl font-black dark:text-zinc-100">비밀번호 변경</CardTitle>
+                  <CardDescription className="dark:text-zinc-400">보안을 위해 비밀번호를 주기적으로 변경하는 것을 권장합니다.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-2">
+                    <Label className="font-bold text-zinc-700 dark:text-zinc-300">현재 비밀번호</Label>
+                    <Input type="password" placeholder="현재 비밀번호 입력" className="rounded-xl dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label className="font-bold text-zinc-700 dark:text-zinc-300">새 비밀번호</Label>
+                    <Input type="password" placeholder="새 비밀번호 입력" className="rounded-xl dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
+                  </div>
+                  <div className="flex justify-center pt-2">
+                    <Button variant="outline" className="rounded-xl font-bold px-6 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800 dark:bg-zinc-800/50">
+                      비밀번호 업데이트
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
 
-      <ConfirmModal
-        open={showDeleteModal}
-        message={'정말로 회원탈퇴를 하시겠습니까?\n탈퇴 후 계정 정보는 복구할 수 없습니다.'}
-        confirmLabel="탈퇴하기"
-        cancelLabel="취소"
-        onConfirm={handleDeleteConfirm}
-        onCancel={() => setShowDeleteModal(false)}
-      />
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 px-2">
+                  <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">위험 구역</span>
+                  <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+                </div>
+                
+                <Card className="border-red-200 dark:border-red-900/20 rounded-2xl shadow-sm overflow-hidden border bg-white dark:bg-zinc-900">
+                  <div className="p-6 bg-red-50/30 dark:bg-red-900/10 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+                    <div className="flex flex-col md:flex-row gap-4 items-center md:items-start">
+                      <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center shrink-0">
+                        <AlertTriangle size={24} className="text-red-600 dark:text-red-500" />
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-black text-red-600 dark:text-red-500 mb-1">회원 탈퇴</h4>
+                        <p className="text-sm text-red-500/80 dark:text-red-400/80 leading-relaxed font-medium">
+                          계정을 삭제하면 모든 상담 내역, 업로드한 문서, 그리고 개인 정보가 <br className="hidden md:block" />
+                          <strong className="dark:text-red-400">영구적으로 삭제</strong>되며 절대 복구할 수 없습니다.
+                        </p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="destructive" 
+                      onClick={handleWithdrawal}
+                      className="rounded-xl font-black px-8 h-12 shadow-lg shadow-red-100 dark:shadow-none bg-red-500 hover:bg-red-600 transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0"
+                    >
+                      탈퇴하기
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
     </div>
   )
 }
