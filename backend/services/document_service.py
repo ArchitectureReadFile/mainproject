@@ -219,12 +219,21 @@ class DocumentService:
         limit: int,
         keyword: str,
         group_id: int,
+        uploader: str = "",
+        assignee_type: str = "all",
+        current_user_id: int | None = None,
     ) -> tuple[list[PendingDocumentListItemResponse], int]:
-        """그룹 내 승인 대기 문서 전체 조회"""
+        """그룹 내 승인 대기 문서 전체 조회(목록용)"""
         limit = min(limit, 50)
 
         documents, total = self.repository.get_pending_list(
-            skip, limit, keyword, group_id
+            skip,
+            limit,
+            keyword,
+            group_id,
+            uploader,
+            assignee_type,
+            current_user_id,
         )
 
         results: list[PendingDocumentListItemResponse] = []
@@ -253,6 +262,10 @@ class DocumentService:
             )
 
         return results, total
+
+    def get_pending_uploaders(self, group_id: int) -> list[str]:
+        """그룹 내 승인 대기 문서 작성자 목록 조회(필터용)"""
+        return self.repository.get_pending_uploaders(group_id)
 
     def approve_document(self, doc_id: int, user_id: int, group_id: int):
         """승인"""
@@ -323,8 +336,9 @@ class DocumentService:
         keyword: str,
         group_id: int,
         reviewer_user_id: int,
+        uploader: str = "",
     ) -> tuple[list[ReviewedDocumentListItemResponse], int]:
-        """그룹 내 내가 승인한 문서 조회"""
+        """그룹 내 내가 승인한 문서 조회(목록용)"""
         limit = min(limit, 50)
 
         documents, total = self.repository.get_approved_list(
@@ -333,6 +347,7 @@ class DocumentService:
             keyword,
             group_id,
             reviewer_user_id,
+            uploader,
         )
 
         results: list[ReviewedDocumentListItemResponse] = []
@@ -365,6 +380,10 @@ class DocumentService:
             )
 
         return results, total
+
+    def get_approved_uploaders(self, group_id: int, reviewer_user_id: int) -> list[str]:
+        """그룹 내 내가 승인한 문서 작성자 목록 조회(필터용)"""
+        return self.repository.get_approved_uploaders(group_id, reviewer_user_id)
 
     def get_rejected_list(
         self,
@@ -373,8 +392,9 @@ class DocumentService:
         keyword: str,
         group_id: int,
         reviewer_user_id: int,
+        uploader: str = "",
     ) -> tuple[list[ReviewedDocumentListItemResponse], int]:
-        """그룹 내 내가 반려한 문서 조회"""
+        """그룹 내 내가 반려한 문서 조회(목록용)"""
         limit = min(limit, 50)
 
         documents, total = self.repository.get_rejected_list(
@@ -383,6 +403,7 @@ class DocumentService:
             keyword,
             group_id,
             reviewer_user_id,
+            uploader,
         )
 
         results: list[ReviewedDocumentListItemResponse] = []
@@ -415,3 +436,7 @@ class DocumentService:
             )
 
         return results, total
+
+    def get_rejected_uploaders(self, group_id: int, reviewer_user_id: int) -> list[str]:
+        """그룹 내 내가 반려한 문서 작성자 목록 조회(필터용)"""
+        return self.repository.get_rejected_uploaders(group_id, reviewer_user_id)

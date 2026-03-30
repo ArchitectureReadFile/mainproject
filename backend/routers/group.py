@@ -235,6 +235,8 @@ def list_pending_documents(
     skip: int = 0,
     limit: int = 5,
     keyword: str = "",
+    uploader: str = "",
+    assignee_type: str = "all",
     service: DocumentService = Depends(get_document_service),
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
@@ -245,9 +247,25 @@ def list_pending_documents(
         limit,
         keyword,
         group_id,
+        uploader,
+        assignee_type,
+        current_user.id,
     )
 
     return {"items": items, "total": total}
+
+
+@router.get("/{group_id}/documents/pending/uploaders")
+def list_pending_uploaders(
+    group_id: int,
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group_service.assert_review_permission(current_user.id, group_id)
+    items = service.get_pending_uploaders(group_id)
+
+    return {"items": items}
 
 
 @router.get("/{group_id}/documents/approved")
@@ -256,6 +274,7 @@ def list_approved_documents(
     skip: int = 0,
     limit: int = 10,
     keyword: str = "",
+    uploader: str = "",
     service: DocumentService = Depends(get_document_service),
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
@@ -267,9 +286,23 @@ def list_approved_documents(
         keyword,
         group_id,
         current_user.id,
+        uploader,
     )
 
     return {"items": items, "total": total}
+
+
+@router.get("/{group_id}/documents/approved/uploaders")
+def list_approved_uploaders(
+    group_id: int,
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group_service.assert_review_permission(current_user.id, group_id)
+    items = service.get_approved_uploaders(group_id, current_user.id)
+
+    return {"items": items}
 
 
 @router.get("/{group_id}/documents/rejected")
@@ -278,6 +311,7 @@ def list_rejected_documents(
     skip: int = 0,
     limit: int = 10,
     keyword: str = "",
+    uploader: str = "",
     service: DocumentService = Depends(get_document_service),
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
@@ -289,9 +323,23 @@ def list_rejected_documents(
         keyword,
         group_id,
         current_user.id,
+        uploader,
     )
 
     return {"items": items, "total": total}
+
+
+@router.get("/{group_id}/documents/rejected/uploaders")
+def list_rejected_uploaders(
+    group_id: int,
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group_service.assert_review_permission(current_user.id, group_id)
+    items = service.get_rejected_uploaders(group_id, current_user.id)
+
+    return {"items": items}
 
 
 @router.get("/{group_id}/documents/deleted")
