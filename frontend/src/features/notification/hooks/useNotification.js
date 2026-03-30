@@ -105,7 +105,7 @@ export const useNotification = () => {
     if (!n.is_read) markAsRead(n.id)
 
     if (n.target_type === 'chat') {
-      navigate('/', { state: { openSessionId: n.target_id } })
+      navigate(`/?sessionId=${n.target_id}`)
     } else if (n.target_type === 'group' && n.target_id) {
       navigate(`/workspace/${n.target_id}`)
     }
