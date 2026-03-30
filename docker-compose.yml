@@ -1,10 +1,11 @@
 x-backend-common: &backend-common
-  image: python:3.11-slim
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
   restart: unless-stopped
   working_dir: /app
   volumes:
     - ./backend:/app
-    - backend_pip_cache:/root/.cache/pip
   env_file:
     - ./backend/.env
   environment:
@@ -43,7 +44,7 @@ services:
     container_name: backend_container
     ports:
       - "8000:8000"
-    command: sh -c "apt-get update && apt-get install -y --no-install-recommends default-jre-headless && rm -rf /var/lib/apt/lists/* && pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   db:
     image: mariadb:10.11
@@ -142,7 +143,7 @@ services:
   celery_worker:
     <<: *backend-common
     container_name: celery_worker_container
-    command: sh -c "apt-get update && apt-get install -y --no-install-recommends default-jre-headless && rm -rf /var/lib/apt/lists/* && pip install -r requirements.txt && celery -A celery_app worker --loglevel=info --concurrency=1"
+    command: celery -A celery_app worker --loglevel=info --concurrency=1
 
 
 volumes:
@@ -152,4 +153,3 @@ volumes:
   qdrant_data:
   frontend_node_modules:
   frontend_npm_cache:
-  backend_pip_cache:

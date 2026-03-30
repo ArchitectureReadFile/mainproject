@@ -106,6 +106,9 @@ uvicorn main:app --reload
 # 개발 도구 설치
 pip install -r backend/requirements-dev.txt --break-system-packages
 
+# pre-commit 설치
+pip install pre-commit
+
 # pre-commit hook 등록 (프로젝트 루트에서)
 pre-commit install
 ```

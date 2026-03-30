@@ -366,13 +366,45 @@ def delete_document(document_id: int) -> None:
     )
 
 
-def search_documents(query: str, group_id: int, top_k: int = 5) -> list[dict]:
+def search_documents(
+    query: str,
+    group_id: int,
+    top_k: int = 5,
+    document_ids: list[int] | None = None,
+) -> list[dict]:
     """
-    그룹 문서 corpus BM25 검색. 캐시 재사용 + group_id 범위 필터링.
-    small-group fallback 포함.
+    그룹 문서 corpus BM25 검색.
+
+    document_ids 가 None 이면 group_id 전체 범위 검색 (mode="all").
+    document_ids 가 있으면 group_id ∩ document_ids whitelist 범위만 검색 (mode="documents").
+
+    fail-closed:
+        document_ids=[] 같은 빈 리스트는 parser 단계에서 이미 막혀 있으므로
+        이 함수에 도달할 때는 None 또는 non-empty list 중 하나다.
+        그러나 방어적으로 빈 리스트가 오면 빈 결과를 반환한다.
     """
     r = _get_redis()
-    allowed_ids = r.smembers(f"{_GID_KEY_PREFIX}{group_id}")
+
+    # group_id 범위 집합
+    group_allowed = r.smembers(f"{_GID_KEY_PREFIX}{group_id}")
+    if not group_allowed:
+        return []
+
+    if document_ids is not None:
+        if not document_ids:
+            # 방어 코드: 빈 whitelist → fallback 없이 즉시 반환
+            logger.warning(
+                "[bm25_store] search_documents: document_ids 빈 리스트 → 빈 결과 반환"
+            )
+            return []
+
+        # document_ids whitelist: 각 did Set을 union → group_allowed와 intersection
+        doc_keys = [f"{_DID_KEY_PREFIX}{did}" for did in document_ids]
+        doc_allowed = r.sunion(*doc_keys)  # type: ignore[arg-type]
+        allowed_ids = group_allowed & doc_allowed
+    else:
+        allowed_ids = group_allowed
+
     if not allowed_ids:
         return []
 
@@ -382,7 +414,9 @@ def search_documents(query: str, group_id: int, top_k: int = 5) -> list[dict]:
         return hits
 
     logger.debug(
-        "BM25 결과 없음 (small-group), lexical fallback 실행: group_id=%s", group_id
+        "BM25 결과 없음 (small-group), lexical fallback 실행: group_id=%s document_ids=%s",
+        group_id,
+        document_ids,
     )
     return _fallback_lexical_search(query, _D_DOCS_KEY, allowed_ids, top_k)
 

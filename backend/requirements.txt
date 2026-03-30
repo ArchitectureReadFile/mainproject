@@ -2,7 +2,7 @@
 fastapi==0.115.12
 pydantic==2.11.1
 uvicorn[standard]==0.34.0
-python-multipart==0.0.20
+python-multipart==0.0.22
 
 sqlalchemy==2.0.40
 pymysql==1.1.1
@@ -31,6 +31,12 @@ torch==2.7.0
 qdrant-client==1.13.3
 rank_bm25==0.2.2
 soynlp==0.0.493
+
+# OCR dependencies (subprocess-per-page 방식, paddlepaddle은 Dockerfile에서 선설치)
+paddleocr==3.3.2
+paddlepaddle==3.2.0
+pypdfium2==4.30.0
+Pillow
 
 # Test dependencies
 pytest==8.3.5

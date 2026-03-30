@@ -16,6 +16,10 @@ class AppException(Exception):
         self.message = error_code.message
         super().__init__(self.message)
 
+    def __reduce__(self):
+        # Celery worker processes may need to pickle/unpickle task exceptions.
+        return (self.__class__, (self.error_code,))
+
     def to_http_exception(self) -> HTTPException:
         return HTTPException(
             status_code=self.status_code,
