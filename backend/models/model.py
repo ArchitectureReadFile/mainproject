@@ -132,6 +132,7 @@ class User(Base):
     updated_at = Column(
         DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
     )
+    deactivated_at = Column(DateTime, nullable=True)
 
     documents = relationship(
         "Document",
