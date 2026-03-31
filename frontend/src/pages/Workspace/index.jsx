@@ -1,7 +1,14 @@
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardFooter, CardHeader } from '@/components/ui/Card'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Textarea } from '@/components/ui/Textarea'
@@ -137,6 +144,9 @@ function CreateGroupDialog({ open, onClose, onCreated }) {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>워크스페이스 생성</DialogTitle>
+          <DialogDescription>
+            워크스페이스 이름과 설명을 입력해 새 작업 공간을 생성하세요.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 py-2">

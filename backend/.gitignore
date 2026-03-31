@@ -20,3 +20,6 @@ uploads/
 # RAG 벡터 데이터
 .model_cache/
 services/rag/chroma_data/
+
+# 런타임 산출물
+backend/celerybeat-schedule
