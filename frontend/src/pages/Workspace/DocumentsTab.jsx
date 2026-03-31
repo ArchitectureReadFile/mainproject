@@ -13,6 +13,25 @@ const STATUS_LABEL = {
     FAILED: { text: '실패', color: 'text-destructive' },
 }
 
+const APPROVAL_STATUS_LABEL = {
+    PENDING_REVIEW: {
+        text: '승인 대기',
+        className: 'bg-amber-50 text-amber-700 border border-amber-200',
+    },
+    REJECTED: {
+        text: '반려',
+        className: 'bg-red-50 text-red-700 border border-red-200',
+    },
+}
+
+const STATUS_FILTER_OPTIONS = [
+    { value: 'all', label: '전체 상태' },
+    { value: 'DONE', label: '완료' },
+    { value: 'PROCESSING', label: '처리 중' },
+    { value: 'PENDING', label: '대기' },
+    { value: 'FAILED', label: '실패' },
+]
+
 const LIMIT = 5
 const POLLING_INTERVAL = 5000
 
@@ -23,6 +42,7 @@ export default function DocumentsTab({ group }) {
     const page = Number(searchParams.get('page') || '1')
     const viewType = searchParams.get('view_type') || 'all'
     const query = searchParams.get('keyword') || ''
+    const statusFilter = searchParams.get('status') || 'all'
 
     const [keyword, setKeyword] = useState(query)
     const [items, setItems] = useState([])
@@ -33,7 +53,13 @@ export default function DocumentsTab({ group }) {
     const skip = (page - 1) * LIMIT
 
 
-    const load = useCallback(async (nextPage = page, kw = query, vt = viewType, showLoading = true) => {
+    const load = useCallback(async (
+        nextPage = page, 
+        kw = query, 
+        vt = viewType, 
+        st = statusFilter,
+        showLoading = true
+    ) => {
         if (showLoading) {
             setLoading(true)
         }
@@ -45,6 +71,7 @@ export default function DocumentsTab({ group }) {
                 limit: LIMIT,
                 keyword: kw,
                 viewType: vt,
+                status: st === 'all' ? '' : st,
             })
 
             setItems(documentsRes.items)
@@ -56,7 +83,7 @@ export default function DocumentsTab({ group }) {
                 setLoading(false)
             }
         }
-    }, [group.id, page, query, viewType])
+    }, [group.id, page, query, viewType, statusFilter])
 
 
     useEffect(() => {
@@ -72,11 +99,11 @@ export default function DocumentsTab({ group }) {
         if (!hasProcessingItems) return
 
         const timerId = window.setInterval(() => {
-            load(page, query, viewType, false)
+            load(page, query, viewType, statusFilter, false)
         }, POLLING_INTERVAL)
 
         return () => window.clearInterval(timerId)
-    }, [items, load, page, query, viewType])
+    }, [items, load, page, query, viewType, statusFilter])
 
 
 
@@ -86,6 +113,7 @@ export default function DocumentsTab({ group }) {
             page: '1',
             keyword,
             view_type: viewType,
+            status: statusFilter,
         })
     }
 
@@ -96,9 +124,19 @@ export default function DocumentsTab({ group }) {
             page: '1',
             keyword: query,
             view_type: nextViewType,
+            status: statusFilter,
         })
     }
 
+    const handleStatusFilterChange = (nextStatus) => {
+        setSearchParams({
+            tab: 'documents',
+            page: '1',
+            keyword: query,
+            view_type: viewType,
+            status: nextStatus,
+        })
+    }
 
     const movePage = (nextPage) => {
         setSearchParams({
@@ -106,6 +144,7 @@ export default function DocumentsTab({ group }) {
             page: String(nextPage),
             keyword: query,
             view_type: viewType,
+            status: statusFilter,
         })
     }
 
@@ -129,42 +168,67 @@ export default function DocumentsTab({ group }) {
 
     return (
         <div className="space-y-4 max-w-3xl mx-auto">
-            <div className="flex items-center gap-2">
-                <div className="flex rounded-md border overflow-hidden text-sm">
-                    <button
-                        onClick={() => handleViewTypeChange('all')}
-                        className={`px-3 py-1.5 transition-colors ${
-                            viewType === 'all'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'text-muted-foreground hover:bg-muted'
-                        }`}
-                    >
-                        전체 문서
-                    </button>
-                    <button
-                        onClick={() => handleViewTypeChange('my')}
-                        className={`px-3 py-1.5 transition-colors border-l ${
-                            viewType === 'my'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'text-muted-foreground hover:bg-muted'
-                        }`}
-                    >
-                        내 문서
-                    </button>
+            <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                    <div className="flex rounded-md border overflow-hidden text-sm">
+                        <button
+                            onClick={() => handleViewTypeChange('all')}
+                            className={`px-3 py-1.5 transition-colors ${
+                                viewType === 'all'
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'text-muted-foreground hover:bg-muted'
+                            }`}
+                        >
+                            전체 문서
+                        </button>
+                        <button
+                            onClick={() => handleViewTypeChange('my')}
+                            className={`px-3 py-1.5 transition-colors border-l ${
+                                viewType === 'my'
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'text-muted-foreground hover:bg-muted'
+                            }`}
+                        >
+                            내 문서
+                        </button>
+                    </div>
+
+                    <div className="flex flex-1 gap-2">
+                        <Input
+                            placeholder="문서명 검색"
+                            value={keyword}
+                            onChange={(e) => setKeyword(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                        />
+                        <Button variant="outline" onClick={handleSearch}>
+                            <Search className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
 
-                <div className="flex flex-1 gap-2">
-                    <Input
-                        placeholder="문서명 검색"
-                        value={keyword}
-                        onChange={(e) => setKeyword(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    />
-                    <Button variant="outline" onClick={handleSearch}>
-                        <Search className="h-4 w-4" />
-                    </Button>
+                <div className="flex rounded-md border overflow-hidden text-sm w-fit">
+                    {STATUS_FILTER_OPTIONS.map((option) => (
+                        <button
+                            key={option.value}
+                            onClick={() => handleStatusFilterChange(option.value)}
+                            className={`px-3 py-1.5 transition-colors border-l first:border-l-0 ${
+                                statusFilter === option.value
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'text-muted-foreground hover:bg-muted'
+                            }`}
+                        >
+                            {option.label}
+                        </button>
+                    ))}
                 </div>
             </div>
+            {group.my_role === 'EDITOR' && (
+                <div className="text-sm text-muted-foreground">
+                    {viewType === 'all'
+                        ? '전체 문서에는 승인 완료된 문서만 표시됩니다.'
+                        : '내 문서에서는 내가 업로드한 문서를 모두 확인할 수 있습니다. 승인 대기 및 반려 문서도 포함됩니다.'}
+                </div>
+            )}
 
             {loading ? (
                 <div className="flex justify-center py-16">
@@ -190,8 +254,7 @@ export default function DocumentsTab({ group }) {
                             <div
                                 key={doc.id}
                                 onClick={() => navigate(
-                                    `/workspace/${group.id}/documents/${doc.id}?tab=documents&page=${page}&keyword=${encodeURIComponent(query)}&view_type=${viewType}`
-
+                                    `/workspace/${group.id}/documents/${doc.id}?tab=documents&page=${page}&keyword=${encodeURIComponent(query)}&view_type=${viewType}&status=${statusFilter}`
                                 )}
                                 className="flex items-start justify-between px-5 py-4 cursor-pointer hover:bg-muted/50 transition-colors"
                             >
@@ -206,9 +269,22 @@ export default function DocumentsTab({ group }) {
                                         <span className="rounded-sm bg-muted px-2 py-0.5 text-foreground">
                                             {doc.document_type || '유형 없음'}
                                         </span>
+
+                                        {APPROVAL_STATUS_LABEL[doc.approval_status] && (
+                                            <span
+                                                className={`rounded-sm px-2 py-0.5 ${
+                                                    APPROVAL_STATUS_LABEL[doc.approval_status].className
+                                                }`}
+                                            >
+                                                {APPROVAL_STATUS_LABEL[doc.approval_status].text}
+                                            </span>
+                                        )}
+
+
                                         <span>업로더 {doc.uploader}</span>
                                         <span>업로드 {new Date(doc.created_at).toLocaleDateString('ko-KR')}</span>
                                     </div>
+
                                 </div>
                                 <span className={`text-xs font-medium shrink-0 ${status.color}`}>
                                     {status.text}

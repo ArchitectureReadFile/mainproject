@@ -156,6 +156,9 @@ export async function getPendingDocuments(
     return data
 }
 
+export async function restoreGroupDocument(groupId, docId) {
+  await client.post(`/groups/${groupId}/documents/${docId}/restore`)
+}
 
 export async function getPendingUploaders(groupId) {
   const { data } = await client.get(`/groups/${groupId}/documents/pending/uploaders`)
