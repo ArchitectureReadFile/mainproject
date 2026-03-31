@@ -5,14 +5,17 @@ import { Toaster } from 'sonner'
 import App from './App.jsx'
 import { TooltipProvider } from './components/ui/tooltip.jsx'
 import { AuthProvider } from './features/auth/index.js'
+import { NotificationProvider } from './features/notification/context/NotificationContext.jsx'
 
 createRoot(document.getElementById('root')).render(
   <BrowserRouter>
     <AuthProvider>
-      <TooltipProvider>
-        <App />
-        <Toaster position="top-right" richColors closeButton />
-      </TooltipProvider>
+      <NotificationProvider>
+        <TooltipProvider>
+          <App />
+          <Toaster position="top-right" richColors closeButton />
+        </TooltipProvider>
+      </NotificationProvider>
     </AuthProvider>
   </BrowserRouter>
 )

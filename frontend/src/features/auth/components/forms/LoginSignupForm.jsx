@@ -1,9 +1,12 @@
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { Info } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { getErrorMessageByCode } from '../../../../lib/errors'
 import { sendVerificationCode, verifyCode } from '../../api/emailApi.js'
+import { reactivateAccount } from '../../api/authApi.js'
 import { useAuth } from '../../context/AuthContext.jsx'
 
 const LOGIN_INIT = { email: '', password: '' }
@@ -22,6 +25,9 @@ export default function LoginSignupForm({ view, setView, onClose }) {
   const [loading, setLoading] = useState(false)
   const [emailVerify, setEmailVerify] = useState(EMAIL_VERIFY_INIT)
   const firstInputRef = useRef(null)
+
+  const [showReactivateModal, setShowReactivateModal] = useState(false)
+  const [pendingCredentials, setPendingCredentials] = useState(null)
 
   useEffect(() => {
     setForm(isLogin ? LOGIN_INIT : SIGNUP_INIT)
@@ -88,9 +94,25 @@ export default function LoginSignupForm({ view, setView, onClose }) {
       }
       onClose()
     } catch (err) {
-      setError(getErrorMessageByCode(err.code, err.message || '요청 처리 중 오류가 발생했습니다.'))
+      if (err.code === 'USER_010' || err.response?.data?.code === 'USER_010') {
+        setPendingCredentials({ email: form.email, password: form.password })
+        setShowReactivateModal(true)
+      } else {
+        setError(getErrorMessageByCode(err.code, err.message || '요청 처리 중 오류가 발생했습니다.'))
+      }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleReactivateConfirm = async () => {
+    if (!pendingCredentials) return
+    try {
+      await reactivateAccount(pendingCredentials)
+      window.location.reload()
+    } catch {
+      setError("계정 복구에 실패했습니다.")
+      setShowReactivateModal(false)
     }
   }
 
@@ -162,10 +184,10 @@ export default function LoginSignupForm({ view, setView, onClose }) {
             </div>
           )}
           {!isLogin && emailVerify.error && (
-            <p className="text-xs text-destructive">{emailVerify.error}</p>
+            <p className="text-sm font-bold text-red-500 dark:text-red-400">{emailVerify.error}</p>
           )}
           {!isLogin && emailVerify.success && (
-            <p className="text-xs text-success">{emailVerify.success}</p>
+            <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{emailVerify.success}</p>
           )}
         </div>
 
@@ -258,6 +280,29 @@ export default function LoginSignupForm({ view, setView, onClose }) {
           {isLogin ? '회원가입' : '로그인'}
         </button>
       </div>
+
+      <Dialog open={showReactivateModal} onOpenChange={setShowReactivateModal}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="w-5 h-5 text-blue-500" />
+              계정 탈퇴 대기 안내
+            </DialogTitle>
+            <DialogDescription className="py-2 leading-relaxed">
+              현재 탈퇴 대기 중인 계정입니다.<br />
+              로그인을 진행하시면 비활성화가 즉시 해제되며 회원탈퇴가 취소됩니다. 진행하시겠습니까?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0 mt-2">
+            <Button variant="outline" onClick={() => setShowReactivateModal(false)}>
+              취소
+            </Button>
+            <Button onClick={handleReactivateConfirm} className="bg-blue-600 hover:bg-blue-700 text-white">
+              복구 및 로그인
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

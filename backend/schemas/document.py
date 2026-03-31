@@ -36,6 +36,10 @@ class DocumentDetailResponse(BaseModel):
     key_points: list[str] = []
     metadata: dict = {}
     created_at: datetime
+    delete_requested_at: Optional[datetime] = None
+    delete_scheduled_at: Optional[datetime] = None
+    deleted_by: Optional[int] = None
+    deleted_by_username: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -65,3 +69,20 @@ class DocumentRejectRequest(BaseModel):
         if not v:
             raise ValueError("반려 사유는 공백만 입력할 수 없습니다.")
         return v
+
+
+class ReviewedDocumentListItemResponse(BaseModel):
+    id: int
+    summary_id: Optional[int] = None
+    title: str
+    preview: str
+    status: str
+    approval_status: str
+    document_type: Optional[str] = None
+    created_at: datetime
+    uploader: Optional[str] = None
+    assignee_user_id: Optional[int] = None
+    assignee_username: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    reviewer_username: Optional[str] = None
+    feedback: Optional[str] = None

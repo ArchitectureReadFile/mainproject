@@ -4,15 +4,18 @@ from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from redis import Redis
-from sqlalchemy.orm import Session
+from requests import Session
 
-from errors import AppException, ErrorCode
+from errors.error_codes import ErrorCode
+from errors.exceptions import AppException
 from models.model import Subscription, SubscriptionPlan, SubscriptionStatus, User
 from schemas.auth import (
     ConfirmAccountRequest,
     LoginRequest,
     ResetPasswordRequest,
     SignupRequest,
+    UpdateEmailRequest,
+    UpdatePasswordRequest,
     UserResponse,
 )
 
@@ -81,6 +84,8 @@ class AuthService:
 
         if not user.is_active:
             self._record_login_failure(redis_client, limit_key)
+            if user.deactivated_at is not None:
+                raise AppException(ErrorCode.USER_DEACTIVATE_PENDING)
             raise AppException(ErrorCode.USER_INACTIVE)
 
         self._clear_login_failures(redis_client, limit_key)
@@ -147,16 +152,112 @@ class AuthService:
 
         redis_client.delete(f"email_verified:{email}")
 
+    def deactivate_account(self, db: Session, redis_client: Redis, user_id: int):
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise AppException(ErrorCode.USER_NOT_FOUND)
+
+        if not redis_client.get(f"email_verified:{user.email}"):
+            raise AppException(ErrorCode.USER_EMAIL_NOT_VERIFIED)
+
+        user.is_active = False
+        user.deactivated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        db.commit()
+
+        redis_client.delete(f"email_verified:{user.email}")
+
+    def reactivate_account(
+        self, db: Session, redis_client: Redis, payload: LoginRequest, client_ip: str
+    ):
+        email = payload.email.strip().lower()
+        limit_key = f"{client_ip}:{email}"
+
+        self._check_login_rate_limit(redis_client, limit_key)
+
+        user = db.query(User).filter(User.email == email).first()
+        if not user or not self.verify_password(payload.password, user.password):
+            self._record_login_failure(redis_client, limit_key)
+            raise AppException(ErrorCode.USER_INVALID_CREDENTIALS)
+
+        user.is_active = True
+        user.deactivated_at = None
+        db.commit()
+
+        self._clear_login_failures(redis_client, limit_key)
+
+        access_token, refresh_token = self._issue_tokens(redis_client, email)
+        return self.to_user_response(user), access_token, refresh_token
+
     def update_username(
         self, db: Session, user_id: int, new_username: str
     ) -> UserResponse:
-        existing = db.query(User).filter(User.username == new_username).first()
-        if existing and existing.id != user_id:
-            raise AppException(ErrorCode.USER_USERNAME_ALREADY_EXISTS)
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise AppException(ErrorCode.USER_NOT_FOUND)
+
+        if new_username != user.username:
+            existing = db.query(User).filter(User.username == new_username).first()
+            if existing:
+                raise AppException(ErrorCode.USER_USERNAME_ALREADY_EXISTS)
+
+            user.username = new_username
+            db.commit()
+
+        return self.to_user_response(user)
+
+    def update_password(
+        self, db: Session, user_id: int, payload: UpdatePasswordRequest
+    ):
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise AppException(ErrorCode.USER_NOT_FOUND)
+
+        if not self.verify_password(payload.current_password, user.password):
+            raise AppException(ErrorCode.USER_INVALID_CREDENTIALS)
+
+        if not self.verify_password(payload.new_password, user.password):
+            user.password = self.hash_password(payload.new_password)
+            db.commit()
+        else:
+            pass
+
+    def update_email(
+        self,
+        db: Session,
+        redis_client: Redis,
+        user_id: int,
+        payload: UpdateEmailRequest,
+    ) -> tuple[UserResponse, str, str]:
+        new_email = payload.new_email.strip().lower()
 
         user = db.query(User).filter(User.id == user_id).first()
-        user.username = new_username
+        if not user:
+            raise AppException(ErrorCode.USER_NOT_FOUND)
+
+        if new_email != user.email:
+            if not redis_client.get(f"email_verified:{new_email}"):
+                raise AppException(ErrorCode.USER_EMAIL_NOT_VERIFIED)
+
+            user.email = new_email
+            db.commit()
+
+            redis_client.delete(f"email_verified:{new_email}")
+        else:
+            pass
+
+        access_token, refresh_token = self._issue_tokens(redis_client, new_email)
+        return self.to_user_response(user), access_token, refresh_token
+
+    def update_notification_settings(
+        self, db: Session, user_id: int, is_enabled: bool
+    ) -> UserResponse:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise AppException(ErrorCode.USER_NOT_FOUND)
+
+        user.is_toast_notification_enabled = is_enabled
         db.commit()
+        db.refresh(user)
         return self.to_user_response(user)
 
     def hash_password(self, password: str) -> str:
@@ -216,6 +317,7 @@ class AuthService:
             username=user.username,
             role=user.role.value,
             is_active=user.is_active,
+            is_toast_notification_enabled=user.is_toast_notification_enabled,
             created_at=user.created_at,
         )
 

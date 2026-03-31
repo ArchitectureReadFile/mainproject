@@ -93,7 +93,10 @@ class DocumentRepository:
     def claim_next_pending_document(self) -> Document | None:
         document = (
             self.db.query(Document)
-            .filter(Document.processing_status == DocumentStatus.PENDING)
+            .filter(
+                Document.processing_status == DocumentStatus.PENDING,
+                Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE,
+            )
             .order_by(Document.created_at.asc(), Document.id.asc())
             .first()
         )
@@ -163,6 +166,7 @@ class DocumentRepository:
                 joinedload(Document.summary),
                 joinedload(Document.owner),
                 joinedload(Document.approval).joinedload(DocumentApproval.assignee),
+                joinedload(Document.deleted_by),
             )
             .filter(Document.id == doc_id)
             .first()
@@ -177,6 +181,13 @@ class DocumentRepository:
         document.delete_requested_at = now
         document.delete_scheduled_at = now + timedelta(days=7)
         document.deleted_by_user_id = user_id
+        self.db.commit()
+
+    def restore_document(self, document: Document) -> None:
+        document.lifecycle_status = DocumentLifecycleStatus.ACTIVE
+        document.delete_requested_at = None
+        document.delete_scheduled_at = None
+        document.deleted_by_user_id = None
         self.db.commit()
 
     def get_deleted_list(
@@ -222,65 +233,3 @@ class DocumentRepository:
         )
 
         return documents, total
-
-    def get_pending_list(
-        self,
-        skip: int,
-        limit: int,
-        keyword: str,
-        group_id: int,
-    ) -> tuple[list[Document], int]:
-        """그룹 내 승인 대기 문서 전체 조회"""
-        query = (
-            self.db.query(Document)
-            .join(Document.approval)
-            .options(
-                joinedload(Document.owner),
-                joinedload(Document.summary),
-                joinedload(Document.approval).joinedload(DocumentApproval.assignee),
-            )
-            .filter(
-                Document.group_id == group_id,
-                Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE,
-                DocumentApproval.status == ReviewStatus.PENDING_REVIEW,
-            )
-        )
-
-        if keyword:
-            query = query.filter(Document.original_filename.contains(keyword))
-
-        total = query.count()
-        documents = (
-            query.order_by(Document.created_at.desc()).offset(skip).limit(limit).all()
-        )
-
-        return documents, total
-
-    def get_review_target(self, doc_id: int) -> Optional[Document]:
-        """승인/반려 처리에 필요한 문서 단건 조회"""
-        return (
-            self.db.query(Document)
-            .options(
-                joinedload(Document.owner),
-                joinedload(Document.approval),
-            )
-            .filter(Document.id == doc_id)
-            .first()
-        )
-
-    def update_document_approval(
-        self,
-        approval: DocumentApproval,
-        status: ReviewStatus,
-        reviewer_user_id: int,
-        feedback: Optional[str] = None,
-        reviewed_at=None,
-    ) -> DocumentApproval:
-        """문서 승인 상태를 갱신"""
-        approval.status = status
-        approval.reviewer_user_id = reviewer_user_id
-        approval.feedback = feedback
-        approval.reviewed_at = reviewed_at
-        self.db.flush()
-
-        return approval

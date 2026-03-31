@@ -16,17 +16,41 @@ import {
   IoPeopleOutline,
   IoSend,
   IoTimeOutline,
-  IoTrashOutline
+  IoTrashOutline,
+  IoChevronBackOutline,
+  IoChevronForwardOutline
 } from 'react-icons/io5';
 import { getMyGroups } from '../../../api/groups';
 import { useAuth } from '../../../features/auth';
 import { useChat } from '../../../features/chat/hooks/useChat';
 import { useChatSessions } from '../../../features/chat/hooks/useChatSessions';
+import { useSearchParams } from 'react-router-dom';
 
 export default function ChatSection() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { sessions, createRoom, updateRoom, deleteRoom, refreshRooms } = useChatSessions();
   const [activeSessionId, setActiveSessionId] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    const sessionId = searchParams.get('sessionId');
+    if (sessionId && sessions.length > 0) {
+      const targetId = parseInt(sessionId, 10);
+      if (sessions.some(s => s.id === targetId)) {
+        setActiveSessionId(targetId);
+        
+        const height = window.innerHeight - 72;
+        window.scrollTo({
+          top: height, 
+          behavior: 'smooth'
+        });
+
+        searchParams.delete('sessionId');
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [searchParams, sessions, setSearchParams]);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || null;
 
@@ -81,7 +105,16 @@ export default function ChatSection() {
   }, [user]);
 
   const handleCreateAndStart = async () => {
-    const newName = `새로운 상담 ${sessions.length + 1}`;
+     const maxNumber = sessions.reduce((max, session) => {
+      const match = session.title.match(/새로운 상담 (\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        return num > max ? num : max;
+      }
+      return max;
+    }, 0);
+
+    const newName = `새로운 상담 ${maxNumber + 1}`;
     const newRoom = await createRoom(newName);
     if (newRoom) setActiveSessionId(newRoom.id);
   };
@@ -187,67 +220,76 @@ export default function ChatSection() {
   return (
     <section className="h-[calc(100vh-72px)] w-full snap-start snap-always flex bg-slate-50/30 dark:bg-slate-950/30 relative overflow-hidden box-border p-8">
       <div className="max-w-7xl mx-auto w-full h-full flex overflow-hidden bg-white dark:bg-slate-900 rounded-[3rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] dark:shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] border border-slate-200/50 dark:border-slate-800/50">
-        <aside className="w-[300px] h-full bg-slate-50/50 dark:bg-slate-900/50 border-r border-slate-100 dark:border-slate-800 flex flex-col shrink-0 overflow-hidden">
-          <div className="p-8 border-b border-slate-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md">
-            <h1 className="text-2xl font-black text-foreground flex items-center gap-4">
-              <div className="w-2.5 h-8 bg-blue-600 rounded-full" />
-              최근 상담
-            </h1>
-            <Button
-              onClick={handleCreateAndStart}
-              className="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-7 shadow-xl shadow-blue-100 dark:shadow-none flex gap-2 font-bold text-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <IoAdd size={24} /> 새 상담 시작
-            </Button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
-            {sessions.map((session) => (
-              <div
-                key={session.id}
-                onClick={() => setActiveSessionId(session.id)}
-                className={`group flex items-center justify-between p-5 rounded-2xl cursor-pointer transition-all border ${activeSessionId === session.id ? 'bg-white dark:bg-slate-800 border-blue-200 dark:border-blue-900 shadow-md translate-x-2' : 'border-transparent hover:bg-white/80 dark:hover:bg-slate-800/80 hover:translate-x-1'}`}
+        <aside className={`${isSidebarOpen ? 'w-[300px]' : 'w-0'} h-full bg-slate-50/50 dark:bg-slate-900/50 border-r border-slate-100 dark:border-slate-800 flex flex-col shrink-0 overflow-hidden transition-all duration-300 ease-in-out`}>
+          <div className={`${isSidebarOpen ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300 w-[300px] h-full flex flex-col`}>
+            <div className="p-8 border-b border-slate-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md">
+              <h1 className="text-2xl font-black text-foreground flex items-center gap-4">
+                <div className="w-2.5 h-8 bg-blue-600 rounded-full" />
+                최근 상담
+              </h1>
+              <Button
+                onClick={handleCreateAndStart}
+                className="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-7 shadow-xl shadow-blue-100 dark:shadow-none flex gap-2 font-bold text-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
-                <div className="flex items-center gap-4 flex-1 overflow-hidden">
-                  <IoTimeOutline size={18} className={activeSessionId === session.id ? 'text-blue-600' : 'text-slate-400'} />
-                  {editingId === session.id ? (
-                    <Input
-                      className="h-8 py-1 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 bg-slate-50 dark:bg-slate-700 dark:border-slate-600"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.key === 'Enter' && saveEdit(e, session.id)}
-                      autoFocus
-                    />
-                  ) : (
-                    <p className={`text-base font-bold truncate ${activeSessionId === session.id ? 'text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400'}`}>
-                      {session.title}
-                    </p>
-                  )}
-                </div>
+                <IoAdd size={24} /> 새 상담 시작
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
+              {sessions.map((session) => (
+                <div
+                  key={session.id}
+                  onClick={() => setActiveSessionId(session.id)}
+                  className={`group flex items-center justify-between p-5 rounded-2xl cursor-pointer transition-all border ${activeSessionId === session.id ? 'bg-white dark:bg-slate-800 border-blue-200 dark:border-blue-900 shadow-md translate-x-2' : 'border-transparent hover:bg-white/80 dark:hover:bg-slate-800/80 hover:translate-x-1'}`}
+                >
+                  <div className="flex items-center gap-4 flex-1 overflow-hidden">
+                    <IoTimeOutline size={18} className={activeSessionId === session.id ? 'text-blue-600' : 'text-slate-400'} />
+                    {editingId === session.id ? (
+                      <Input
+                        className="h-8 py-1 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 bg-slate-50 dark:bg-slate-700 dark:border-slate-600"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.key === 'Enter' && saveEdit(e, session.id)}
+                        autoFocus
+                      />
+                    ) : (
+                      <p className={`text-base font-bold truncate ${activeSessionId === session.id ? 'text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                        {session.title}
+                      </p>
+                    )}
+                  </div>
 
-                <div className={`flex gap-1 transition-opacity ${editingId === session.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                  <button
-                    onClick={(e) => editingId === session.id ? saveEdit(e, session.id) : startEdit(e, session)}
-                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                  >
-                    {editingId === session.id ? <IoCheckmarkOutline size={18} /> : <IoPencilOutline size={18} />}
-                  </button>
-                  <button
-                    onClick={(e) => handleDeleteRoom(e, session.id)}
-                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                  >
-                    <IoTrashOutline size={18} />
-                  </button>
+                  <div className={`flex gap-1 transition-opacity ${editingId === session.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    <button
+                      onClick={(e) => editingId === session.id ? saveEdit(e, session.id) : startEdit(e, session)}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                    >
+                      {editingId === session.id ? <IoCheckmarkOutline size={18} /> : <IoPencilOutline size={18} />}
+                    </button>
+                    <button
+                      onClick={(e) => handleDeleteRoom(e, session.id)}
+                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                    >
+                      <IoTrashOutline size={18} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </aside>
 
         <div className="flex-1 h-full flex flex-col bg-white dark:bg-slate-900 overflow-hidden relative">
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="absolute top-6 left-6 z-50 p-3 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-2xl shadow-lg border border-slate-200/50 dark:border-slate-700/50 hover:bg-white dark:hover:bg-slate-800 transition-all text-slate-500 hover:text-blue-600 group"
+          >
+            {isSidebarOpen ? <IoChevronBackOutline size={22} /> : <IoChevronForwardOutline size={22} />}
+          </button>
+
           {activeSessionId ? (
             <>
-              <div ref={scrollRef} className="flex-1 overflow-y-auto bg-slate-50/30 dark:bg-slate-950/30 p-10 space-y-8 custom-scrollbar">
+              <div ref={scrollRef} className="flex-1 overflow-y-auto bg-slate-50/30 dark:bg-slate-950/30 p-10 pt-24 space-y-8 custom-scrollbar">
                 {messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-4 duration-500`}>
                     <div className={`max-w-[85%] p-6 rounded-3xl shadow-sm text-[16px] leading-relaxed flex flex-col ${msg.sender === 'user' ? 'bg-blue-600 text-white shadow-xl shadow-blue-100/50 dark:shadow-none' : 'bg-white dark:bg-slate-800 text-foreground border border-slate-100 dark:border-slate-700'}`}>
