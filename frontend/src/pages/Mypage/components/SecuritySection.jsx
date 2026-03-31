@@ -1,0 +1,143 @@
+import { Button } from '@/components/ui/Button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Input } from '@/components/ui/Input'
+import { Lock } from 'lucide-react'
+import { useState } from 'react'
+import { toast } from 'sonner'
+import { updatePassword } from '../../../features/auth/api/authApi'
+import WithdrawalSection from './WithdrawalSection'
+
+export default function SecuritySection() {
+  const [step, setStep] = useState(1)
+  const [pwForm, setPwForm] = useState({ current_password: '', new_password: '', confirm_new_password: '' })
+  const [errorMsg, setErrorMsg] = useState('')
+
+  const handlePasswordUpdate = async () => {
+    if (pwForm.new_password !== pwForm.confirm_new_password) {
+      return setErrorMsg("새 비밀번호 확인이 일치하지 않습니다.")
+    }
+    
+    setErrorMsg('')
+    try {
+      await updatePassword(pwForm)
+      toast.success("비밀번호가 변경되었습니다.")
+      setPwForm({ current_password: '', new_password: '', confirm_new_password: '' })
+      setStep(1)
+    } catch (error) {
+      const rawMessage = error.message || ""
+      
+      if (rawMessage.includes("at least 8 characters")) {
+        setErrorMsg("비밀번호는 최소 8자 이상이어야 합니다.")
+      } else if (rawMessage.includes("Invalid") || rawMessage.includes("current password")) {
+        setErrorMsg("현재 비밀번호가 일치하지 않습니다.")
+      } else {
+        setErrorMsg(rawMessage.replace("Error: ", ""))
+      }
+    }
+  }
+
+  return (
+    <div className="space-y-12">
+      <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-none rounded-xl overflow-hidden">
+        <CardHeader className="py-4 px-6 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50">
+          <CardTitle className="text-sm font-bold flex items-center gap-2 text-zinc-700 dark:text-zinc-300 uppercase tracking-tight">
+            <Lock size={16} className="text-blue-500" /> 비밀번호 보안
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          {step === 1 ? (
+            <div className="flex items-center justify-between animate-in fade-in duration-300">
+              <div className="space-y-1">
+                <p className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase">비밀번호 </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-zinc-800 dark:text-zinc-200">••••••••••••••••••••••••••</span>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setStep(2)}
+                className="rounded-lg h-9 px-4 text-xs font-bold border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all active:scale-95"
+              >
+                변경
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-6 animate-in slide-in-from-right-2 duration-300">
+              <div className="w-full sm:max-w-md space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-400 uppercase ml-1">현재 비밀번호</label>
+                  <Input
+                    type="password"
+                    value={pwForm.current_password}
+                    onChange={(e) => {
+                      setPwForm({ ...pwForm, current_password: e.target.value })
+                      if (errorMsg.includes("현재")) setErrorMsg('')
+                    }}
+                    className="h-10 rounded-lg dark:bg-zinc-900 shadow-none border-zinc-200 dark:border-zinc-800"
+                    placeholder="현재 비밀번호를 입력하세요"
+                  />
+                  {errorMsg.includes("현재") && (
+                    <p className="text-[11px] font-medium text-red-500 mt-1 ml-1">{errorMsg}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-400 uppercase ml-1">새 비밀번호</label>
+                  <Input
+                    type="password"
+                    value={pwForm.new_password}
+                    onChange={(e) => {
+                        setPwForm({ ...pwForm, new_password: e.target.value })
+                        if (errorMsg.includes("최소")) setErrorMsg('')
+                    }}
+                    className="h-10 rounded-lg dark:bg-zinc-900 shadow-none border-zinc-200 dark:border-zinc-800"
+                  />
+                  {errorMsg.includes("최소") && (
+                    <p className="text-[11px] font-medium text-red-500 mt-1 ml-1">{errorMsg}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-400 uppercase ml-1">새 비밀번호 확인</label>
+                  <Input
+                    type="password"
+                    value={pwForm.confirm_new_password}
+                    onChange={(e) => {
+                      setPwForm({ ...pwForm, confirm_new_password: e.target.value })
+                      if (errorMsg.includes("확인")) setErrorMsg('')
+                    }}
+                    className="h-10 rounded-lg dark:bg-zinc-900 shadow-none border-zinc-200 dark:border-zinc-800"
+                  />
+                  {errorMsg.includes("확인") && (
+                    <p className="text-[11px] font-medium text-red-500 mt-1 ml-1">{errorMsg}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setStep(1)
+                    setErrorMsg('')
+                  }}
+                  className="h9 px-4 text-xs font-bold text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all active:scale-95"
+                >
+                  이전
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handlePasswordUpdate}
+                  className="h-9 px-4 text-xs font-bold rounded-lg border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all active:scale-95"
+                >
+                  변경 완료
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      <WithdrawalSection />
+    </div>
+  )
+}
