@@ -175,6 +175,11 @@ function UploadPageInner({ myRole }) {
           <p className="text-sm text-muted-foreground mt-0.5">
             파일을 드래그 앤 드롭하거나 클릭하여 선택하세요. 최대 {MAX_FILES}개까지 가능합니다.
           </p>
+          {(myRole === 'OWNER' || myRole === 'ADMIN') && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              현재 권한으로 업로드한 문서는 자동 승인됩니다.
+            </p>
+          )}
         </div>
 
         {shouldShowAssigneeSelect && (

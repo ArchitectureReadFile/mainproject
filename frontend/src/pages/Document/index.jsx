@@ -187,6 +187,21 @@ export default function DocumentPage() {
                         <span className="font-medium text-foreground">업로더</span>
                         <span>{s.uploader || '-'}</span>
                     </div>
+                    <div className="flex gap-1.5">
+                        <span className="font-medium text-foreground">업로드 일시</span>
+                        <span>
+                            {s.created_at
+                                ? new Date(s.created_at).toLocaleString('ko-KR', {
+                                      year: 'numeric',
+                                      month: '2-digit',
+                                      day: '2-digit',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: false,
+                                  })
+                                : '-'}
+                        </span>
+                    </div>
                 </div>
             </div>
 
