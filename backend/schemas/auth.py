@@ -1,8 +1,6 @@
 from datetime import datetime
-from typing import Optional
 
-from fastapi import UploadFile
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, ValidationInfo, field_validator
 
 
 def validate_password_bytes(password: str) -> str:
@@ -51,17 +49,30 @@ class ResetPasswordRequest(BaseModel):
         return validate_password_bytes(v)
 
 
-class UpdateAccountRequest(BaseModel):
-    username: Optional[str] = None
-    current_password: Optional[str] = None
-    new_password: Optional[str] = None
-    avatar_file: Optional[UploadFile] = None
-
-
 class UpdateUsernameRequest(BaseModel):
-    username: str = Field(
-        ..., min_length=2, max_length=10
-    )  # 빈 문자열 들어오는 것 방지
+    new_username: str = Field(..., min_length=2, max_length=10)
+
+
+class UpdatePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=8, max_length=72)
+    new_password: str = Field(..., min_length=8, max_length=72)
+    confirm_new_password: str = Field(..., min_length=8, max_length=72)
+
+    @field_validator("new_password")
+    @classmethod
+    def password_byte_limit(cls, v: str) -> str:
+        return validate_password_bytes(v)
+
+    @field_validator("confirm_new_password")
+    @classmethod
+    def passwords_match(cls, v: str, info: ValidationInfo) -> str:
+        if "new_password" in info.data and v != info.data["new_password"]:
+            raise ValueError("새 비밀번호와 비밀번호 확인이 일치하지 않습니다.")
+        return v
+
+
+class UpdateEmailRequest(BaseModel):
+    new_email: EmailStr = Field(..., min_length=5, max_length=255)
 
 
 class UpdateNotificationRequest(BaseModel):

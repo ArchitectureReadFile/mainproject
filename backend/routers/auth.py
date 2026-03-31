@@ -16,7 +16,9 @@ from schemas.auth import (
     LoginRequest,
     ResetPasswordRequest,
     SignupRequest,
+    UpdateEmailRequest,
     UpdateNotificationRequest,
+    UpdatePasswordRequest,
     UpdateUsernameRequest,
     UserResponse,
 )
@@ -108,6 +110,36 @@ def reset_password(
     auth_service.reset_password(db, redis, payload)
 
 
+@router.delete("/deactivate", status_code=status.HTTP_204_NO_CONTENT)
+def deactivate_account(
+    response: Response,
+    db: Session = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+    refresh_token: str | None = Depends(get_refresh_token_cookie),
+    current_user: User = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    auth_service.deactivate_account(db, redis, current_user.id)
+    auth_service.logout(redis, refresh_token)
+    CookieService.delete_auth_cookies(response)
+
+
+@router.post("/reactivate", response_model=UserResponse)
+def reactivate_account_route(
+    payload: LoginRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+    client_ip: str = Depends(get_client_ip),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    user_resp, access_token, refresh_token = auth_service.reactivate_account(
+        db, redis, payload, client_ip
+    )
+    CookieService.set_auth_cookies(response, access_token, refresh_token)
+    return user_resp
+
+
 @router.patch("/username", response_model=UserResponse)
 def update_username(
     payload: UpdateUsernameRequest,
@@ -115,7 +147,33 @@ def update_username(
     current_user: User = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    return auth_service.update_username(db, current_user.id, payload.username)
+    return auth_service.update_username(db, current_user.id, payload.new_username)
+
+
+@router.patch("/password", status_code=status.HTTP_204_NO_CONTENT)
+def update_password(
+    payload: UpdatePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    auth_service.update_password(db, current_user.id, payload)
+
+
+@router.patch("/email", response_model=UserResponse)
+def update_email(
+    payload: UpdateEmailRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+    current_user: User = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    user_resp, access_token, refresh_token = auth_service.update_email(
+        db, redis, current_user.id, payload
+    )
+    CookieService.set_auth_cookies(response, access_token, refresh_token)
+    return user_resp
 
 
 @router.patch("/notification", response_model=UserResponse)
