@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { Bell, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import EmailSection from './components/EmailSection'
-import NotificationSection from './components/NotificationSection'
+// import NotificationSection from './components/NotificationSection'
 import ProfileSection from './components/ProfileSection'
 import SecuritySection from './components/SecuritySection'
 
@@ -57,7 +57,7 @@ export default function Mypage() {
             </TabsContent>
             
             <TabsContent value="notification" className="mt-0 animate-in fade-in duration-300">
-              <NotificationSection />
+              {/* <NotificationSection /> */}
             </TabsContent>
           </Tabs>
         </div>
