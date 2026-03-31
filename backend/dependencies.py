@@ -5,9 +5,11 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.model import User
 from redis_client import redis_client
+from repositories.notification_repository import NotificationRepository
 from services.auth_service import AuthService
 from services.chat.chat_service import ChatService
 from services.email_service import EmailService
+from services.notification_service import NotificationService
 
 
 # 서비스 주입
@@ -25,6 +27,14 @@ def get_email_service():
 
 def get_redis() -> Redis:
     return redis_client
+
+
+def get_notification_repository(db: Session = Depends(get_db)):
+    return NotificationRepository(db)
+
+
+def get_notification_service():
+    return NotificationService()
 
 
 # HTTP 데이터 추출

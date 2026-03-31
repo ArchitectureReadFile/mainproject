@@ -6,7 +6,8 @@ from passlib.context import CryptContext
 from redis import Redis
 from sqlalchemy.orm import Session
 
-from errors import AppException, ErrorCode
+from errors.error_codes import ErrorCode
+from errors.exceptions import AppException
 from models.model import Subscription, SubscriptionPlan, SubscriptionStatus, User
 from schemas.auth import (
     ConfirmAccountRequest,
@@ -159,6 +160,18 @@ class AuthService:
         db.commit()
         return self.to_user_response(user)
 
+    def update_notification_settings(
+        self, db: Session, user_id: int, is_enabled: bool
+    ) -> UserResponse:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise AppException(ErrorCode.USER_NOT_FOUND)
+
+        user.is_toast_notification_enabled = is_enabled
+        db.commit()
+        db.refresh(user)
+        return self.to_user_response(user)
+
     def hash_password(self, password: str) -> str:
         if len(password.encode("utf-8")) > 72:
             raise AppException(ErrorCode.USER_PASSWORD_TOO_LONG)
@@ -216,6 +229,7 @@ class AuthService:
             username=user.username,
             role=user.role.value,
             is_active=user.is_active,
+            is_toast_notification_enabled=user.is_toast_notification_enabled,
             created_at=user.created_at,
         )
 

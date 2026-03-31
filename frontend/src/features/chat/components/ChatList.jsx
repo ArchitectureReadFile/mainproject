@@ -11,12 +11,21 @@ export default function ChatList({ onSelectRoom, onClose, refreshTrigger }) {
 
   useEffect(() => {
     if (refreshTrigger > 0) {
-        refreshRooms();
+      refreshRooms();
     }
   }, [refreshTrigger, refreshRooms]);
 
   const handleCreateRoom = async () => {
-    const newName = `새로운 상담 ${sessions.length + 1}`;
+    const maxNumber = sessions.reduce((max, session) => {
+      const match = session.title.match(/새로운 상담 (\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        return num > max ? num : max;
+      }
+      return max;
+    }, 0);
+
+    const newName = `새로운 상담 ${maxNumber + 1}`;
     await createRoom(newName);
   };
 
