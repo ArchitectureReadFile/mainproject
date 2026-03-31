@@ -8,14 +8,23 @@ from requests import Session
 
 from errors.error_codes import ErrorCode
 from errors.exceptions import AppException
-from models.model import Subscription, SubscriptionPlan, SubscriptionStatus, User
+from models.model import (
+    Subscription,
+    SubscriptionPlan,
+    SubscriptionStatus,
+    User,
+    utc_now_naive,
+)
 from schemas.auth import (
+    CancelSubscriptionRequest,
     ConfirmAccountRequest,
     LoginRequest,
     ResetPasswordRequest,
     SignupRequest,
     UpdateEmailRequest,
     UpdatePasswordRequest,
+    SubscribePremiumRequest,
+    SubscriptionResponse,
     UserResponse,
 )
 
@@ -62,12 +71,13 @@ class AuthService:
             user_id=user.id,
             plan=SubscriptionPlan.FREE,
             status=SubscriptionStatus.ACTIVE,
+            auto_renew=False,
         )
         db.add(subscription)
         db.commit()
 
         redis_client.delete(f"email_verified:{email}")
-        return self.to_user_response(user)
+        return self.to_user_response(db, user)
 
     def login(
         self, db: Session, redis_client: Redis, payload: LoginRequest, client_ip: str
@@ -91,7 +101,7 @@ class AuthService:
         self._clear_login_failures(redis_client, limit_key)
 
         access_token, refresh_token = self._issue_tokens(redis_client, email)
-        return self.to_user_response(user), access_token, refresh_token
+        return self.to_user_response(db, user), access_token, refresh_token
 
     def refresh(self, db: Session, redis_client: Redis, refresh_token: str | None):
         if not refresh_token:
@@ -115,7 +125,7 @@ class AuthService:
             redis_client, user.email
         )
 
-        return self.to_user_response(user), new_access_token, new_refresh_token
+        return self.to_user_response(db, user), new_access_token, new_refresh_token
 
     def logout(self, redis_client: Redis, refresh_token: str | None):
         if refresh_token:
@@ -133,7 +143,7 @@ class AuthService:
         if not user:
             raise AppException(ErrorCode.USER_ACCOUNT_NOT_FOUND)
 
-        return self.to_user_response(user)
+        return self.to_user_response(db, user)
 
     def reset_password(
         self, db: Session, redis_client: Redis, payload: ResetPasswordRequest
@@ -242,11 +252,9 @@ class AuthService:
             db.commit()
 
             redis_client.delete(f"email_verified:{new_email}")
-        else:
-            pass
-
+            
         access_token, refresh_token = self._issue_tokens(redis_client, new_email)
-        return self.to_user_response(user), access_token, refresh_token
+        return self.to_user_response(db, user), access_token, refresh_token
 
     def update_notification_settings(
         self, db: Session, user_id: int, is_enabled: bool
@@ -258,7 +266,7 @@ class AuthService:
         user.is_toast_notification_enabled = is_enabled
         db.commit()
         db.refresh(user)
-        return self.to_user_response(user)
+        return self.to_user_response(db, user)
 
     def hash_password(self, password: str) -> str:
         if len(password.encode("utf-8")) > 72:
@@ -310,7 +318,9 @@ class AuthService:
         except (JWTError, ValueError):
             raise AppException(ErrorCode.AUTH_REFRESH_TOKEN_INVALID)
 
-    def to_user_response(self, user: User) -> UserResponse:
+    def to_user_response(self, db: Session, user: User) -> UserResponse:
+        subscription = self.get_effective_subscription(db, user.id)
+
         return UserResponse(
             id=user.id,
             email=user.email,
@@ -319,6 +329,17 @@ class AuthService:
             is_active=user.is_active,
             is_toast_notification_enabled=user.is_toast_notification_enabled,
             created_at=user.created_at,
+            subscription=(
+                SubscriptionResponse(
+                    plan=subscription.plan.value,
+                    status=subscription.status.value,
+                    auto_renew=subscription.auto_renew,
+                    started_at=subscription.started_at,
+                    ended_at=subscription.ended_at,
+                )
+                if subscription
+                else None
+            ),
         )
 
     def get_user_from_token(self, db: Session, token: str | None) -> User:
@@ -357,3 +378,148 @@ class AuthService:
 
     def _clear_login_failures(self, redis_client: Redis, key: str):
         redis_client.delete(f"attempts:{key}", f"block:{key}")
+
+    def ensure_subscription_state(
+        self, db: Session, subscription: Subscription | None
+    ) -> Subscription | None:
+        """구독 상태 보정용 함수, 구독 상태를 현재 시각 기준으로 정규화"""
+        if not subscription:
+            return None
+
+        now = utc_now_naive()
+        changed = False
+
+        if subscription.plan == SubscriptionPlan.FREE:
+            if subscription.auto_renew:
+                subscription.auto_renew = False
+                changed = True
+            if subscription.ended_at is not None:
+                subscription.ended_at = None
+                changed = True
+            if subscription.status != SubscriptionStatus.ACTIVE:
+                subscription.status = SubscriptionStatus.ACTIVE
+                changed = True
+
+        elif subscription.plan == SubscriptionPlan.PREMIUM:
+            if subscription.ended_at and subscription.ended_at <= now:
+                if (
+                    subscription.auto_renew
+                    and subscription.status == SubscriptionStatus.ACTIVE
+                ):
+                    while subscription.ended_at and subscription.ended_at <= now:
+                        previous_end = subscription.ended_at
+                        subscription.started_at = previous_end
+                        subscription.ended_at = previous_end + timedelta(days=30)
+                    changed = True
+                else:
+                    if subscription.status != SubscriptionStatus.EXPIRED:
+                        subscription.status = SubscriptionStatus.EXPIRED
+                        changed = True
+
+        if changed:
+            db.commit()
+            db.refresh(subscription)
+
+        return subscription
+
+    def get_subscription_or_create_free(
+        self, db: Session, user_id: int
+    ) -> Subscription:
+        """사용자의 구독 레코드 반환"""
+        subscription = (
+            db.query(Subscription).filter(Subscription.user_id == user_id).first()
+        )
+        if subscription:
+            return subscription
+
+        subscription = Subscription(
+            user_id=user_id,
+            plan=SubscriptionPlan.FREE,
+            status=SubscriptionStatus.ACTIVE,
+            auto_renew=False,
+        )
+        db.add(subscription)
+        db.commit()
+        db.refresh(subscription)
+        return subscription
+
+    def subscribe_premium(
+        self, db: Session, user_id: int, payload: SubscribePremiumRequest
+    ) -> UserResponse:
+        """프리미엄 구독으로 변경"""
+        if not payload.confirm:
+            raise AppException(ErrorCode.AUTH_FORBIDDEN)
+
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise AppException(ErrorCode.USER_NOT_FOUND)
+
+        subscription = self.get_subscription_or_create_free(db, user_id)
+        now = utc_now_naive()
+
+        if (
+            subscription.plan == SubscriptionPlan.PREMIUM
+            and subscription.ended_at
+            and subscription.ended_at > now
+            and subscription.status
+            in (
+                SubscriptionStatus.ACTIVE,
+                SubscriptionStatus.CANCELED,
+            )
+        ):
+            subscription.status = SubscriptionStatus.ACTIVE
+            subscription.auto_renew = True
+        else:
+            subscription.plan = SubscriptionPlan.PREMIUM
+            subscription.status = SubscriptionStatus.ACTIVE
+            subscription.auto_renew = True
+            subscription.started_at = now
+            subscription.ended_at = now + timedelta(days=30)
+
+        db.commit()
+        db.refresh(user)
+        db.refresh(subscription)
+        return self.to_user_response(db, user)
+
+    def cancel_subscription(
+        self, db: Session, user_id: int, payload: CancelSubscriptionRequest
+    ) -> UserResponse:
+        """구독 해지(자동 갱신 해지)"""
+        if not payload.confirm:
+            raise AppException(ErrorCode.AUTH_FORBIDDEN)
+
+        user = db.query(User).filter(User.id == user_id).first()
+
+        if not user:
+            raise AppException(ErrorCode.USER_NOT_FOUND)
+
+        subscription = self.get_subscription_or_create_free(db, user_id)
+        subscription = self.ensure_subscription_state(db, subscription)
+
+        if subscription.plan == SubscriptionPlan.FREE:
+            return self.to_user_response(db, user)
+
+        subscription.auto_renew = False
+
+        if subscription.status == SubscriptionStatus.ACTIVE:
+            subscription.status = SubscriptionStatus.CANCELED
+
+        db.commit()
+        db.refresh(user)
+        db.refresh(subscription)
+        return self.to_user_response(db, user)
+
+    def get_effective_subscription(self, db: Session, user_id: int) -> Subscription:
+        """현재 시각 기준으로 유효한 구독 상태를 반환"""
+        subscription = self.get_subscription_or_create_free(db, user_id)
+        return self.ensure_subscription_state(db, subscription)
+
+    def is_premium_active(self, db: Session, user_id: int) -> bool:
+        """사용자가 현재 프리미엄 권한을 사용할 수 있는지 반환"""
+        subscription = self.get_effective_subscription(db, user_id)
+
+        return (
+            subscription.plan == SubscriptionPlan.PREMIUM
+            and subscription.status == SubscriptionStatus.ACTIVE
+            and subscription.ended_at is not None
+        )

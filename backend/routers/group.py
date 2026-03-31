@@ -21,7 +21,7 @@ router = APIRouter(prefix="/groups", tags=["groups"])
 
 
 def get_group_service(db: Session = Depends(get_db)) -> GroupService:
-    return GroupService(GroupRepository(db))
+    return GroupService(GroupRepository(db), db)
 
 
 @router.post(

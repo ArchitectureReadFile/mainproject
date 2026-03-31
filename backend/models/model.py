@@ -217,6 +217,7 @@ class Subscription(Base):
         default=SubscriptionStatus.ACTIVE,
         nullable=False,
     )
+    auto_renew = Column(Boolean, default=True, nullable=False)
 
     started_at = Column(DateTime, default=utc_now_naive, nullable=False)
     ended_at = Column(DateTime)

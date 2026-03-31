@@ -1,5 +1,7 @@
 from typing import Optional
 
+from sqlalchemy.orm import Session
+
 from errors import AppException, ErrorCode
 from models.model import (
     Group,
@@ -18,15 +20,18 @@ from schemas.group import (
     MemberListResponse,
     MemberResponse,
 )
+from services.auth_service import AuthService
 
 
 class GroupService:
-    def __init__(self, repository: GroupRepository):
+    def __init__(self, repository: GroupRepository, db: Session):
         self.repository = repository
+        self.db = db
+        self.auth_service = AuthService()
 
     # PREMIUM 플랜 체크
     def _check_premium(self, user_id: int):
-        if not self.repository.is_premium(user_id):
+        if not self.auth_service.is_premium_active(self.db, user_id):
             raise AppException(ErrorCode.GROUP_NOT_PREMIUM)
 
     # OWNER 권한 체크
@@ -54,6 +59,8 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
         group, role = result
+        self._assert_group_owner_subscription_active(group)
+
         if group.status != GroupStatus.ACTIVE:
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
         if role not in (
@@ -73,6 +80,8 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
         group, role = result
+        self._assert_group_owner_subscription_active(group)
+
         if group.status != GroupStatus.ACTIVE:
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
 
@@ -100,7 +109,17 @@ class GroupService:
 
     def assert_review_permission(self, user_id: int, group_id: int) -> GroupMember:
         """사용자가 해당 그룹에서 문서 승인 권한이 있는지 확인"""
+        group = self.repository.get_group_by_id(group_id)
+        if not group:
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+
+        self._assert_group_owner_subscription_active(group)
         return self._assert_owner_or_admin_member(user_id, group_id)
+
+    def _assert_group_owner_subscription_active(self, group: Group) -> None:
+        """해당 워크스페이스 owner의 구독이 현재도 유효한지 검사"""
+        if not self.auth_service.is_premium_active(self.db, group.owner_user_id):
+            raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
 
     # 그룹 생성
     def create_group(
@@ -132,21 +151,28 @@ class GroupService:
     def get_my_groups(self, user_id: int) -> list[GroupSummaryResponse]:
         rows = self.repository.get_my_groups(user_id)
 
-        return [
-            GroupSummaryResponse(
-                id=group.id,
-                name=group.name,
-                description=group.description,
-                status=group.status.value,
-                my_role=role.value,
-                owner_username=group.owner.username,
-                member_count=self.repository.count_member(group.id),
-                document_count=self.repository.count_document(group.id),
-                delete_scheduled_at=group.delete_scheduled_at,
-                created_at=group.created_at,
+        result: list[GroupSummaryResponse] = []
+
+        for group, role in rows:
+            if not self.auth_service.is_premium_active(self.db, group.owner_user_id):
+                continue
+
+            result.append(
+                GroupSummaryResponse(
+                    id=group.id,
+                    name=group.name,
+                    description=group.description,
+                    status=group.status.value,
+                    my_role=role.value,
+                    owner_username=group.owner.username,
+                    member_count=self.repository.count_member(group.id),
+                    document_count=self.repository.count_document(group.id),
+                    delete_scheduled_at=group.delete_scheduled_at,
+                    created_at=group.created_at,
+                )
             )
-            for group, role in rows
-        ]
+
+        return result
 
     # 상세 조회
     def get_group_detail(self, user_id: int, group_id: int) -> GroupDetailResponse:
@@ -155,6 +181,7 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
         group, role = result
+        self._assert_group_owner_subscription_active(group)
 
         return GroupDetailResponse(
             id=group.id,
@@ -222,8 +249,14 @@ class GroupService:
             updated_at=group.updated_at,
         )
 
-    # 멤버 목록 조회
     def get_members(self, user_id: int, group_id: int) -> MemberListResponse:
+        """멤버 목록 조회"""
+        group = self.repository.get_group_by_id(group_id)
+        if not group:
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+
+        self._assert_group_owner_subscription_active(group)
+
         active_rows = self.repository.get_members(group_id)
         invited_rows = self.repository.get_invited_members(group_id)
 
