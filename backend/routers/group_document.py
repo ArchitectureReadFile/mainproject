@@ -252,7 +252,8 @@ def delete_document(
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
-    group_service.assert_view_permission(current_user.id, group_id)
+    group, _ = group_service.assert_view_permission(current_user.id, group_id)
+    group_service._assert_group_writable(group)
     service.delete_document(doc_id, current_user.id, group_id)
 
 

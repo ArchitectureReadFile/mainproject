@@ -144,7 +144,10 @@ services:
     <<: *backend-common
     container_name: celery_worker_container
     command: celery -A celery_app worker --loglevel=info --concurrency=1
-
+  celery_beat:
+    <<: *backend-common
+    container_name: celery_beat_container
+    command: celery -A celery_app beat --loglevel=info
 
 volumes:
   ollama_data:
