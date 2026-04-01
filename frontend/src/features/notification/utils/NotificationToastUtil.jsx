@@ -1,7 +1,7 @@
 import { toast } from 'sonner'
 import NotificationToast from '../components/NotificationToast'
 
-export const showNotificationToast = (notification, onNavigate, user = null) => {
+export const showNotificationToast = (notification, onNavigate, onUpdateStatus, markAsRead, user = null) => {
   if (user && user.is_notification_enabled === false) {
     return
   }
@@ -12,6 +12,12 @@ export const showNotificationToast = (notification, onNavigate, user = null) => 
       onNavigate={() => {
         if (onNavigate) onNavigate(notification)
         toast.dismiss(t)
+      }}
+      onUpdateStatus={(id, status) => {
+        if (onUpdateStatus) onUpdateStatus(id, status)
+      }}
+      onMarkAsRead={async (id) => {
+        if (markAsRead) await markAsRead(id)
       }}
       onClose={() => toast.dismiss(t)}
     />
