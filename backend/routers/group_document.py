@@ -104,7 +104,7 @@ def list_pending_documents(
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
-    group_service.assert_review_permission(current_user.id, group_id)
+    group_service.assert_review_view_permission(current_user.id, group_id)
     items, total = service.get_pending_list(
         skip,
         limit,
@@ -125,7 +125,7 @@ def list_pending_uploaders(
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
-    group_service.assert_review_permission(current_user.id, group_id)
+    group_service.assert_review_view_permission(current_user.id, group_id)
     items = service.get_pending_uploaders(group_id)
 
     return {"items": items}
@@ -142,7 +142,7 @@ def list_approved_documents(
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
-    group_service.assert_review_permission(current_user.id, group_id)
+    group_service.assert_review_view_permission(current_user.id, group_id)
     items, total = service.get_approved_list(
         skip,
         limit,
@@ -162,7 +162,7 @@ def list_approved_uploaders(
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
-    group_service.assert_review_permission(current_user.id, group_id)
+    group_service.assert_review_view_permission(current_user.id, group_id)
     items = service.get_approved_uploaders(group_id, current_user.id)
 
     return {"items": items}
@@ -179,7 +179,7 @@ def list_rejected_documents(
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
-    group_service.assert_review_permission(current_user.id, group_id)
+    group_service.assert_review_view_permission(current_user.id, group_id)
     items, total = service.get_rejected_list(
         skip,
         limit,
@@ -199,7 +199,7 @@ def list_rejected_uploaders(
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
 ):
-    group_service.assert_review_permission(current_user.id, group_id)
+    group_service.assert_review_view_permission(current_user.id, group_id)
     items = service.get_rejected_uploaders(group_id, current_user.id)
 
     return {"items": items}

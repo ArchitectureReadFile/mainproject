@@ -7,6 +7,8 @@ from models.model import GroupStatus, MembershipRole
 
 
 class GroupCreateRequest(BaseModel):
+    """워크스페이스 생성 요청"""
+
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
 
@@ -24,11 +26,13 @@ class GroupSummaryResponse(BaseModel):
 
     id: int
     name: str
+    description: Optional[str] = None
     status: GroupStatus
     my_role: MembershipRole
     owner_username: str
     member_count: int
     document_count: int
+    access_level: str
     delete_scheduled_at: Optional[datetime] = None
     created_at: datetime
 
@@ -38,14 +42,15 @@ class GroupDetailResponse(BaseModel):
 
     id: int
     name: str
-    description: Optional[str]
+    description: Optional[str] = None
     status: GroupStatus
     my_role: MembershipRole
     owner_id: int
     owner_username: str
     member_count: int
     document_count: int
-    delete_scheduled_at: Optional[datetime]
+    access_level: str
+    delete_scheduled_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

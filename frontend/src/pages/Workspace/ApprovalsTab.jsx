@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2, Search, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 import {
     approveDocument,
@@ -68,9 +67,12 @@ function getProcessingStatusMeta(status) {
     }
 }
 
+
 export default function ApprovalsTab({ group }) {
     const navigate = useNavigate()
     const [searchParams, setSearchParams] = useSearchParams()
+
+    const isReadOnlyMode = group.access_level === 'READ_ONLY'
 
     const activeSubTab = searchParams.get('approval_tab') || 'pending'
     const page = Number(searchParams.get('approval_page') || '1')
@@ -200,7 +202,7 @@ export default function ApprovalsTab({ group }) {
 
     useEffect(() => {
         loadDocuments(activeSubTab, page, query)
-    }, [activeSubTab, page, query, authorFilter, assigneeFilter, loadDocuments])
+    }, [activeSubTab, page, query, authorFilter, assigneeFilter, loadDocuments, isReadOnlyMode])
 
     useEffect(() => {
         const loadAuthorOptions = async () => {
@@ -219,7 +221,7 @@ export default function ApprovalsTab({ group }) {
         }
 
         loadAuthorOptions()
-    }, [group.id, activeSubTab])
+    }, [group.id, activeSubTab, isReadOnlyMode])
 
     const totalPages = Math.ceil(total / LIMIT)
     const currentPage = page
@@ -258,25 +260,18 @@ export default function ApprovalsTab({ group }) {
                 await loadDocuments('pending', nextPage, query)
             }
         } catch (e) {
-            toast.error(e.message || '승인에 실패했습니다.')
+            toast.error(e.message || '문서 승인에 실패했습니다.')
         } finally {
             setActionLoadingId(null)
         }
     }
 
-
     const handleReject = async () => {
-        if (!rejectTarget) return
-
-        const trimmedReason = rejectReason.trim()
-        if (!trimmedReason) {
-            toast.error('반려 사유를 입력해주세요.')
-            return
-        }
+        if (!rejectTarget || !rejectReason.trim()) return
 
         setActionLoadingId(rejectTarget.id)
         try {
-            await rejectDocument(group.id, rejectTarget.id, trimmedReason)
+            await rejectDocument(group.id, rejectTarget.id, rejectReason.trim())
             toast.success('문서를 반려했습니다.')
             setRejectTarget(null)
             setRejectReason('')
@@ -294,15 +289,25 @@ export default function ApprovalsTab({ group }) {
                 await loadDocuments('pending', nextPage, query)
             }
         } catch (e) {
-            toast.error(e.message || '반려에 실패했습니다.')
+            toast.error(e.message || '문서 반려에 실패했습니다.')
         } finally {
             setActionLoadingId(null)
         }
     }
 
-
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
+            {isReadOnlyMode && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+                    <div className="flex items-start gap-2">
+                        <div>
+                            <p className="mt-1 text-amber-800">
+                                읽기 전용 기간에는 승인/반려 처리는 사용할 수 없고, 목록 조회만 가능합니다.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
             <div className="space-y-1">
                 <h2 className="text-base font-semibold">승인 관리</h2>
                 <p className="text-sm text-muted-foreground">
@@ -355,14 +360,14 @@ export default function ApprovalsTab({ group }) {
                 )}
             </div>
 
-            <div className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center">
-                <div className="flex gap-2 md:flex-1">
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border p-4">
+                <div className="flex min-w-0 flex-1 gap-2">
                     <Input
                         placeholder="문서명 검색"
                         value={keyword}
                         onChange={(e) => setKeyword(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                        className="md:flex-1"
+                        className="min-w-0 flex-1"
                     />
                     <Button variant="outline" onClick={handleSearch}>
                         <Search className="h-4 w-4" />
@@ -370,7 +375,7 @@ export default function ApprovalsTab({ group }) {
                 </div>
 
                 <Select value={authorFilter} onValueChange={handleAuthorFilterChange}>
-                    <SelectTrigger className="w-full md:w-44">
+                    <SelectTrigger className="w-full sm:w-44">
                         <SelectValue placeholder="업로더 전체" />
                     </SelectTrigger>
                     <SelectContent>
@@ -385,7 +390,7 @@ export default function ApprovalsTab({ group }) {
 
                 {activeSubTab === 'pending' && (
                     <Select value={assigneeFilter} onValueChange={handleAssigneeFilterChange}>
-                        <SelectTrigger className="w-full md:w-48">
+                        <SelectTrigger className="w-full sm:w-48">
                             <SelectValue placeholder="담당자 전체" />
                         </SelectTrigger>
                         <SelectContent>
@@ -397,19 +402,14 @@ export default function ApprovalsTab({ group }) {
                     </Select>
                 )}
 
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={handleResetFilters}
-                            className="w-full md:w-10"
-                        >
-                            <RotateCcw className="h-4 w-4" />
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>필터 초기화</TooltipContent>
-                </Tooltip>
+                <Button
+                    variant="outline"
+                    onClick={handleResetFilters}
+                    className="gap-2"
+                >
+                    <RotateCcw className="h-4 w-4" />
+                    초기화
+                </Button>
             </div>
 
             {loading ? (
@@ -464,26 +464,28 @@ export default function ApprovalsTab({ group }) {
                                             </div>
                                         </div>
 
-                                        <div className="flex shrink-0 items-center gap-2">
-                                            <Button
-                                                size="sm"
-                                                disabled={isBusy}
-                                                onClick={() => setApproveTarget(item)}
-                                            >
-                                                {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : '승인'}
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                disabled={isBusy}
-                                                onClick={() => {
-                                                    setRejectTarget(item)
-                                                    setRejectReason('')
-                                                }}
-                                            >
-                                                반려
-                                            </Button>
-                                        </div>
+                                        {activeSubTab === 'pending' && !isReadOnlyMode && (
+                                            <div className="flex shrink-0 items-center gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    disabled={isBusy}
+                                                    onClick={() => setApproveTarget(item)}
+                                                >
+                                                    {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : '승인'}
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={isBusy}
+                                                    onClick={() => {
+                                                        setRejectTarget(item)
+                                                        setRejectReason('')
+                                                    }}
+                                                >
+                                                    반려
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 )
                             })}
@@ -552,7 +554,7 @@ export default function ApprovalsTab({ group }) {
                                         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                                             <span className="rounded-sm bg-muted px-2 py-0.5 text-foreground">
                                                 {item.document_type || '유형 없음'}
-                                            </span>                                           
+                                            </span>
                                             <span>업로더 {item.uploader || '-'}</span>
                                             <span>반려일 {formatDateTime(item.reviewed_at)}</span>
                                             <span className={processingMeta.className}>
@@ -568,7 +570,6 @@ export default function ApprovalsTab({ group }) {
                                                 </p>
                                             </div>
                                         )}
-
                                     </div>
                                 )
                             })}

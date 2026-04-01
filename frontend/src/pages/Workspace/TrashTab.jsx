@@ -18,6 +18,7 @@ export default function TrashTab({ group }) {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const page = Number(searchParams.get('page') || '1')
+  const isReadOnlyMode = group.access_level === 'READ_ONLY'
 
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
@@ -105,6 +106,12 @@ export default function TrashTab({ group }) {
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
+      {isReadOnlyMode && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          읽기 전용 기간에는 휴지통 문서 조회만 가능합니다.
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -158,20 +165,22 @@ export default function TrashTab({ group }) {
                 </div>
               </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0 gap-1.5"
-                disabled={restoringId === doc.id}
-                onClick={(e) => handleRestore(e, doc.id)}
-              >
-                {restoringId === doc.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ArchiveRestore className="h-4 w-4" />
-                )}
-                복구
-              </Button>
+              {!isReadOnlyMode && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-1.5"
+                  disabled={restoringId === doc.id}
+                  onClick={(e) => handleRestore(e, doc.id)}
+                >
+                  {restoringId === doc.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ArchiveRestore className="h-4 w-4" />
+                  )}
+                  복구
+                </Button>
+              )}
             </div>
           ))}
         </div>

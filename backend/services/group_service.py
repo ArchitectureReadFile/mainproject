@@ -32,13 +32,13 @@ class GroupService:
         self.db = db
         self.auth_service = AuthService()
 
-    # PREMIUM 플랜 체크
     def _check_premium(self, user_id: int):
+        """프리미엄 플랜 활성 여부를 검사한다."""
         if not self.auth_service.is_premium_active(self.db, user_id):
             raise AppException(ErrorCode.GROUP_NOT_PREMIUM)
 
-    # OWNER 권한 체크
     def _check_owner(self, user_id: int, group_id: int) -> Group:
+        """사용자가 해당 그룹의 오너인지 검사한다."""
         group = self.repository.get_group_by_id(group_id)
         if not group:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
@@ -46,8 +46,8 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_OWNER)
         return group
 
-    # OWNER/ADMIN 권한 체크
     def _check_owner_or_admin(self, user_id: int, group_id: int):
+        """사용자가 해당 그룹의 OWNER 또는 ADMIN인지 검사한다."""
         member = self.repository.get_active_member(user_id, group_id)
         if not member or member.role not in (
             MembershipRole.OWNER,
@@ -56,7 +56,22 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_ADMIN_OR_OWNER)
         return member
 
+    def _assert_owner_or_admin_member(self, user_id: int, group_id: int) -> GroupMember:
+        """사용자가 해당 그룹의 활성 OWNER 또는 ADMIN인지 확인한다."""
+        member = self.repository.get_active_member(user_id, group_id)
+        if not member:
+            raise AppException(ErrorCode.GROUP_MEMBER_NOT_FOUND)
+
+        if member.role not in (
+            MembershipRole.OWNER,
+            MembershipRole.ADMIN,
+        ):
+            raise AppException(ErrorCode.GROUP_NOT_ADMIN_OR_OWNER)
+
+        return member
+
     def assert_upload_permission(self, user_id: int, group_id: int):
+        """사용자의 업로드 권한을 검사하고 그룹과 역할을 반환한다."""
         result = self.repository.get_group_with_role(user_id, group_id)
         if not result:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
@@ -78,6 +93,7 @@ class GroupService:
     def assert_view_permission(
         self, user_id: int, group_id: int
     ) -> tuple[Group, MembershipRole]:
+        """사용자의 그룹 조회 권한을 검사하고 그룹과 역할을 반환한다."""
         result = self.repository.get_group_with_role(user_id, group_id)
         if not result:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
@@ -85,33 +101,48 @@ class GroupService:
         group, role = result
         self._assert_group_readable(group)
 
-        if group.status != GroupStatus.ACTIVE:
+        if group.status not in (
+            GroupStatus.ACTIVE,
+            GroupStatus.DELETE_PENDING,
+        ):
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
 
         return group, role
 
-    def _assert_owner_or_admin_member(self, user_id: int, group_id: int) -> GroupMember:
-        """사용자가 해당 그룹의 활성 OWNER 또는 ADMIN인지 확인"""
-        member = self.repository.get_active_member(user_id, group_id)
-        if not member:
-            raise AppException(ErrorCode.GROUP_MEMBER_NOT_FOUND)
-
-        if member.role not in (
-            MembershipRole.OWNER,
-            MembershipRole.ADMIN,
-        ):
-            raise AppException(ErrorCode.GROUP_NOT_ADMIN_OR_OWNER)
-
-        return member
-
     def assert_reviewer_assignable(
         self, assignee_user_id: int, group_id: int
     ) -> GroupMember:
-        """지정된 사용자가 담당 승인자로 지정 가능한지 확인"""
+        """지정된 사용자가 담당 승인자로 지정 가능한지 확인한다."""
         return self._assert_owner_or_admin_member(assignee_user_id, group_id)
 
+    def assert_review_view_permission(
+        self, user_id: int, group_id: int
+    ) -> tuple[Group, GroupMember]:
+        """사용자가 승인 탭의 목록을 조회할 수 있는지 확인한다.
+
+        FULL_ACCESS와 READ_ONLY에서는 조회를 허용하고,
+        실제 승인/반려 처리는 별도 권한 검사에서 제한한다.
+        """
+        group = self.repository.get_group_by_id(group_id)
+        if not group:
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+
+        self._assert_group_readable(group)
+
+        if group.status not in (
+            GroupStatus.ACTIVE,
+            GroupStatus.DELETE_PENDING,
+        ):
+            raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
+
+        member = self._assert_owner_or_admin_member(user_id, group_id)
+        return group, member
+
     def assert_review_permission(self, user_id: int, group_id: int) -> GroupMember:
-        """사용자가 해당 그룹에서 문서 승인 권한이 있는지 확인"""
+        """사용자가 해당 그룹에서 문서 승인/반려를 수행할 수 있는지 확인한다.
+
+        실제 승인 처리는 FULL_ACCESS에서만 허용한다.
+        """
         group = self.repository.get_group_by_id(group_id)
         if not group:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
@@ -120,95 +151,39 @@ class GroupService:
         return self._assert_owner_or_admin_member(user_id, group_id)
 
     def _get_group_owner_access_level(self, group: Group) -> SubscriptionAccessLevel:
-        """워크스페이스 owner의 현재 구독 접근 단계를 반환"""
+        """워크스페이스 owner의 현재 구독 접근 단계를 반환한다."""
         return self.auth_service.get_subscription_access_level(
             self.db, group.owner_user_id
         )
 
-    def _assert_group_readable(self, group: Group) -> None:
-        """그룹 조회 가능 여부를 검사, READ_ONLY까지 허용"""
-        level = self._get_group_owner_access_level(group)
-        if level == SubscriptionAccessLevel.BLOCKED:
-            raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
-
-    def _assert_group_writable(self, group: Group) -> None:
-        """그룹 쓰기 가능 여부를 검사, FULL_ACCESS만 허용"""
-        level = self._get_group_owner_access_level(group)
-        if level != SubscriptionAccessLevel.FULL_ACCESS:
-            raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
-
-    def _assert_group_recoverable(self, group: Group) -> None:
-        """그룹 복구/승계 가능 여부를 검사, READ_ONLY까지 허용"""
-        level = self._get_group_owner_access_level(group)
-        if level not in (
-            SubscriptionAccessLevel.FULL_ACCESS,
-            SubscriptionAccessLevel.READ_ONLY,
-        ):
-            raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
-
-    # 그룹 생성
-    def create_group(
-        self, owner_user_id: int, name: str, description: Optional[str]
-    ) -> GroupDetailResponse:
-        self._check_premium(owner_user_id)
-
-        if self.repository.count_active_owner_groups(owner_user_id) >= 1:
-            raise AppException(ErrorCode.GROUP_OWNER_LIMIT)
-
-        group = self.repository.create_group(owner_user_id, name, description)
-
-        return GroupDetailResponse(
+    def _to_group_summary_response(
+        self,
+        group: Group,
+        role: MembershipRole,
+        access_level: SubscriptionAccessLevel,
+    ) -> GroupSummaryResponse:
+        """그룹 목록 응답 스키마로 변환한다."""
+        return GroupSummaryResponse(
             id=group.id,
             name=group.name,
             description=group.description,
             status=group.status.value,
-            my_role=MembershipRole.OWNER.value,
-            owner_id=group.owner_user_id,
+            my_role=role.value,
             owner_username=group.owner.username,
-            member_count=1,
-            document_count=0,
+            member_count=self.repository.count_member(group.id),
+            document_count=self.repository.count_document(group.id),
+            access_level=access_level.value,
             delete_scheduled_at=group.delete_scheduled_at,
             created_at=group.created_at,
-            updated_at=group.updated_at,
         )
 
-    # 내 목록 조회
-    def get_my_groups(self, user_id: int) -> list[GroupSummaryResponse]:
-        rows = self.repository.get_my_groups(user_id)
-
-        result: list[GroupSummaryResponse] = []
-
-        for group, role in rows:
-            level = self._get_group_owner_access_level(group)
-            if level == SubscriptionAccessLevel.BLOCKED:
-                continue
-
-            result.append(
-                GroupSummaryResponse(
-                    id=group.id,
-                    name=group.name,
-                    description=group.description,
-                    status=group.status.value,
-                    my_role=role.value,
-                    owner_username=group.owner.username,
-                    member_count=self.repository.count_member(group.id),
-                    document_count=self.repository.count_document(group.id),
-                    delete_scheduled_at=group.delete_scheduled_at,
-                    created_at=group.created_at,
-                )
-            )
-
-        return result
-
-    # 상세 조회
-    def get_group_detail(self, user_id: int, group_id: int) -> GroupDetailResponse:
-        result = self.repository.get_group_with_role(user_id, group_id)
-        if not result:
-            raise AppException(ErrorCode.GROUP_NOT_FOUND)
-
-        group, role = result
-        self._assert_group_readable(group)
-
+    def _to_group_detail_response(
+        self,
+        group: Group,
+        role: MembershipRole,
+        access_level: SubscriptionAccessLevel,
+    ) -> GroupDetailResponse:
+        """그룹 상세 응답 스키마로 변환한다."""
         return GroupDetailResponse(
             id=group.id,
             name=group.name,
@@ -219,19 +194,96 @@ class GroupService:
             owner_username=group.owner.username,
             member_count=self.repository.count_member(group.id),
             document_count=self.repository.count_document(group.id),
+            access_level=access_level.value,
             delete_scheduled_at=group.delete_scheduled_at,
             created_at=group.created_at,
             updated_at=group.updated_at,
         )
 
-    # 그룹 삭제
+    def _assert_group_readable(self, group: Group) -> None:
+        """그룹 조회 가능 여부를 검사한다. READ_ONLY까지 허용한다."""
+        level = self._get_group_owner_access_level(group)
+        if level == SubscriptionAccessLevel.BLOCKED:
+            raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
+
+    def _assert_group_writable(self, group: Group) -> None:
+        """그룹 쓰기 가능 여부를 검사한다. FULL_ACCESS만 허용한다."""
+        level = self._get_group_owner_access_level(group)
+        if level != SubscriptionAccessLevel.FULL_ACCESS:
+            raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
+
+    def _assert_group_recoverable(self, group: Group) -> None:
+        """그룹 복구/승계 가능 여부를 검사한다. READ_ONLY까지 허용한다."""
+        level = self._get_group_owner_access_level(group)
+        if level not in (
+            SubscriptionAccessLevel.FULL_ACCESS,
+            SubscriptionAccessLevel.READ_ONLY,
+        ):
+            raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
+
+    def create_group(
+        self, owner_user_id: int, name: str, description: Optional[str]
+    ) -> GroupDetailResponse:
+        """그룹을 생성한다."""
+        self._check_premium(owner_user_id)
+
+        if self.repository.count_active_owner_groups(owner_user_id) >= 1:
+            raise AppException(ErrorCode.GROUP_OWNER_LIMIT)
+
+        group = self.repository.create_group(owner_user_id, name, description)
+        access_level = self._get_group_owner_access_level(group)
+
+        return self._to_group_detail_response(
+            group=group,
+            role=MembershipRole.OWNER,
+            access_level=access_level,
+        )
+
+    def get_my_groups(self, user_id: int) -> list[GroupSummaryResponse]:
+        """내가 속한 그룹 목록을 반환한다."""
+        rows = self.repository.get_my_groups(user_id)
+        result: list[GroupSummaryResponse] = []
+
+        for group, role in rows:
+            access_level = self._get_group_owner_access_level(group)
+            if access_level == SubscriptionAccessLevel.BLOCKED:
+                continue
+
+            result.append(
+                self._to_group_summary_response(
+                    group=group,
+                    role=role,
+                    access_level=access_level,
+                )
+            )
+
+        return result
+
+    def get_group_detail(self, user_id: int, group_id: int) -> GroupDetailResponse:
+        """그룹 상세 정보를 반환한다."""
+        result = self.repository.get_group_with_role(user_id, group_id)
+        if not result:
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+
+        group, role = result
+        self._assert_group_readable(group)
+        access_level = self._get_group_owner_access_level(group)
+
+        return self._to_group_detail_response(
+            group=group,
+            role=role,
+            access_level=access_level,
+        )
+
     def request_delete_group(self, user_id: int, group_id: int):
+        """그룹 삭제를 요청한다."""
         group = self._check_owner(user_id, group_id)
 
         if group.status == GroupStatus.DELETE_PENDING:
             raise AppException(ErrorCode.GROUP_ALREADY_DELETE_PENDING)
 
         group = self.repository.request_delete_group(group)
+        access_level = self._get_group_owner_access_level(group)
 
         notif_service = NotificationService()
         notif_repo = NotificationRepository(self.repository.db)
@@ -252,23 +304,15 @@ class GroupService:
                 target_id=group_id,
             )
 
-        return GroupDetailResponse(
-            id=group.id,
-            name=group.name,
-            description=group.description,
-            status=group.status.value,
-            my_role=MembershipRole.OWNER.value,
-            owner_id=group.owner_user_id,
-            owner_username=group.owner.username,
-            member_count=self.repository.count_member(group.id),
-            document_count=self.repository.count_document(group.id),
-            delete_scheduled_at=group.delete_scheduled_at,
-            created_at=group.created_at,
-            updated_at=group.updated_at,
+        return self._to_group_detail_response(
+            group=group,
+            role=MembershipRole.OWNER,
+            access_level=access_level,
         )
 
-    # 그룹 삭제 취소
+
     def cancel_delete_group(self, user_id: int, group_id: int) -> GroupDetailResponse:
+        """그룹 삭제 요청을 취소한다."""
         group = self._check_owner(user_id, group_id)
 
         if group.status != GroupStatus.DELETE_PENDING:
@@ -278,20 +322,12 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_RESTORE_OWNER_LIMIT)
 
         group = self.repository.cancel_delete_group(group)
+        access_level = self._get_group_owner_access_level(group)
 
-        return GroupDetailResponse(
-            id=group.id,
-            name=group.name,
-            description=group.description,
-            status=group.status.value,
-            my_role=MembershipRole.OWNER.value,
-            owner_id=group.owner_user_id,
-            owner_username=group.owner.username,
-            member_count=self.repository.count_member(group.id),
-            document_count=self.repository.count_document(group.id),
-            delete_scheduled_at=group.delete_scheduled_at,
-            created_at=group.created_at,
-            updated_at=group.updated_at,
+        return self._to_group_detail_response(
+            group=group,
+            role=MembershipRole.OWNER,
+            access_level=access_level,
         )
 
     def get_members(self, user_id: int, group_id: int) -> MemberListResponse:

@@ -25,10 +25,8 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../features/auth'
 import { createGroup, getMyGroups } from '../../api/groups'
 
-// 역할 배지
 const ROLE_STYLE = {
   OWNER: { label: 'OWNER', variant: 'default' },
   ADMIN: { label: 'ADMIN', variant: 'secondary' },
@@ -36,51 +34,73 @@ const ROLE_STYLE = {
   VIEWER: { label: 'VIEWER', variant: 'outline' },
 }
 
-function RoleBadge({ role }) {
-  const { label, variant } = ROLE_STYLE[role] ?? { label: role, variant: 'outline' }
-  return <Badge variant={variant}>{label}</Badge>
-}
-
+/**
+ * D-Day를 계산한다.
+ */
 function calcDday(isoDate) {
   if (!isoDate) return null
   const diff = Math.ceil((new Date(isoDate) - new Date()) / (1000 * 60 * 60 * 24))
   return diff <= 0 ? 'D-0' : `D-${diff}`
 }
 
-function getReadOnlyEndDateLabel(endedAt) {
-  if (!endedAt) return null
-  const readOnlyEndsAt = new Date(endedAt)
-  readOnlyEndsAt.setDate(readOnlyEndsAt.getDate() + 30)
-  return readOnlyEndsAt.toLocaleDateString('ko-KR')
+function RoleBadge({ role }) {
+  const { label, variant } = ROLE_STYLE[role] ?? { label: role, variant: 'outline' }
+  return <Badge variant={variant}>{label}</Badge>
 }
 
-function getSubscriptionWorkspaceState(subscription) {
-  if (!subscription) return 'FREE'
-
-  const { plan, status, ended_at } = subscription
-
-  if (plan !== 'PREMIUM') return 'FREE'
-  if (status === 'ACTIVE') return 'ACTIVE'
-  if (!ended_at) return 'BLOCKED'
-
-  const now = new Date()
-  const endedAt = new Date(ended_at)
-  const readOnlyEndsAt = new Date(ended_at)
-  readOnlyEndsAt.setDate(readOnlyEndsAt.getDate() + 30)
-
-  if (endedAt > now) return 'ACTIVE'
-  if (readOnlyEndsAt > now) return 'READ_ONLY'
-  return 'BLOCKED'
-}
-
-// 상태 배지
 function StatusBadge({ status, scheduledAt }) {
   if (status === 'ACTIVE') return null
   const dday = calcDday(scheduledAt)
   return <Badge variant="destructive">삭제 예정 {dday}</Badge>
 }
 
-// 그룹 카드
+/**
+ * 오너 워크스페이스 접근 제한 안내를 표시한다.
+ */
+function OwnerWorkspaceNotice({ accessLevel, onUpgrade }) {
+  if (accessLevel === 'READ_ONLY') {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-5 py-5">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+            <Lock className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-amber-900">읽기 전용 기간입니다</p>
+            <p className="mt-1 text-sm leading-6 text-amber-800">
+              구독이 만료되어 내가 만든 워크스페이스는 현재 읽기 전용으로만 사용할 수 있습니다.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-2xl border border-red-200 bg-red-50/70 px-5 py-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-700">
+            <CreditCard className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-red-900">워크스페이스 접근이 제한되었습니다</p>
+            <p className="mt-1 text-sm leading-6 text-red-800">
+              프리미엄 구독이 만료되어 내가 만든 워크스페이스를 사용할 수 없습니다.
+              데이터는 만료 후 60일 동안 추가 보관되며, 보관 기간이 지나면 삭제될 수 있습니다.
+            </p>
+          </div>
+        </div>
+
+        <Button onClick={onUpgrade} className="shrink-0 gap-2">
+          <CreditCard className="h-4 w-4" />
+          구독 관리하러 가기
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function GroupCard({ group, onClick }) {
   const isDeleting = group.status !== 'ACTIVE'
 
@@ -127,7 +147,6 @@ function GroupCard({ group, onClick }) {
   )
 }
 
-// 새 워크스페이스 생성 그룹 카드
 function CreateGroupCard({ onClick }) {
   return (
     <Card
@@ -142,7 +161,9 @@ function CreateGroupCard({ onClick }) {
   )
 }
 
-// 그룹 생성 모달
+/**
+ * 그룹 생성 모달이다.
+ */
 function CreateGroupDialog({ open, onClose, onCreated }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -229,55 +250,6 @@ function CreateGroupDialog({ open, onClose, onCreated }) {
   )
 }
 
-
-function OwnerWorkspaceNotice({ state, endedAt, onUpgrade }) {
-  if (state === 'READ_ONLY') {
-    const readOnlyEndDateLabel = getReadOnlyEndDateLabel(endedAt)
-
-    return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-5 py-5">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-            <Lock className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-amber-900">워크스페이스 읽기 전용 기간입니다</p>
-            <p className="mt-1 text-sm leading-6 text-amber-800">
-              구독이 만료되어 내가 만든 워크스페이스는 현재 읽기 전용으로만 사용할 수 있습니다.
-              {readOnlyEndDateLabel ? ` ${readOnlyEndDateLabel}까지 읽기 전용으로 접근할 수 있습니다.` : ''}
-            </p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="rounded-2xl border border-red-200 bg-red-50/70 px-5 py-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-700">
-            <CreditCard className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-red-900">워크스페이스 접근이 제한되었습니다</p>
-            <p className="mt-1 text-sm leading-6 text-red-800">
-              프리미엄 구독이 만료되어 내가 만든 워크스페이스를 사용할 수 없습니다.
-              데이터는 만료 후 60일 동안 추가 보관되며, 보관 기간이 지나면 삭제될 수 있습니다.
-            </p>
-          </div>
-        </div>
-
-        <Button onClick={onUpgrade} className="shrink-0 gap-2">
-          <CreditCard className="h-4 w-4" />
-          구독 관리하러 가기
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-// 섹션
 function GroupSection({ title, groups, onCardClick }) {
   if (groups.length === 0) return null
 
@@ -289,11 +261,15 @@ function GroupSection({ title, groups, onCardClick }) {
           <GroupCard key={g.id} group={g} onClick={() => onCardClick(g.id)} />
         ))}
       </div>
+      {groups.some((g) => g.my_role === 'OWNER' && g.access_level === 'READ_ONLY') && (
+        <div className="mt-4">
+          <OwnerWorkspaceNotice accessLevel="READ_ONLY" onUpgrade={onCardClick} />
+        </div>
+      )}
     </section>
   )
 }
 
-// 소속 그룹 없을 때 페이지
 function EmptyState({ onOpen }) {
   return (
     <div className="flex flex-col items-center justify-center gap-5 py-28 text-center">
@@ -314,10 +290,8 @@ function EmptyState({ onOpen }) {
   )
 }
 
-// 페이지
 export default function WorkspacePage() {
   const navigate = useNavigate()
-  const { user } = useAuth()
   const [groups, setGroups] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -336,11 +310,10 @@ export default function WorkspacePage() {
 
   const myGroups = groups.filter((g) => g.my_role === 'OWNER')
   const invitedGroups = groups.filter((g) => g.my_role !== 'OWNER')
-  const ownerWorkspaceState = getSubscriptionWorkspaceState(user?.subscription)
-
-  const showOwnerReadOnlyNotice = ownerWorkspaceState === 'READ_ONLY'
   const showOwnerBlockedNotice =
-    myGroups.length === 0 && ownerWorkspaceState === 'BLOCKED'
+    myGroups.length === 0 &&
+    groups.length > 0 &&
+    groups.every((g) => g.my_role !== 'OWNER') === false
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
@@ -357,37 +330,36 @@ export default function WorkspacePage() {
         </div>
       ) : error ? (
         <div className="py-28 text-center text-sm text-destructive">{error}</div>
-      ) : groups.length === 0 && !showOwnerBlockedNotice ? (
+      ) : groups.length === 0 ? (
         <EmptyState onOpen={() => setDialogOpen(true)} />
       ) : (
         <>
           <section className="mb-8">
             <h2 className="mb-3 text-sm font-semibold">내가 만든 워크스페이스</h2>
 
-            {showOwnerReadOnlyNotice && (
-              <div className="mb-4">
-                <OwnerWorkspaceNotice
-                  state={ownerWorkspaceState}
-                  endedAt={user?.subscription?.ended_at}
-                  onUpgrade={() => navigate('/mypage')}
-                />
-              </div>
-            )}
-
             {myGroups.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {myGroups.map((group) => (
-                  <GroupCard
-                    key={group.id}
-                    group={group}
-                    onClick={() => navigate(`/workspace/${group.id}`)}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {myGroups.map((group) => (
+                    <GroupCard
+                      key={group.id}
+                      group={group}
+                      onClick={() => navigate(`/workspace/${group.id}`)}
+                    />
+                  ))}
+                </div>
+                {myGroups.some((group) => group.access_level === 'READ_ONLY') && (
+                  <div className="mt-4">
+                    <OwnerWorkspaceNotice
+                      accessLevel="READ_ONLY"
+                      onUpgrade={() => navigate('/mypage')}
+                    />
+                  </div>
+                )}
+              </>
             ) : showOwnerBlockedNotice ? (
               <OwnerWorkspaceNotice
-                state={ownerWorkspaceState}
-                endedAt={user?.subscription?.ended_at}
+                accessLevel="BLOCKED"
                 onUpgrade={() => navigate('/mypage')}
               />
             ) : (
