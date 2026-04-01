@@ -39,16 +39,19 @@ export default function SecuritySection() {
   return (
     <div className="space-y-12">
       <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-none rounded-xl overflow-hidden">
-        <CardHeader className="py-4 px-6 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50">
-          <CardTitle className="text-sm font-bold flex items-center gap-2 text-zinc-700 dark:text-zinc-300 uppercase tracking-tight">
-            <Lock size={16} className="text-blue-500" /> 비밀번호 보안
+       <CardHeader className="py-3 px-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50">
+          <CardTitle className="text-sm font-bold flex items-center gap-3 text-zinc-700 dark:text-zinc-300 uppercase tracking-tight">
+            <div className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
+              <Lock size={14} className="text-zinc-600 dark:text-zinc-400" />
+            </div>
+            비밀번호
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
           {step === 1 ? (
             <div className="flex items-center justify-between animate-in fade-in duration-300">
               <div className="space-y-1">
-                <p className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase">비밀번호 </p>
+                <p className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase">암호 </p>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-black text-zinc-800 dark:text-zinc-200">••••••••••••••••••••••••••</span>
                 </div>

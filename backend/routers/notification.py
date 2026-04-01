@@ -9,10 +9,39 @@ from dependencies import (
 )
 from models.model import User
 from repositories.notification_repository import NotificationRepository
-from schemas.notification import NotificationResponse
+from schemas.notification import (
+    NotificationResponse,
+    NotificationSettingResponse,
+    NotificationSettingUpdateRequest,
+)
 from services.notification_service import NotificationService
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
+
+
+@router.get("/settings", response_model=List[NotificationSettingResponse])
+async def get_notification_settings(
+    current_user: User = Depends(get_current_user),
+    notification_service: NotificationService = Depends(get_notification_service),
+    repository: NotificationRepository = Depends(get_notification_repository),
+):
+    return notification_service.get_all_settings(repository, current_user.id)
+
+
+@router.patch("/settings", response_model=NotificationSettingResponse)
+async def update_notification_setting(
+    payload: NotificationSettingUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    notification_service: NotificationService = Depends(get_notification_service),
+    repository: NotificationRepository = Depends(get_notification_repository),
+):
+    return notification_service.upsert_setting(
+        repository=repository,
+        user_id=current_user.id,
+        notification_type=payload.notification_type,
+        is_enabled=payload.is_enabled,
+        is_toast_enabled=payload.is_toast_enabled,
+    )
 
 
 @router.get("", response_model=List[NotificationResponse])

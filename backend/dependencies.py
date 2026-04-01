@@ -59,6 +59,14 @@ def get_current_user_optional(
 
 # HTTP 데이터 추출
 def get_client_ip(request: Request) -> str:
+    cf_ip = request.headers.get("cf-connecting-ip")
+    if cf_ip:
+        return cf_ip.split(",")[0].strip()
+
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+
     return request.client.host if request.client else "unknown"
 
 

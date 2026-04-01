@@ -57,9 +57,12 @@ export default function EmailSection() {
 
   return (
     <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-none rounded-xl overflow-hidden">
-      <CardHeader className="py-4 px-6 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50">
-        <CardTitle className="text-sm font-bold flex items-center gap-2 text-zinc-700 dark:text-zinc-300 uppercase tracking-tight">
-          <Mail size={16} className="text-blue-500" /> 이메일
+     <CardHeader className="py-3 px-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50">
+        <CardTitle className="text-sm font-bold flex items-center gap-3 text-zinc-700 dark:text-zinc-300 uppercase tracking-tight">
+          <div className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
+            <Mail size={14} className="text-zinc-600 dark:text-zinc-400" />
+          </div>
+          이메일
         </CardTitle>
       </CardHeader>
       <CardContent className="p-5">
