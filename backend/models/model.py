@@ -79,17 +79,10 @@ class ChatMessageRole(enum.Enum):
 class NotificationType(enum.Enum):
     AI_ANSWER_COMPLETE = "AI_ANSWER_COMPLETE"
     WORKSPACE_INVITED = "WORKSPACE_INVITED"
-    WORKSPACE_JOINED = "WORKSPACE_JOINED"
     WORKSPACE_DELETE_NOTICE = "WORKSPACE_DELETE_NOTICE"
     DOCUMENT_UPLOAD_REQUESTED = "DOCUMENT_UPLOAD_REQUESTED"
     DOCUMENT_DELETED = "DOCUMENT_DELETED"
-    GROUP_DELETE_REQUESTED = "GROUP_DELETE_REQUESTED"
-    GROUP_DELETE_CANCELED = "GROUP_DELETE_CANCELED"
-    DOCUMENT_DELETE_REQUESTED = "DOCUMENT_DELETE_REQUESTED"
-    DOCUMENT_RESTORED = "DOCUMENT_RESTORED"
-    MEMBER_ROLE_CHANGED = "MEMBER_ROLE_CHANGED"
-    MEMBER_REMOVED = "MEMBER_REMOVED"
-    SYSTEM = "SYSTEM"
+    WORKSPACE_KICKED = "WORKSPACE_KICKED"
 
 
 class SubscriptionPlan(enum.Enum):
@@ -126,7 +119,6 @@ class User(Base):
         Enum(UserRole, native_enum=False), default=UserRole.GENERAL, nullable=False
     )
     is_active = Column(Boolean, default=True, nullable=False)
-    is_toast_notification_enabled = Column(Boolean, default=True, nullable=False)
 
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
     updated_at = Column(
@@ -586,3 +578,30 @@ class Notification(Base):
         "User", foreign_keys=[actor_user_id], back_populates="sent_notifications"
     )
     group = relationship("Group", back_populates="notifications")
+
+
+class NotificationSetting(Base):
+    __tablename__ = "notification_settings"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+
+    notification_type = Column(
+        Enum(NotificationType, native_enum=False), nullable=False
+    )
+    is_enabled = Column(Boolean, default=True, nullable=False)
+    is_toast_enabled = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "notification_type", name="uq_user_notification_type"
+        ),
+    )
+
+    user = relationship("User", backref="notification_preferences")
