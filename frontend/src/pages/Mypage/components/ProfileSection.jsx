@@ -54,16 +54,19 @@ export default function ProfileSection() {
 
   return (
     <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-none rounded-xl overflow-hidden">
-      <CardHeader className="py-3 px-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50">
-        <CardTitle className="text-sm font-bold flex items-center gap-2 text-zinc-700 dark:text-zinc-300 uppercase tracking-tight">
-          <User2 size={16} className="text-blue-500" /> 기본 프로필
+     <CardHeader className="py-3 px-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50">
+        <CardTitle className="text-sm font-bold flex items-center gap-3 text-zinc-700 dark:text-zinc-300 uppercase tracking-tight">
+          <div className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
+            <User2 size={14} className="text-zinc-600 dark:text-zinc-400" />
+          </div>
+          기본
         </CardTitle>
       </CardHeader>
       <CardContent className="p-5">
         {!isEditing ? (
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <p className="text-[11px] font-bold text-zinc-400 uppercase ml-1">이름</p>
+              <p className="text-[11px] font-bold text-zinc-400 uppercase ml-1">유저명</p>
               <p className="text-sm font-black text-zinc-800 dark:text-zinc-200 ml-1">{user?.username}</p>
             </div>
             <Button

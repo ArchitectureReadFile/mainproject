@@ -73,7 +73,7 @@ export default function WithdrawalSection() {
 
   return (
     <>
-      <div className="space-y-10 pt-24">
+      <div className="space-y-6 pt-24">
         <div className="flex items-center gap-2 px-2">
           <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
           <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">위험 구역</span>
