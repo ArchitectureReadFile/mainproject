@@ -19,7 +19,6 @@ from schemas.auth import (
     SignupRequest,
     SubscribePremiumRequest,
     UpdateEmailRequest,
-    UpdateNotificationRequest,
     UpdatePasswordRequest,
     UpdateUsernameRequest,
     UserResponse,
@@ -177,18 +176,6 @@ def update_email(
     )
     CookieService.set_auth_cookies(response, access_token, refresh_token)
     return user_resp
-
-
-@router.patch("/notification", response_model=UserResponse)
-def update_notification_settings(
-    payload: UpdateNotificationRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    auth_service: AuthService = Depends(get_auth_service),
-):
-    return auth_service.update_notification_settings(
-        db, current_user.id, payload.is_toast_notification_enabled
-    )
 
 
 @router.post("/subscription/subscribe", response_model=UserResponse)
