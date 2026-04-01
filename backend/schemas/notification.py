@@ -3,6 +3,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+from models.model import NotificationType
+
 
 class NotificationResponse(BaseModel):
     id: int
@@ -24,3 +26,18 @@ class NotificationResponse(BaseModel):
 
 class NotificationListResponse(BaseModel):
     notifications: List[NotificationResponse]
+
+
+class NotificationSettingUpdateRequest(BaseModel):
+    notification_type: NotificationType
+    is_enabled: bool
+    is_toast_enabled: bool
+
+
+class NotificationSettingResponse(BaseModel):
+    notification_type: NotificationType
+    is_enabled: bool
+    is_toast_enabled: bool
+
+    class Config:
+        from_attributes = True

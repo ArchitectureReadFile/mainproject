@@ -13,6 +13,15 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 
 
 class NotificationService:
+    def _is_enabled(
+        self,
+        repository: NotificationRepository,
+        user_id: int,
+        type: NotificationType,
+    ) -> bool:
+        setting = repository.get_setting(user_id, type)
+        return setting.is_enabled if setting else True
+
     def create_notification_sync(
         self,
         repository: NotificationRepository,
@@ -25,6 +34,27 @@ class NotificationService:
         target_type: str = None,
         target_id: int = None,
     ):
+        if not self._is_enabled(repository, user_id, type):
+            return None
+
+        skip_membership_check = [
+            NotificationType.WORKSPACE_INVITED,
+            NotificationType.WORKSPACE_KICKED,
+        ]
+
+        if group_id and type not in skip_membership_check:
+            from database import SessionLocal
+            from repositories.group_repository import GroupRepository
+
+            db = SessionLocal()
+            try:
+                group_repo = GroupRepository(db)
+                membership = group_repo.get_active_member(user_id, group_id)
+                if not membership:
+                    return None
+            finally:
+                db.close()
+
         notification = Notification(
             user_id=user_id,
             actor_user_id=actor_user_id,
@@ -40,26 +70,43 @@ class NotificationService:
         return db_notification
 
     def send_realtime_notification_sync(self, user_id: int, notification: Notification):
+        if not notification:
+            return
         import redis
 
-        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True)
+        from database import SessionLocal
+
+        db = SessionLocal()
         try:
-            payload = {
-                "id": notification.id,
-                "type": notification.type.value,
-                "title": notification.title,
-                "body": notification.body,
-                "is_read": notification.is_read,
-                "created_at": notification.created_at.isoformat()
-                if notification.created_at
-                else None,
-                "group_id": notification.group_id,
-                "target_type": notification.target_type,
-                "target_id": notification.target_id,
-            }
-            r.publish(f"notifications:{user_id}", json.dumps(payload))
+            repo = NotificationRepository(db)
+            setting = repo.get_setting(user_id, notification.type)
+            is_toast_enabled = setting.is_toast_enabled if setting else True
+
+            r = redis.Redis(
+                host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True
+            )
+            try:
+                payload = {
+                    "id": notification.id,
+                    "type": notification.type.value,
+                    "title": notification.title,
+                    "body": notification.body,
+                    "is_read": notification.is_read,
+                    "is_toast_enabled": is_toast_enabled,
+                    "created_at": (
+                        notification.created_at.isoformat()
+                        if notification.created_at
+                        else None
+                    ),
+                    "group_id": notification.group_id,
+                    "target_type": notification.target_type,
+                    "target_id": notification.target_id,
+                }
+                r.publish(f"notifications:{user_id}", json.dumps(payload))
+            finally:
+                r.close()
         finally:
-            r.close()
+            db.close()
 
     async def create_notification(
         self,
@@ -73,6 +120,9 @@ class NotificationService:
         target_type: str = None,
         target_id: int = None,
     ):
+        if not self._is_enabled(repository, user_id, type):
+            return None
+
         notification = Notification(
             user_id=user_id,
             actor_user_id=actor_user_id,
@@ -90,29 +140,42 @@ class NotificationService:
     async def send_realtime_notification(
         self, user_id: int, notification: Notification
     ):
-        redis = aioredis.Redis(
-            host=REDIS_HOST,
-            port=REDIS_PORT,
-            db=0,
-            decode_responses=True,
-        )
+        from database import SessionLocal
+
+        db = SessionLocal()
         try:
-            payload = {
-                "id": notification.id,
-                "type": notification.type.value,
-                "title": notification.title,
-                "body": notification.body,
-                "is_read": notification.is_read,
-                "created_at": notification.created_at.isoformat()
-                if notification.created_at
-                else None,
-                "group_id": notification.group_id,
-                "target_type": notification.target_type,
-                "target_id": notification.target_id,
-            }
-            await redis.publish(f"notifications:{user_id}", json.dumps(payload))
+            repo = NotificationRepository(db)
+            setting = repo.get_setting(user_id, notification.type)
+            is_toast_enabled = setting.is_toast_enabled if setting else True
+
+            redis = aioredis.Redis(
+                host=REDIS_HOST,
+                port=REDIS_PORT,
+                db=0,
+                decode_responses=True,
+            )
+            try:
+                payload = {
+                    "id": notification.id,
+                    "type": notification.type.value,
+                    "title": notification.title,
+                    "body": notification.body,
+                    "is_read": notification.is_read,
+                    "is_toast_enabled": is_toast_enabled,
+                    "created_at": (
+                        notification.created_at.isoformat()
+                        if notification.created_at
+                        else None
+                    ),
+                    "group_id": notification.group_id,
+                    "target_type": notification.target_type,
+                    "target_id": notification.target_id,
+                }
+                await redis.publish(f"notifications:{user_id}", json.dumps(payload))
+            finally:
+                await redis.close()
         finally:
-            await redis.close()
+            db.close()
 
     def mark_as_read(
         self, repository: NotificationRepository, notification_id: int, user_id: int
@@ -141,3 +204,18 @@ class NotificationService:
         if not notification:
             raise AppException(ErrorCode.NOTIFICATION_NOT_FOUND)
         repository.delete(notification)
+
+    def get_all_settings(self, repository: NotificationRepository, user_id: int):
+        return repository.get_all_settings_by_user(user_id)
+
+    def upsert_setting(
+        self,
+        repository: NotificationRepository,
+        user_id: int,
+        notification_type: NotificationType,
+        is_enabled: bool,
+        is_toast_enabled: bool,
+    ):
+        return repository.upsert_setting(
+            user_id, notification_type, is_enabled, is_toast_enabled
+        )

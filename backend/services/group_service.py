@@ -9,9 +9,11 @@ from models.model import (
     GroupStatus,
     MembershipRole,
     MembershipStatus,
+    NotificationType,
     utc_now_naive,
 )
 from repositories.group_repository import GroupRepository
+from repositories.notification_repository import NotificationRepository
 from schemas.group import (
     GroupDetailResponse,
     GroupSummaryResponse,
@@ -21,6 +23,7 @@ from schemas.group import (
     MemberResponse,
 )
 from services.auth_service import AuthService, SubscriptionAccessLevel
+from services.notification_service import NotificationService
 
 
 class GroupService:
@@ -230,6 +233,25 @@ class GroupService:
 
         group = self.repository.request_delete_group(group)
 
+        notif_service = NotificationService()
+        notif_repo = NotificationRepository(self.repository.db)
+        active_members = self.repository.get_members(group_id)
+
+        for _, user in active_members:
+            if user.id == user_id:
+                continue
+            notif_service.create_notification_sync(
+                repository=notif_repo,
+                user_id=user.id,
+                actor_user_id=user_id,
+                group_id=group_id,
+                type=NotificationType.WORKSPACE_DELETE_NOTICE,
+                title=f"'{group.name}' 워크스페이스 삭제 알림",
+                body=f"워크스페이스 '{group.name}'이 소유자에 의해 삭제 요청되었습니다. 예정일: {group.delete_scheduled_at}",
+                target_type="group",
+                target_id=group_id,
+            )
+
         return GroupDetailResponse(
             id=group.id,
             name=group.name,
@@ -365,6 +387,20 @@ class GroupService:
                 target.id, group_id, inviter_id, role
             )
 
+        notif_service = NotificationService()
+        notif_repo = NotificationRepository(self.repository.db)
+        notif_service.create_notification_sync(
+            repository=notif_repo,
+            user_id=target.id,
+            actor_user_id=inviter_id,
+            group_id=group_id,
+            type=NotificationType.WORKSPACE_INVITED,
+            title=f"'{group.name}' 워크스페이스에 초대되었습니다.",
+            body=f"{group.owner.username}님이 귀하를 '{group.name}' 워크스페이스에 초대했습니다.",
+            target_type="group",
+            target_id=group_id,
+        )
+
         return InvitedMemberResponse(
             user_id=target.id,
             username=target.username,
@@ -416,6 +452,20 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_OWNER)
 
         self.repository.remove_member(target_membership)
+
+        notif_service = NotificationService()
+        notif_repo = NotificationRepository(self.repository.db)
+        notif_service.create_notification_sync(
+            repository=notif_repo,
+            user_id=target_id,
+            actor_user_id=remover_id,
+            group_id=group_id,
+            type=NotificationType.WORKSPACE_KICKED,
+            title="워크스페이스 추방 알림",
+            body=f"'{group.name}' 워크스페이스에서 추방되었습니다.",
+            target_type="group",
+            target_id=group_id,
+        )
 
     # 멤버 권한 변경
     def change_member_role(

@@ -263,18 +263,6 @@ class AuthService:
         access_token, refresh_token = self._issue_tokens(redis_client, new_email)
         return self.to_user_response(db, user), access_token, refresh_token
 
-    def update_notification_settings(
-        self, db: Session, user_id: int, is_enabled: bool
-    ) -> UserResponse:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise AppException(ErrorCode.USER_NOT_FOUND)
-
-        user.is_toast_notification_enabled = is_enabled
-        db.commit()
-        db.refresh(user)
-        return self.to_user_response(db, user)
-
     def hash_password(self, password: str) -> str:
         if len(password.encode("utf-8")) > 72:
             raise AppException(ErrorCode.USER_PASSWORD_TOO_LONG)
@@ -334,7 +322,6 @@ class AuthService:
             username=user.username,
             role=user.role.value,
             is_active=user.is_active,
-            is_toast_notification_enabled=user.is_toast_notification_enabled,
             created_at=user.created_at,
             subscription=(
                 SubscriptionResponse(

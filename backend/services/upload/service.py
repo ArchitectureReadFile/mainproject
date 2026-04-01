@@ -74,6 +74,27 @@ class UploadService:
                     assignee_user_id=assignee_user_id,
                 )
 
+                if assignee_user_id:
+                    from models.model import NotificationType
+                    from repositories.notification_repository import (
+                        NotificationRepository,
+                    )
+                    from services.notification_service import NotificationService
+
+                    notif_service = NotificationService()
+                    notif_repo = NotificationRepository(self.repository.db)
+                    notif_service.create_notification_sync(
+                        repository=notif_repo,
+                        user_id=assignee_user_id,
+                        actor_user_id=user_id,
+                        group_id=group_id,
+                        type=NotificationType.DOCUMENT_UPLOAD_REQUESTED,
+                        title="새로운 문서 검토 요청",
+                        body=f"'{filename}' 문서의 검토 승인자로 지정되었습니다.",
+                        target_type="group",
+                        target_id=group_id,
+                    )
+
             self.repository.db.commit()
             self.repository.db.refresh(document)
             doc_ids.append(document.id)
