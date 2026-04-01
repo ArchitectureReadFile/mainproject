@@ -22,4 +22,4 @@ uploads/
 services/rag/chroma_data/
 
 # 런타임 산출물
-backend/celerybeat-schedule
+/celerybeat-schedule
