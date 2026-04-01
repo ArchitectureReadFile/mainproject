@@ -37,11 +37,6 @@ export const reactivateAccount = async (credentials) => {
   return response.data;
 };
 
-export const updateNotificationSettings = async (isToastNotificationEnabled) => {
-  const response = await client.patch('/auth/notification', { is_toast_notification_enabled: isToastNotificationEnabled })
-  return response.data
-}
-
 export const updatePassword = async (data) => {
   await client.patch("/auth/password", data);
 };

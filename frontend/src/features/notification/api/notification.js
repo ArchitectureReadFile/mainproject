@@ -15,3 +15,11 @@ export const markAllAsRead = () => {
 export const deleteNotification = (id) => {
   return client.delete(`/notifications/${id}`)
 }
+
+export const getNotificationSettings = () => {
+  return client.get('/notifications/settings')
+}
+
+export const updateNotificationSetting = (data) => {
+  return client.patch('/notifications/settings', data)
+}
