@@ -49,7 +49,13 @@ class MembershipStatus(enum.Enum):
 class GroupStatus(enum.Enum):
     ACTIVE = "ACTIVE"
     DELETE_PENDING = "DELETE_PENDING"
+    BLOCKED = "BLOCKED"
     DELETED = "DELETED"
+
+
+class GroupPendingReason(enum.Enum):
+    OWNER_DELETE_REQUEST = "OWNER_DELETE_REQUEST"
+    SUBSCRIPTION_EXPIRED = "SUBSCRIPTION_EXPIRED"
 
 
 class DocumentStatus(enum.Enum):
@@ -232,6 +238,10 @@ class Group(Base):
     description = Column(Text)
     status = Column(
         Enum(GroupStatus, native_enum=False), default=GroupStatus.ACTIVE, nullable=False
+    )
+    pending_reason = Column(
+        Enum(GroupPendingReason, native_enum=False),
+        nullable=True,
     )
 
     delete_requested_at = Column(DateTime)

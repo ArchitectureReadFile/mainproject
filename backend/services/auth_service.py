@@ -1,6 +1,5 @@
 import os
 from datetime import datetime, timedelta, timezone
-from enum import Enum
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -10,6 +9,9 @@ from sqlalchemy.orm import Session
 from errors.error_codes import ErrorCode
 from errors.exceptions import AppException
 from models.model import (
+    Group,
+    GroupPendingReason,
+    GroupStatus,
     Subscription,
     SubscriptionPlan,
     SubscriptionStatus,
@@ -43,12 +45,6 @@ LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(
     os.getenv("LOGIN_RATE_LIMIT_WINDOW_SECONDS", "300")
 )
 LOGIN_RATE_LIMIT_BLOCK_SECONDS = int(os.getenv("LOGIN_RATE_LIMIT_BLOCK_SECONDS", "300"))
-
-
-class SubscriptionAccessLevel(str, Enum):
-    FULL_ACCESS = "FULL_ACCESS"
-    READ_ONLY = "READ_ONLY"
-    BLOCKED = "BLOCKED"
 
 
 class AuthService:
@@ -373,6 +369,27 @@ class AuthService:
     def _clear_login_failures(self, redis_client: Redis, key: str):
         redis_client.delete(f"attempts:{key}", f"block:{key}")
 
+    def has_full_workspace_access(self, db: Session, user_id: int) -> bool:
+        """워크스페이스의 전체 사용 권한이 있는지 반환"""
+        subscription = self.get_effective_subscription(db, user_id)
+        now = utc_now_naive()
+
+        if subscription.plan != SubscriptionPlan.PREMIUM:
+            return False
+
+        if subscription.status == SubscriptionStatus.ACTIVE:
+            return True
+
+        return (
+            subscription.status
+            in (
+                SubscriptionStatus.CANCELED,
+                SubscriptionStatus.EXPIRED,
+            )
+            and subscription.ended_at is not None
+            and subscription.ended_at > now
+        )
+
     def ensure_subscription_state(
         self, db: Session, subscription: Subscription | None
     ) -> Subscription | None:
@@ -470,6 +487,27 @@ class AuthService:
             subscription.started_at = now
             subscription.ended_at = now + timedelta(days=30)
 
+        pending_groups = (
+            db.query(Group)
+            .filter(
+                Group.owner_user_id == user_id,
+                Group.status.in_(
+                    [
+                        GroupStatus.DELETE_PENDING,
+                        GroupStatus.BLOCKED,
+                    ]
+                ),
+                Group.pending_reason == GroupPendingReason.SUBSCRIPTION_EXPIRED,
+            )
+            .all()
+        )
+
+        for group in pending_groups:
+            group.status = GroupStatus.ACTIVE
+            group.pending_reason = None
+            group.delete_requested_at = None
+            group.delete_scheduled_at = None
+
         db.commit()
         db.refresh(user)
         db.refresh(subscription)
@@ -517,31 +555,3 @@ class AuthService:
             and subscription.status == SubscriptionStatus.ACTIVE
             and subscription.ended_at is not None
         )
-
-    def get_subscription_access_level(
-        self, db: Session, user_id: int
-    ) -> SubscriptionAccessLevel:
-        """사용자의 현재 구독 접근 단계를 반환"""
-        subscription = self.get_effective_subscription(db, user_id)
-        now = utc_now_naive()
-
-        if subscription.plan != SubscriptionPlan.PREMIUM:
-            return SubscriptionAccessLevel.BLOCKED
-
-        if subscription.status == SubscriptionStatus.ACTIVE:
-            return SubscriptionAccessLevel.FULL_ACCESS
-
-        if subscription.status in (
-            SubscriptionStatus.CANCELED,
-            SubscriptionStatus.EXPIRED,
-        ):
-            if subscription.ended_at and subscription.ended_at > now:
-                return SubscriptionAccessLevel.FULL_ACCESS
-
-            if (
-                subscription.ended_at
-                and subscription.ended_at + timedelta(days=30) > now
-            ):
-                return SubscriptionAccessLevel.READ_ONLY
-
-        return SubscriptionAccessLevel.BLOCKED

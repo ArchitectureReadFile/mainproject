@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from models.model import GroupStatus, MembershipRole
+from models.model import GroupPendingReason, GroupStatus, MembershipRole
 
 
 class GroupCreateRequest(BaseModel):
@@ -15,6 +15,7 @@ class GroupCreateRequest(BaseModel):
     @field_validator("name")
     @classmethod
     def strip_name(cls, v):
+        """이름 양끝 공백을 제거하고 빈 문자열을 막는다."""
         v = v.strip()
         if not v:
             raise ValueError("이름은 공백만 입력할 수 없습니다.")
@@ -28,11 +29,11 @@ class GroupSummaryResponse(BaseModel):
     name: str
     description: Optional[str] = None
     status: GroupStatus
+    pending_reason: Optional[GroupPendingReason] = None
     my_role: MembershipRole
     owner_username: str
     member_count: int
     document_count: int
-    access_level: str
     delete_scheduled_at: Optional[datetime] = None
     created_at: datetime
 
@@ -44,15 +45,22 @@ class GroupDetailResponse(BaseModel):
     name: str
     description: Optional[str] = None
     status: GroupStatus
+    pending_reason: Optional[GroupPendingReason] = None
     my_role: MembershipRole
     owner_id: int
     owner_username: str
     member_count: int
     document_count: int
-    access_level: str
     delete_scheduled_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+
+
+class MyGroupsResponse(BaseModel):
+    """내가 속한 워크스페이스 목록과 차단된 오너 그룹 존재 여부를 반환한다."""
+
+    groups: list[GroupSummaryResponse]
+    has_blocked_owned_group: bool = False
 
 
 class MemberResponse(BaseModel):

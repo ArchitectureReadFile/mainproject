@@ -4,6 +4,9 @@ from datetime import timedelta
 from celery_app import celery_app
 from database import SessionLocal
 from models.model import (
+    Group,
+    GroupPendingReason,
+    GroupStatus,
     Subscription,
     SubscriptionPlan,
     SubscriptionStatus,
@@ -15,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @celery_app.task(name="tasks.subscription_task.reconcile_subscriptions")
 def reconcile_subscriptions():
-    """프리미엄 구독의 만료/자동 연장을 주기적으로 정리"""
+    """프리미엄 구독 만료와 워크스페이스 상태 전이를 함께 정리"""
     db = SessionLocal()
     try:
         subscriptions = (
@@ -25,7 +28,6 @@ def reconcile_subscriptions():
         )
 
         updated_count = 0
-
         now = utc_now_naive()
 
         for subscription in subscriptions:
@@ -48,7 +50,39 @@ def reconcile_subscriptions():
                 SubscriptionStatus.CANCELED,
             ):
                 subscription.status = SubscriptionStatus.EXPIRED
+
+                owned_groups = (
+                    db.query(Group)
+                    .filter(
+                        Group.owner_user_id == subscription.user_id,
+                        Group.status == GroupStatus.ACTIVE,
+                    )
+                    .all()
+                )
+
+                for group in owned_groups:
+                    group.status = GroupStatus.DELETE_PENDING
+                    group.pending_reason = GroupPendingReason.SUBSCRIPTION_EXPIRED
+                    group.delete_requested_at = subscription.ended_at
+                    group.delete_scheduled_at = subscription.ended_at + timedelta(
+                        days=30
+                    )
+
                 updated_count += 1
+
+        pending_groups = (
+            db.query(Group)
+            .filter(
+                Group.status == GroupStatus.DELETE_PENDING,
+                Group.delete_scheduled_at.isnot(None),
+                Group.delete_scheduled_at <= now,
+            )
+            .all()
+        )
+
+        for group in pending_groups:
+            group.status = GroupStatus.BLOCKED
+            updated_count += 1
 
         if updated_count > 0:
             db.commit()

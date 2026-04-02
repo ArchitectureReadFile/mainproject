@@ -8,12 +8,12 @@ from routers.auth import get_current_user
 from schemas.group import (
     GroupCreateRequest,
     GroupDetailResponse,
-    GroupSummaryResponse,
     InvitationResponse,
     InvitedMemberResponse,
     MemberInviteRequest,
     MemberListResponse,
     MemberRoleChangeRequest,
+    MyGroupsResponse,
 )
 from services.group_service import GroupService
 
@@ -38,7 +38,7 @@ def create_group(
     return result
 
 
-@router.get("", response_model=list[GroupSummaryResponse])
+@router.get("", response_model=MyGroupsResponse)
 def get_my_groups(
     current_user: User = Depends(get_current_user),
     service: GroupService = Depends(get_group_service),
