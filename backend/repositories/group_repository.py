@@ -130,7 +130,7 @@ class GroupRepository:
         )
 
     def get_owned_groups(self, user_id: int) -> list[Group]:
-        """사용자가 소유한 삭제 전 워크스페이스 목 조회"""
+        """사용자가 소유한 삭제 전 워크스페이스 목록 조회"""
         return (
             self.db.query(Group)
             .filter(

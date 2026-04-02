@@ -17,7 +17,6 @@ import {
   FileText,
   FolderOpen,
   Loader2,
-  Lock,
   Plus,
   Users,
   Home,
@@ -54,28 +53,11 @@ function StatusBadge({ status, scheduledAt }) {
   return <Badge variant="destructive">삭제 예정 {dday}</Badge>
 }
 
-
 /**
  * 오너 워크스페이스 접근 제한 안내를 표시한다.
  */
-function OwnerWorkspaceNotice({ mode, onUpgrade }) {
-  if (mode === 'READ_ONLY') {
-    return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-5 py-5">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-            <Lock className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-amber-900">읽기 전용 기간입니다</p>
-            <p className="mt-1 text-sm leading-6 text-amber-800">
-              구독이 만료되어 내가 만든 워크스페이스는 현재 읽기 전용으로만 사용할 수 있습니다.
-            </p>
-          </div>
-        </div>
-      </div>
-    )
-  }
+function OwnerWorkspaceNotice({ reason, onUpgrade }) {
+  const isSubscriptionExpired = reason === 'SUBSCRIPTION_EXPIRED'
 
   return (
     <div className="rounded-2xl border border-red-200 bg-red-50/70 px-5 py-5">
@@ -87,16 +69,19 @@ function OwnerWorkspaceNotice({ mode, onUpgrade }) {
           <div className="min-w-0">
             <p className="text-sm font-bold text-red-900">워크스페이스 접근이 제한되었습니다</p>
             <p className="mt-1 text-sm leading-6 text-red-800">
-              구독 만료 후 유예 기간이 종료되어 내가 만든 워크스페이스에 접근할 수 없습니다.
-              재구독하면 다시 복구할 수 있습니다.
+              {isSubscriptionExpired
+                ? '구독 만료로 워크스페이스 접근이 제한되었습니다. 데이터는 만료 후 60일 동안 보관되며, 기간 안에 재구독하면 복구할 수 있습니다.'
+                : '삭제 유예 기간이 종료되어 내가 만든 워크스페이스에 더 이상 접근할 수 없습니다.'}
             </p>
           </div>
         </div>
 
-        <Button onClick={onUpgrade} className="shrink-0 gap-2">
-          <CreditCard className="h-4 w-4" />
-          구독 관리하러 가기
-        </Button>
+        {isSubscriptionExpired && (
+          <Button onClick={onUpgrade} className="shrink-0 gap-2">
+            <CreditCard className="h-4 w-4" />
+            구독 관리하러 가기
+          </Button>
+        )}
       </div>
     </div>
   )
@@ -290,15 +275,17 @@ export default function WorkspacePage() {
   const navigate = useNavigate()
   const [groups, setGroups] = useState([])
   const [hasBlockedOwnedGroup, setHasBlockedOwnedGroup] = useState(false)
+  const [blockedOwnedGroupReason, setBlockedOwnedGroupReason] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
 
   useEffect(() => {
     getMyGroups()
-      .then(({ groups, has_blocked_owned_group }) => {
+      .then(({ groups, has_blocked_owned_group, blocked_owned_group_reason }) => {
         setGroups(groups)
         setHasBlockedOwnedGroup(has_blocked_owned_group)
+        setBlockedOwnedGroupReason(blocked_owned_group_reason)
       })
       .catch((e) => setError(e.message || '불러오기에 실패했습니다.'))
       .finally(() => setLoading(false))
@@ -310,14 +297,23 @@ export default function WorkspacePage() {
 
   const myGroups = groups.filter((g) => g.my_role === 'OWNER')
   const invitedGroups = groups.filter((g) => g.my_role !== 'OWNER')
-  
+
+  const hasActiveOwnerGroup = myGroups.some((group) => group.status === 'ACTIVE')
   const hasSubscriptionExpiredOwnerGroup = myGroups.some(
-    (group) =>
-      group.status === 'DELETE_PENDING' &&
-      group.pending_reason === 'SUBSCRIPTION_EXPIRED'
+    (group) => group.pending_reason === 'SUBSCRIPTION_EXPIRED'
   )
 
-  const showOwnerBlockedNotice = hasBlockedOwnedGroup
+  const isBlockedBySubscriptionExpired =
+    blockedOwnedGroupReason === 'SUBSCRIPTION_EXPIRED'
+
+  const canCreateOwnerWorkspace =
+    !hasActiveOwnerGroup &&
+    !hasSubscriptionExpiredOwnerGroup &&
+    !isBlockedBySubscriptionExpired
+
+  const shouldShowBlockedNotice =
+    hasBlockedOwnedGroup && blockedOwnedGroupReason === 'SUBSCRIPTION_EXPIRED'
+
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
@@ -334,7 +330,7 @@ export default function WorkspacePage() {
         </div>
       ) : error ? (
         <div className="py-28 text-center text-sm text-destructive">{error}</div>
-      ) : groups.length === 0 && !showOwnerBlockedNotice ? (
+      ) : groups.length === 0 && !shouldShowBlockedNotice && canCreateOwnerWorkspace ? (
         <EmptyState onOpen={() => setDialogOpen(true)} />
       ) : (
         <>
@@ -342,35 +338,29 @@ export default function WorkspacePage() {
             <h2 className="mb-3 text-sm font-semibold">내가 만든 워크스페이스</h2>
 
             {myGroups.length > 0 ? (
-              <>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {myGroups.map((group) => (
-                    <GroupCard
-                      key={group.id}
-                      group={group}
-                      onClick={() => navigate(`/workspace/${group.id}`)}
-                    />
-                  ))}
-                </div>
-                {hasSubscriptionExpiredOwnerGroup && (
-                  <div className="mt-4">
-                    <OwnerWorkspaceNotice
-                      mode="READ_ONLY"
-                      onUpgrade={() => navigate('/mypage')}
-                    />
-                  </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {myGroups.map((group) => (
+                  <GroupCard
+                    key={group.id}
+                    group={group}
+                    onClick={() => navigate(`/workspace/${group.id}`)}
+                  />
+                ))}
+
+                {canCreateOwnerWorkspace && (
+                  <CreateGroupCard onClick={() => setDialogOpen(true)} />
                 )}
-              </>
-            ) : showOwnerBlockedNotice ? (
+              </div>
+            ) : shouldShowBlockedNotice ? (
               <OwnerWorkspaceNotice
-                mode="BLOCKED"
+                reason={blockedOwnedGroupReason}
                 onUpgrade={() => navigate('/mypage')}
               />
-            ) : (
+            ) : canCreateOwnerWorkspace ? (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <CreateGroupCard onClick={() => setDialogOpen(true)} />
               </div>
-            )}
+            ) : null}
           </section>
 
           <GroupSection

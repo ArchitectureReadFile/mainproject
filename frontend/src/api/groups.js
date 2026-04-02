@@ -14,6 +14,7 @@ export async function getMyGroups() {
     return {
         groups: data.groups ?? [],
         has_blocked_owned_group: Boolean(data.has_blocked_owned_group),
+        blocked_owned_group_reason: data.blocked_owned_group_reason ?? null,
     }
 }
 

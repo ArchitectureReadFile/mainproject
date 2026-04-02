@@ -331,13 +331,15 @@ class GroupService:
         rows = self.repository.get_my_groups(user_id)
         result: list[GroupSummaryResponse] = []
         has_blocked_owned_group = False
+        blocked_owned_group_reason: GroupPendingReason | None = None
 
         for group, role in rows:
-            status, _, _ = self._get_effective_group_state(group)
+            status, pending_reason, _ = self._get_effective_group_state(group)
 
             if status == GroupStatus.BLOCKED:
                 if role == MembershipRole.OWNER:
                     has_blocked_owned_group = True
+                    blocked_owned_group_reason = pending_reason
                 continue
 
             result.append(
@@ -352,6 +354,7 @@ class GroupService:
         return MyGroupsResponse(
             groups=result,
             has_blocked_owned_group=has_blocked_owned_group,
+            blocked_owned_group_reason=blocked_owned_group_reason,
         )
 
     def get_group_detail(self, user_id: int, group_id: int) -> GroupDetailResponse:

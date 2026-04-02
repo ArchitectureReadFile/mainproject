@@ -61,6 +61,7 @@ class MyGroupsResponse(BaseModel):
 
     groups: list[GroupSummaryResponse]
     has_blocked_owned_group: bool = False
+    blocked_owned_group_reason: Optional[GroupPendingReason] = None
 
 
 class MemberResponse(BaseModel):
