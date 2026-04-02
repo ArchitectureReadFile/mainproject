@@ -95,12 +95,12 @@ export default function ChatSection() {
     if (!user) return;
     const fetchGroups = async () => {
       try {
-        const data = await getMyGroups();
-        setGroups(data);
+        const { groups } = await getMyGroups()
+        setGroups(groups)
       } catch (error) {
-        console.error("Failed to fetch groups:", error);
+        console.error('Failed to fetch groups:', error)
       }
-    };
+    }
     fetchGroups();
   }, [user]);
 

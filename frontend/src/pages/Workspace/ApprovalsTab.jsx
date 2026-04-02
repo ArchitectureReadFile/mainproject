@@ -72,7 +72,11 @@ export default function ApprovalsTab({ group }) {
     const navigate = useNavigate()
     const [searchParams, setSearchParams] = useSearchParams()
 
-    const isReadOnlyMode = group.access_level === 'READ_ONLY'
+    const isWritable = group.status === 'ACTIVE'
+    const isWriteRestricted = group.status !== 'ACTIVE'
+    const isSubscriptionExpiredPending =
+        group.status === 'DELETE_PENDING' &&
+        group.pending_reason === 'SUBSCRIPTION_EXPIRED'
 
     const activeSubTab = searchParams.get('approval_tab') || 'pending'
     const page = Number(searchParams.get('approval_page') || '1')
@@ -202,7 +206,7 @@ export default function ApprovalsTab({ group }) {
 
     useEffect(() => {
         loadDocuments(activeSubTab, page, query)
-    }, [activeSubTab, page, query, authorFilter, assigneeFilter, loadDocuments, isReadOnlyMode])
+    }, [activeSubTab, page, query, authorFilter, assigneeFilter, loadDocuments])
 
     useEffect(() => {
         const loadAuthorOptions = async () => {
@@ -221,7 +225,7 @@ export default function ApprovalsTab({ group }) {
         }
 
         loadAuthorOptions()
-    }, [group.id, activeSubTab, isReadOnlyMode])
+    }, [group.id, activeSubTab])
 
     const totalPages = Math.ceil(total / LIMIT)
     const currentPage = page
@@ -296,13 +300,15 @@ export default function ApprovalsTab({ group }) {
     }
 
     return (
-        <div className="space-y-6 max-w-4xl mx-auto">
-            {isReadOnlyMode && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-                    <div className="flex items-start gap-2">
+        <div className="space-y-6 max-w-3xl mx-auto">
+            {isWriteRestricted && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    <div className="text-amber-800">
                         <div>
-                            <p className="mt-1 text-amber-800">
-                                읽기 전용 기간에는 승인/반려 처리는 사용할 수 없고, 목록 조회만 가능합니다.
+                            <p className="text-amber-800">
+                                {isSubscriptionExpiredPending
+                                    ? '구독 만료 상태에서는 승인/반려 처리는 사용할 수 없고, 목록 조회와 다운로드만 가능합니다.'
+                                    : '삭제 예정 상태에서는 승인/반려 처리가 제한되며, 목록 조회와 다운로드만 가능합니다.'}
                             </p>
                         </div>
                     </div>
@@ -464,7 +470,7 @@ export default function ApprovalsTab({ group }) {
                                             </div>
                                         </div>
 
-                                        {activeSubTab === 'pending' && !isReadOnlyMode && (
+                                        {activeSubTab === 'pending' && isWritable && (
                                             <div className="flex shrink-0 items-center gap-2">
                                                 <Button
                                                     size="sm"

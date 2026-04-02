@@ -23,11 +23,11 @@ import ApprovalsTab from '@/pages/Workspace/ApprovalsTab'
 import TrashTab from '@/pages/Workspace/TrashTab'
 
 const TABS = [
-    { key: 'upload', label: '업로드', roles: ['OWNER', 'ADMIN', 'EDITOR'], hideOnPending: true, hideOnReadOnly: true },
+    { key: 'upload', label: '업로드', roles: ['OWNER', 'ADMIN', 'EDITOR'], hideWhenNotActive: true },
     { key: 'documents', label: '문서', roles: ['OWNER', 'ADMIN', 'EDITOR', 'VIEWER'] },
     { key: 'approvals', label: '승인', roles: ['OWNER', 'ADMIN'] },
     { key: 'trash', label: '휴지통', roles: ['OWNER', 'ADMIN', 'EDITOR'] },
-    { key: 'members', label: '멤버', roles: ['OWNER', 'ADMIN', 'EDITOR', 'VIEWER'], hideOnPending: true },
+    { key: 'members', label: '멤버', roles: ['OWNER', 'ADMIN', 'EDITOR', 'VIEWER'] },
     { key: 'workspace', label: '워크스페이스', roles: ['OWNER', 'ADMIN', 'EDITOR', 'VIEWER'] },
 ]
 
@@ -43,6 +43,30 @@ function calcDday(isoDate) {
 }
 
 /**
+ * 워크스페이스 상태를 화면 분기에 맞게 해석한다.
+ */
+function getGroupViewState(group) {
+    const isActive = group?.status === 'ACTIVE'
+    const isDeletePending = group.status === 'DELETE_PENDING'
+    const pendingReason = group?.pending_reason ?? null
+
+    const isSubscriptionExpiredPending =
+        isDeletePending && group.pending_reason === 'SUBSCRIPTION_EXPIRED'
+
+    return {
+        isActive,
+        isDeletePending,
+        isOwnerDeletePending:
+            isDeletePending && pendingReason === 'OWNER_DELETE_REQUEST',
+        isSubscriptionExpiredPending,
+        isWriteRestricted: !isActive,
+        isReadOnlyMode: isSubscriptionExpiredPending,
+        canCancelDelete:
+            isDeletePending && pendingReason === 'OWNER_DELETE_REQUEST',
+    }
+}
+
+/**
  * 읽기 전용 안내 배너를 표시한다.
  */
 function ReadOnlyBanner() {
@@ -52,23 +76,37 @@ function ReadOnlyBanner() {
             <div>
                 <p className="font-semibold">현재 읽기 전용 기간입니다.</p>
                 <p className="mt-1 text-amber-800">
-                    구독이 만료되어 문서와 승인 내역 조회만 가능하며, 업로드·승인·멤버 관리 같은 변경 작업은 제한됩니다.
+                    구독이 만료되어 문서와 승인 내역 조회, 다운로드만 가능하며, 업로드·승인·멤버 관리 같은 변경 작업은 제한됩니다.
                 </p>
             </div>
         </div>
     )
 }
 
+
 /**
- * 삭제 예정 상태를 안내하는 배너.
+ * 구독 만료로 인한 삭제 예정 상태를 안내하는 배너
  */
-function DeletePendingBanner({ scheduledAt }) {
+function DeletePendingBanner({ scheduledAt, pendingReason }) {
+    if (!scheduledAt) {
+        return (
+            <div className="mb-5 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm text-destructive">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>
+                    {pendingReason === 'SUBSCRIPTION_EXPIRED'
+                        ? '구독 만료로 워크스페이스가 삭제 예정 상태로 전환되었습니다.'
+                        : '해당 워크스페이스는 삭제 요청되어 삭제 예정 상태입니다.'}
+                </span>
+            </div>
+        )
+    }
+
     const dday = calcDday(scheduledAt)
+
     return (
         <div className="mb-5 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm text-destructive">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span>
-                해당 워크스페이스는 삭제예정입니다. 자료를 백업해주세요.{' '}
                 <span className="font-semibold">
                     {dday}({new Date(scheduledAt).toLocaleDateString('ko-KR')} 삭제 예정)
                 </span>
@@ -96,7 +134,7 @@ function RoleBadge({ role }) {
     )
 }
 
-function MembersTab({ group, setGroup, isReadOnlyMode }) {
+function MembersTab({ group, setGroup, isWriteRestricted }) {
     const { user } = useAuth()
 
     const [data, setData] = useState(null)
@@ -179,10 +217,18 @@ function MembersTab({ group, setGroup, isReadOnlyMode }) {
         ? invited.filter((m) => m.username.toLowerCase().includes(query))
         : invited
 
-    const canSeeInvited = !isReadOnlyMode && (group.my_role === 'OWNER' || group.my_role === 'ADMIN')
+    const isSubscriptionExpiredPending =
+        group.status === 'DELETE_PENDING' &&
+        group.pending_reason === 'SUBSCRIPTION_EXPIRED'
+
+    const canInviteOrManageMembers =
+        group.status === 'ACTIVE' &&
+        (group.my_role === 'OWNER' || group.my_role === 'ADMIN')
+
+    const canSeeInvited = canInviteOrManageMembers
 
     const canRolechange = (m) => {
-        if (!canSeeInvited) return false
+        if (!canInviteOrManageMembers) return false
         if (m.user_id === user?.id) return false
         if (m.role === 'OWNER') return false
         if (group.my_role === 'ADMIN' && m.role === 'ADMIN') return false
@@ -190,6 +236,14 @@ function MembersTab({ group, setGroup, isReadOnlyMode }) {
     }
 
     const canTransferOwner = (m) => {
+        const canTransferByState =
+            group.status === 'ACTIVE' ||
+            (
+                group.status === 'DELETE_PENDING' &&
+                group.pending_reason === 'SUBSCRIPTION_EXPIRED'
+            )
+
+        if (!canTransferByState) return false
         if (group.my_role !== 'OWNER') return false
         if (m.user_id === user?.id) return false
         if (m.role === 'OWNER') return false
@@ -275,11 +329,25 @@ function MembersTab({ group, setGroup, isReadOnlyMode }) {
         return ''
     }
 
+    const shouldShowTransferOwnerButton =
+        group.my_role === 'OWNER' &&
+        (
+            group.status === 'ACTIVE' ||
+            (
+                group.status === 'DELETE_PENDING' &&
+                group.pending_reason === 'SUBSCRIPTION_EXPIRED'
+            )
+        )
+
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
-            {isReadOnlyMode && (
+            {isWriteRestricted && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    읽기 전용 기간에는 멤버 목록만 확인할 수 있습니다.
+                    <p className="text-amber-800">
+                        {isSubscriptionExpiredPending
+                            ? '구독 만료 상태에서는 멤버 초대, 권한 변경, 추방은 제한되지만 프리미엄 멤버에게 오너 권한 양도는 가능합니다.'
+                            : '삭제 예정 상태에서는 멤버 초대, 권한 변경, 추방이 제한됩니다.'}
+                    </p>
                 </div>
             )}
 
@@ -377,35 +445,7 @@ function MembersTab({ group, setGroup, isReadOnlyMode }) {
                                                     <SelectItem value="VIEWER">VIEWER</SelectItem>
                                                 </SelectContent>
                                             </Select>
-                                            {canTransferOwner(m) ? (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    disabled={actionLoading === m.user_id}
-                                                    onClick={() => handleTransferOwner(m.user_id)}
-                                                    className="h-8 px-2 text-xs"
-                                                >
-                                                    OWNER 변경
-                                                </Button>
-                                            ) : (
-                                                <Tooltip delayDuration={0}>
-                                                    <TooltipTrigger asChild>
-                                                        <span className="inline-block">
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                disabled
-                                                                className="h-8 px-2 text-xs opacity-50"
-                                                            >
-                                                                OWNER 변경
-                                                            </Button>
-                                                        </span>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        {getOwnerTooltip(m)}
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            )}
+
                                             <Button
                                                 variant="destructive"
                                                 size="sm"
@@ -418,6 +458,38 @@ function MembersTab({ group, setGroup, isReadOnlyMode }) {
                                         </>
                                     ) : (
                                         <RoleBadge role={m.role} />
+                                    )}
+
+                                    {shouldShowTransferOwnerButton && (
+                                        canTransferOwner(m) ? (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={actionLoading === m.user_id}
+                                                onClick={() => handleTransferOwner(m.user_id)}
+                                                className="h-8 px-2 text-xs"
+                                            >
+                                                OWNER 변경
+                                            </Button>
+                                        ) : (
+                                            <Tooltip delayDuration={0}>
+                                                <TooltipTrigger asChild>
+                                                    <span className="inline-block">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            disabled
+                                                            className="h-8 px-2 text-xs opacity-50"
+                                                        >
+                                                            OWNER 변경
+                                                        </Button>
+                                                    </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    {getOwnerTooltip(m)}
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        )
                                     )}
                                 </div>
                             </li>
@@ -483,10 +555,14 @@ function MembersTab({ group, setGroup, isReadOnlyMode }) {
     )
 }
 
-function WorkspaceTab({ group, onUpdated, isReadOnlyMode }) {
+function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
     const isOwner = group.my_role === 'OWNER'
     const isPending = group.status === 'DELETE_PENDING'
-    const canDelete = isOwner && !isReadOnlyMode
+    const isOwnerDeletePending =
+        isPending && group.pending_reason === 'OWNER_DELETE_REQUEST'
+
+    const canDelete = isOwner && group.status === 'ACTIVE'
+    const canCancelDelete = isOwner && isOwnerDeletePending
 
     const [confirmType, setConfirmType] = useState(null)
     const [loading, setLoading] = useState(false)
@@ -509,9 +585,13 @@ function WorkspaceTab({ group, onUpdated, isReadOnlyMode }) {
 
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
-            {isReadOnlyMode && (
+            {isWriteRestricted && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    읽기 전용 기간에는 워크스페이스 정보만 확인할 수 있습니다.
+                    <p className="text-amber-800">
+                        {group.pending_reason === 'SUBSCRIPTION_EXPIRED'
+                            ? '구독 만료 상태에서는 워크스페이스 정보 확인만 가능하며, 재구독으로 복구할 수 있습니다.'
+                            : '삭제 예정 상태에서는 워크스페이스 정보 확인과 삭제 취소만 가능합니다.'}
+                    </p>
                 </div>
             )}
 
@@ -548,23 +628,27 @@ function WorkspaceTab({ group, onUpdated, isReadOnlyMode }) {
                         <span className="text-muted-foreground w-24 shrink-0">상태</span>
                         <span className={`font-medium ${isPending ? 'text-destructive' : 'text-green-600'}`}>
                             {isPending
-                                ? `삭제 예정 (${calcDday(group.delete_scheduled_at)})`
+                                ? group.delete_scheduled_at
+                                    ? `삭제 예정 (${calcDday(group.delete_scheduled_at)})`
+                                    : '삭제 예정'
                                 : '정상'}
                         </span>
                     </div>
                 </div>
             </div>
 
-            {canDelete && (
+            {(canDelete || canCancelDelete) && (
                 <div className="rounded-lg border border-destructive/30 p-5 space-y-3">
                     <h3 className="text-base font-semibold text-destructive">워크스페이스 삭제</h3>
                     <p className="text-base text-muted-foreground">
                         {!isPending
-                            ? '삭제 요청 후 30일이 지나면 워크스페이스가 영구 삭제됩니다.'
-                            : `${new Date(group.delete_scheduled_at).toLocaleDateString('ko-KR')}에 해당 워크스페이스가 영구 삭제됩니다. 취소할 수 있습니다.`
+                            ? '삭제 요청 후 30일 동안 읽기 전용 상태로 유지되며, 이후 접근이 제한됩니다.'
+                            : group.delete_scheduled_at
+                                ? `${new Date(group.delete_scheduled_at).toLocaleDateString('ko-KR')}까지 읽기 전용 상태로 유지됩니다.`
+                                : '삭제 예정 상태입니다.'
                         }
                     </p>
-                    {!isPending ? (
+                    {canDelete ? (
                         <Button
                             variant="outline"
                             onClick={() => setConfirmType('delete')}
@@ -573,7 +657,7 @@ function WorkspaceTab({ group, onUpdated, isReadOnlyMode }) {
                             <Trash2 className="h-4 w-4" />
                             워크스페이스 삭제 요청
                         </Button>
-                    ) : (
+                    ) : canCancelDelete ? (
                         <Button
                             variant="outline"
                             onClick={() => setConfirmType('cancel')}
@@ -582,7 +666,7 @@ function WorkspaceTab({ group, onUpdated, isReadOnlyMode }) {
                             <Undo2 className="h-4 w-4" />
                             삭제 취소
                         </Button>
-                    )}
+                    ) : null}
                 </div>
             )}
 
@@ -647,17 +731,17 @@ export default function GroupDetailPage() {
             .finally(() => setLoading(false))
     }, [group_id])
 
-    const isReadOnlyMode = group?.access_level === 'READ_ONLY'
+    const viewState = group ? getGroupViewState(group) : null
+    const isWriteRestricted = viewState?.isWriteRestricted ?? false
 
     const visibleTabs = useMemo(() =>
-        group
+        group && viewState
             ? TABS.filter((t) =>
                 t.roles.includes(group.my_role) &&
-                !(t.hideOnPending && group.status === 'DELETE_PENDING') &&
-                !(t.hideOnReadOnly && isReadOnlyMode)
+                !(t.hideWhenNotActive && !viewState.isActive)
             )
             : []
-        , [group, isReadOnlyMode])
+    , [group, viewState])
 
     useEffect(() => {
         if (visibleTabs.length && !visibleTabs.find((t) => t.key === activeTab)) {
@@ -686,11 +770,14 @@ export default function GroupDetailPage() {
     return (
         <UploadProvider groupId={group_id}>
             <div className="p-6 max-w-5xl mx-auto">
-                {group.status === 'DELETE_PENDING' && (
-                    <DeletePendingBanner scheduledAt={group.delete_scheduled_at} />
+                {viewState?.isDeletePending && (
+                    <DeletePendingBanner
+                        scheduledAt={group.delete_scheduled_at}
+                        pendingReason={group.pending_reason}
+                    />
                 )}
 
-                {isReadOnlyMode && <ReadOnlyBanner />}
+                {viewState?.isSubscriptionExpiredPending && <ReadOnlyBanner />}
 
                 <div className="mb-6">
                     <div className="mb-6 flex items-center gap-2">
@@ -751,14 +838,19 @@ export default function GroupDetailPage() {
                 {activeTab === 'trash' && <TrashTab group={group} />}
                 {activeTab === 'members' && (
                     <TooltipProvider>
-                        <MembersTab group={group} setGroup={setGroup} isReadOnlyMode={isReadOnlyMode} />
+                        <MembersTab
+                            group={group}
+                            setGroup={setGroup}
+                            isWriteRestricted={isWriteRestricted}
+                        />
                     </TooltipProvider>
                 )}
+
                 {activeTab === 'workspace' && (
                     <WorkspaceTab
                         group={group}
                         onUpdated={(updated) => setGroup(updated)}
-                        isReadOnlyMode={isReadOnlyMode}
+                        isWriteRestricted={isWriteRestricted}
                     />
                 )}
             </div>

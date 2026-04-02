@@ -54,11 +54,12 @@ function StatusBadge({ status, scheduledAt }) {
   return <Badge variant="destructive">삭제 예정 {dday}</Badge>
 }
 
+
 /**
  * 오너 워크스페이스 접근 제한 안내를 표시한다.
  */
-function OwnerWorkspaceNotice({ accessLevel, onUpgrade }) {
-  if (accessLevel === 'READ_ONLY') {
+function OwnerWorkspaceNotice({ mode, onUpgrade }) {
+  if (mode === 'READ_ONLY') {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-5 py-5">
         <div className="flex items-start gap-3">
@@ -86,8 +87,8 @@ function OwnerWorkspaceNotice({ accessLevel, onUpgrade }) {
           <div className="min-w-0">
             <p className="text-sm font-bold text-red-900">워크스페이스 접근이 제한되었습니다</p>
             <p className="mt-1 text-sm leading-6 text-red-800">
-              프리미엄 구독이 만료되어 내가 만든 워크스페이스를 사용할 수 없습니다.
-              데이터는 만료 후 60일 동안 추가 보관되며, 보관 기간이 지나면 삭제될 수 있습니다.
+              구독 만료 후 유예 기간이 종료되어 내가 만든 워크스페이스에 접근할 수 없습니다.
+              재구독하면 다시 복구할 수 있습니다.
             </p>
           </div>
         </div>
@@ -261,11 +262,6 @@ function GroupSection({ title, groups, onCardClick }) {
           <GroupCard key={g.id} group={g} onClick={() => onCardClick(g.id)} />
         ))}
       </div>
-      {groups.some((g) => g.my_role === 'OWNER' && g.access_level === 'READ_ONLY') && (
-        <div className="mt-4">
-          <OwnerWorkspaceNotice accessLevel="READ_ONLY" onUpgrade={onCardClick} />
-        </div>
-      )}
     </section>
   )
 }
@@ -293,13 +289,17 @@ function EmptyState({ onOpen }) {
 export default function WorkspacePage() {
   const navigate = useNavigate()
   const [groups, setGroups] = useState([])
+  const [hasBlockedOwnedGroup, setHasBlockedOwnedGroup] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
 
   useEffect(() => {
     getMyGroups()
-      .then(setGroups)
+      .then(({ groups, has_blocked_owned_group }) => {
+        setGroups(groups)
+        setHasBlockedOwnedGroup(has_blocked_owned_group)
+      })
       .catch((e) => setError(e.message || '불러오기에 실패했습니다.'))
       .finally(() => setLoading(false))
   }, [])
@@ -310,10 +310,14 @@ export default function WorkspacePage() {
 
   const myGroups = groups.filter((g) => g.my_role === 'OWNER')
   const invitedGroups = groups.filter((g) => g.my_role !== 'OWNER')
-  const showOwnerBlockedNotice =
-    myGroups.length === 0 &&
-    groups.length > 0 &&
-    groups.every((g) => g.my_role !== 'OWNER') === false
+  
+  const hasSubscriptionExpiredOwnerGroup = myGroups.some(
+    (group) =>
+      group.status === 'DELETE_PENDING' &&
+      group.pending_reason === 'SUBSCRIPTION_EXPIRED'
+  )
+
+  const showOwnerBlockedNotice = hasBlockedOwnedGroup
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
@@ -330,7 +334,7 @@ export default function WorkspacePage() {
         </div>
       ) : error ? (
         <div className="py-28 text-center text-sm text-destructive">{error}</div>
-      ) : groups.length === 0 ? (
+      ) : groups.length === 0 && !showOwnerBlockedNotice ? (
         <EmptyState onOpen={() => setDialogOpen(true)} />
       ) : (
         <>
@@ -348,10 +352,10 @@ export default function WorkspacePage() {
                     />
                   ))}
                 </div>
-                {myGroups.some((group) => group.access_level === 'READ_ONLY') && (
+                {hasSubscriptionExpiredOwnerGroup && (
                   <div className="mt-4">
                     <OwnerWorkspaceNotice
-                      accessLevel="READ_ONLY"
+                      mode="READ_ONLY"
                       onUpgrade={() => navigate('/mypage')}
                     />
                   </div>
@@ -359,7 +363,7 @@ export default function WorkspacePage() {
               </>
             ) : showOwnerBlockedNotice ? (
               <OwnerWorkspaceNotice
-                accessLevel="BLOCKED"
+                mode="BLOCKED"
                 onUpgrade={() => navigate('/mypage')}
               />
             ) : (
