@@ -67,16 +67,22 @@ function getGroupViewState(group) {
 }
 
 /**
- * 읽기 전용 안내 배너를 표시한다.
+ * 삭제 예정 상태에 대한 상단 안내 배너를 표시한다.
  */
-function ReadOnlyBanner() {
+function PendingNoticeBanner({ pendingReason }) {
+    const isSubscriptionExpired = pendingReason === 'SUBSCRIPTION_EXPIRED'
+
     return (
         <div className="mb-5 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <Lock className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
-                <p className="font-semibold">현재 읽기 전용 기간입니다.</p>
+                <p className="font-semibold">
+                    {isSubscriptionExpired ? '현재 읽기 전용 기간입니다.' : '현재 삭제 예정 상태입니다.'}
+                </p>
                 <p className="mt-1 text-amber-800">
-                    구독이 만료되어 문서와 승인 내역 조회, 다운로드만 가능하며, 업로드·승인·멤버 관리 같은 변경 작업은 제한됩니다.
+                    {isSubscriptionExpired
+                        ? '구독이 만료되어 문서와 승인 내역 조회, 다운로드만 가능하며, 업로드·승인·멤버 관리 같은 변경 작업은 제한됩니다.'
+                        : '소유자가 워크스페이스 삭제를 요청한 상태입니다. 삭제 예정일까지 조회 및 다운로드는 가능하며, 워크스페이스 탭에서 삭제를 취소할 수 있습니다.'}
                 </p>
             </div>
         </div>
@@ -85,7 +91,7 @@ function ReadOnlyBanner() {
 
 
 /**
- * 구독 만료로 인한 삭제 예정 상태를 안내하는 배너
+ * 삭제 예정 상태를 안내하는 상단 배너를 표시한다.
  */
 function DeletePendingBanner({ scheduledAt, pendingReason }) {
     if (!scheduledAt) {
@@ -777,8 +783,9 @@ export default function GroupDetailPage() {
                     />
                 )}
 
-                {viewState?.isSubscriptionExpiredPending && <ReadOnlyBanner />}
-
+                {viewState?.isDeletePending && (
+                    <PendingNoticeBanner pendingReason={group.pending_reason} />
+                )}
                 <div className="mb-6">
                     <div className="mb-6 flex items-center gap-2">
                         <Button
