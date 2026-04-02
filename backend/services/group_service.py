@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -11,6 +12,8 @@ from models.model import (
     MembershipRole,
     MembershipStatus,
     NotificationType,
+    SubscriptionPlan,
+    SubscriptionStatus,
     utc_now_naive,
 )
 from repositories.group_repository import GroupRepository
@@ -123,8 +126,81 @@ class GroupService:
         member = self._assert_owner_or_admin_member(user_id, group_id)
         return group, member
 
+    def _get_workspace_access_state(self, user_id: int) -> tuple[bool, object | None]:
+        """현재 시각 기준으로 사용자의 워크스페이스 전체 접근 가능 여부를 계산"""
+        subscription = self.auth_service.get_effective_subscription(self.db, user_id)
+        now = utc_now_naive()
+
+        if not subscription or subscription.plan != SubscriptionPlan.PREMIUM:
+            return False, subscription
+
+        has_access = subscription.status == SubscriptionStatus.ACTIVE or (
+            subscription.status
+            in (
+                SubscriptionStatus.CANCELED,
+                SubscriptionStatus.EXPIRED,
+            )
+            and subscription.ended_at is not None
+            and subscription.ended_at > now
+        )
+        return has_access, subscription
+
+    def _sync_group_state_if_needed(self, group: Group) -> Group:
+        """저장 상태와 현재 시각 기준 상태가 다르면 그룹 상태를 즉시 보정"""
+        now = utc_now_naive()
+
+        if group.status == GroupStatus.DELETED:
+            return group
+
+        if group.pending_reason == GroupPendingReason.OWNER_DELETE_REQUEST:
+            if (
+                group.status == GroupStatus.DELETE_PENDING
+                and group.delete_scheduled_at is not None
+                and group.delete_scheduled_at <= now
+            ):
+                group.status = GroupStatus.BLOCKED
+            return group
+
+        has_access, subscription = self._get_workspace_access_state(group.owner_user_id)
+
+        if has_access:
+            if (
+                group.status
+                in (
+                    GroupStatus.DELETE_PENDING,
+                    GroupStatus.BLOCKED,
+                )
+                and group.pending_reason == GroupPendingReason.SUBSCRIPTION_EXPIRED
+            ):
+                group.status = GroupStatus.ACTIVE
+                group.pending_reason = None
+                group.delete_requested_at = None
+                group.delete_scheduled_at = None
+            return group
+
+        if not subscription or subscription.ended_at is None:
+            return group
+
+        delete_requested_at = subscription.ended_at
+        delete_scheduled_at = subscription.ended_at + timedelta(days=30)
+
+        if delete_scheduled_at <= now:
+            group.status = GroupStatus.BLOCKED
+            group.pending_reason = GroupPendingReason.SUBSCRIPTION_EXPIRED
+            group.delete_requested_at = delete_requested_at
+            group.delete_scheduled_at = delete_scheduled_at
+            return group
+
+        group.status = GroupStatus.DELETE_PENDING
+        group.pending_reason = GroupPendingReason.SUBSCRIPTION_EXPIRED
+        group.delete_requested_at = delete_requested_at
+        group.delete_scheduled_at = delete_scheduled_at
+        return group
+
     def _get_effective_group_state(self, group: Group):
         """저장된 그룹 상태를 화면에 사용할 최종 상태로 정리"""
+        group = self._sync_group_state_if_needed(group)
+
         if group.status in (
             GroupStatus.DELETE_PENDING,
             GroupStatus.BLOCKED,
@@ -136,6 +212,14 @@ class GroupService:
             )
 
         return group.status, None, group.delete_scheduled_at
+
+    def _has_effective_owned_group(self, user_id: int) -> bool:
+        """사용자가 현재 시각 기준 ACTIVE 워크스페이스를 소유하는지 확인"""
+        owned_groups = self.repository.get_owned_groups(user_id)
+        return any(
+            self._get_effective_group_state(group)[0] == GroupStatus.ACTIVE
+            for group in owned_groups
+        )
 
     def assert_review_permission(self, user_id: int, group_id: int) -> GroupMember:
         """사용자가 해당 그룹에서 문서 승인/반려를 수행할 수 있는지 확인"""
@@ -195,29 +279,33 @@ class GroupService:
         )
 
     def _assert_group_readable(self, group: Group) -> None:
-        """그룹 조회 가능 여부를 검사"""
-        if group.status not in (
+        """그룹 조회 가능 여부를 현재 시각 기준 상태로 검사"""
+        status, _, _ = self._get_effective_group_state(group)
+        if status not in (
             GroupStatus.ACTIVE,
             GroupStatus.DELETE_PENDING,
         ):
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
 
     def _assert_group_writable(self, group: Group) -> None:
-        """그룹 쓰기 가능 여부를 검사"""
-        if group.status != GroupStatus.ACTIVE:
+        """그룹 쓰기 가능 여부를 현재 시각 기준 상태로 검사"""
+        status, _, _ = self._get_effective_group_state(group)
+        if status != GroupStatus.ACTIVE:
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
 
     def _assert_group_recoverable(self, group: Group) -> None:
-        """그룹 복구 및 오너 양도 가능 여부를 검사"""
-        if group.status == GroupStatus.ACTIVE:
+        """그룹 복구 및 오너 양도 가능 여부를 현재 시각 기준 상태로 검사"""
+        status, pending_reason, _ = self._get_effective_group_state(group)
+
+        if status == GroupStatus.ACTIVE:
             return
 
-        if group.status == GroupStatus.DELETE_PENDING:
+        if status == GroupStatus.DELETE_PENDING:
             return
 
         if (
-            group.status == GroupStatus.BLOCKED
-            and group.pending_reason == GroupPendingReason.SUBSCRIPTION_EXPIRED
+            status == GroupStatus.BLOCKED
+            and pending_reason == GroupPendingReason.SUBSCRIPTION_EXPIRED
         ):
             return
 
@@ -229,7 +317,7 @@ class GroupService:
         """그룹 생성"""
         self._check_premium(owner_user_id)
 
-        if self.repository.count_active_owner_groups(owner_user_id) >= 1:
+        if self._has_effective_owned_group(owner_user_id):
             raise AppException(ErrorCode.GROUP_OWNER_LIMIT)
 
         group = self.repository.create_group(owner_user_id, name, description)
@@ -239,13 +327,15 @@ class GroupService:
         )
 
     def get_my_groups(self, user_id: int) -> MyGroupsResponse:
-        """내가 속한 그룹 목록을 반환"""
+        """내가 속한 그룹 목록을 현재 시각 기준 상태로 반환"""
         rows = self.repository.get_my_groups(user_id)
         result: list[GroupSummaryResponse] = []
         has_blocked_owned_group = False
 
         for group, role in rows:
-            if group.status == GroupStatus.BLOCKED:
+            status, _, _ = self._get_effective_group_state(group)
+
+            if status == GroupStatus.BLOCKED:
                 if role == MembershipRole.OWNER:
                     has_blocked_owned_group = True
                 continue
@@ -256,6 +346,8 @@ class GroupService:
                     role=role,
                 )
             )
+
+        self.db.commit()
 
         return MyGroupsResponse(
             groups=result,
@@ -279,8 +371,9 @@ class GroupService:
     def request_delete_group(self, user_id: int, group_id: int):
         """그룹 삭제를 요청"""
         group = self._check_owner(user_id, group_id)
+        status, _, _ = self._get_effective_group_state(group)
 
-        if group.status != GroupStatus.ACTIVE:
+        if status != GroupStatus.ACTIVE:
             raise AppException(ErrorCode.GROUP_ALREADY_DELETE_PENDING)
 
         group = self.repository.request_delete_group(
@@ -315,14 +408,15 @@ class GroupService:
     def cancel_delete_group(self, user_id: int, group_id: int) -> GroupDetailResponse:
         """그룹 삭제 요청을 취소"""
         group = self._check_owner(user_id, group_id)
+        status, pending_reason, _ = self._get_effective_group_state(group)
 
-        if group.status != GroupStatus.DELETE_PENDING or group.pending_reason not in (
+        if status != GroupStatus.DELETE_PENDING or pending_reason not in (
             None,
             GroupPendingReason.OWNER_DELETE_REQUEST,
         ):
             raise AppException(ErrorCode.GROUP_NOT_DELETE_PENDING)
 
-        if self.repository.count_active_owner_groups(user_id) >= 1:
+        if self._has_effective_owned_group(user_id):
             raise AppException(ErrorCode.GROUP_RESTORE_OWNER_LIMIT)
 
         group = self.repository.cancel_delete_group(group)
@@ -333,10 +427,11 @@ class GroupService:
 
     def get_members(self, user_id: int, group_id: int) -> MemberListResponse:
         """멤버 목록 조회"""
-        group = self.repository.get_group_by_id(group_id)
-        if not group:
+        result = self.repository.get_group_with_role(user_id, group_id)
+        if not result:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
+        group, _ = result
         self._assert_group_readable(group)
 
         active_rows = self.repository.get_members(group_id)
@@ -349,8 +444,10 @@ class GroupService:
                 username=user.username,
                 role=member.role,
                 joined_at=member.joined_at,
-                is_premium=self.repository.is_premium(user.id),
-                has_owned_group=self.repository.exists_active_owned_group(user.id),
+                is_premium=self.auth_service.has_full_workspace_access(
+                    self.db, user.id
+                ),
+                has_owned_group=self._has_effective_owned_group(user.id),
             )
             for member, user in active_rows
         ]
@@ -552,7 +649,7 @@ class GroupService:
         if target_membership.role == MembershipRole.OWNER:
             raise AppException(ErrorCode.GROUP_MEMBER_ALREADY_EXISTS)
 
-        if self.repository.exists_active_owned_group(target_id):
+        if self._has_effective_owned_group(target_id):
             raise AppException(ErrorCode.GROUP_TRANSFER_TARGET_ALREADY_OWNER)
 
         if not self.auth_service.has_full_workspace_access(self.db, target_id):

@@ -129,6 +129,17 @@ class GroupRepository:
             or 0
         )
 
+    def get_owned_groups(self, user_id: int) -> list[Group]:
+        """사용자가 소유한 삭제 전 워크스페이스 목 조회"""
+        return (
+            self.db.query(Group)
+            .filter(
+                Group.owner_user_id == user_id,
+                Group.status != GroupStatus.DELETED,
+            )
+            .all()
+        )
+
     def request_delete_group(
         self,
         group: Group,

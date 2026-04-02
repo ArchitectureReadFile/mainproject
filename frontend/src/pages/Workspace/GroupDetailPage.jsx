@@ -345,7 +345,7 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                     <p className="text-amber-800">
                         {isSubscriptionExpiredPending
-                            ? '구독 만료 상태에서는 멤버 초대, 권한 변경, 추방은 제한되지만 프리미엄 멤버에게 오너 권한 양도는 가능합니다.'
+                            ? '구독 만료 상태에서는 멤버 초대, 권한 변경, 추방은 제한되지만 프리미엄 멤버에게 오너 권한을 양도하여 워크스페이스를 복구할 수 있습니다.'
                             : '삭제 예정 상태에서는 멤버 초대, 권한 변경, 추방이 제한됩니다.'}
                     </p>
                 </div>

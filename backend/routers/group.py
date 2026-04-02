@@ -57,10 +57,13 @@ def get_my_invitations(
 @router.get("/{group_id}", response_model=GroupDetailResponse)
 def get_group_detail(
     group_id: int,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: GroupService = Depends(get_group_service),
 ):
-    return service.get_group_detail(current_user.id, group_id)
+    result = service.get_group_detail(current_user.id, group_id)
+    db.commit()
+    return result
 
 
 @router.delete("/{group_id}", response_model=GroupDetailResponse)
@@ -90,10 +93,13 @@ def cancel_delete_group(
 @router.get("/{group_id}/members", response_model=MemberListResponse)
 def get_members(
     group_id: int,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: GroupService = Depends(get_group_service),
 ):
-    return service.get_members(current_user.id, group_id)
+    result = service.get_members(current_user.id, group_id)
+    db.commit()
+    return result
 
 
 @router.post(
