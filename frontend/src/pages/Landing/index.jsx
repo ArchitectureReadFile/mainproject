@@ -1,30 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { IoHomeOutline, IoChatbubbleEllipsesOutline, IoInformationCircleOutline } from 'react-icons/io5';
+import { useAuth } from '@/features/auth/context/AuthContext';
 import IntroSection from './components/IntroSection';
 import ChatSection from './components/ChatSection';
 import GuideSection from './components/GuideSection';
 import SideNavigation from './components/SideNavigation';
 
-const SECTIONS = [
-  { id: 'home', label: '메인', icon: <IoHomeOutline size={22} /> },
-  { id: 'chat', label: '채팅', icon: <IoChatbubbleEllipsesOutline size={22} /> },
-  { id: 'guide', label: '가이드', icon: <IoInformationCircleOutline size={22} /> },
-];
-
 export default function LandingPage() {
+  const { isAuthenticated, openAuthModal } = useAuth();
   const [currentSection, setCurrentSection] = useState(0);
+
+  const activeSections = useMemo(() => [
+    { id: 'home', label: '메인', icon: <IoHomeOutline size={22} /> },
+    ...(isAuthenticated ? [{ id: 'chat', label: '채팅', icon: <IoChatbubbleEllipsesOutline size={22} /> }] : []),
+    { id: 'guide', label: '가이드', icon: <IoInformationCircleOutline size={22} /> },
+  ], [isAuthenticated]);
 
   useEffect(() => {
     const handleScroll = () => {
       const scrollY = window.scrollY;
       const height = window.innerHeight - 72; 
-      const index = Math.min(Math.round(scrollY / height), 2);
+      const index = Math.min(Math.round(scrollY / height), activeSections.length - 1);
       setCurrentSection(index);
     };
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [activeSections.length]);
 
   const scrollToSection = (index) => {
     const height = window.innerHeight - 72;
@@ -35,18 +37,26 @@ export default function LandingPage() {
     setCurrentSection(index);
   };
 
+  const handleStartClick = () => {
+    if (isAuthenticated) {
+      scrollToSection(1);
+    } else {
+      openAuthModal('login');
+    }
+  };
+
   return (
     <div className="relative w-full bg-background text-foreground selection:bg-blue-100 selection:text-blue-700 dark:selection:bg-blue-900 dark:selection:text-blue-200">
       
       <SideNavigation 
-        sections={SECTIONS} 
+        sections={activeSections} 
         currentSection={currentSection} 
         onSectionClick={scrollToSection} 
       />
 
       <main className="w-full bg-background">
-        <IntroSection onStartClick={() => scrollToSection(1)} />
-        <ChatSection />
+        <IntroSection onStartClick={handleStartClick} />
+        {isAuthenticated && <ChatSection />}
         <GuideSection />
       </main>
 

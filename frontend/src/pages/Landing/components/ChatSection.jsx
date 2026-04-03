@@ -31,7 +31,7 @@ export default function ChatSection() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { sessions, createRoom, updateRoom, deleteRoom, refreshRooms } = useChatSessions();
   const [activeSessionId, setActiveSessionId] = useState(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     const sessionId = searchParams.get('sessionId');

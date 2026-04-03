@@ -44,17 +44,20 @@ export default function MenuDrawer({
           </Button>
         </SheetHeader>
 
-        <div className="py-2">
-          <MenuItem
-            to="/mypage"
-            icon={<User size={18} />}
-            label={isAuthenticated ? user?.username || '프로필' : '프로필'}
-            active={location.pathname.startsWith('/mypage')}
-            onClick={isAuthenticated ? onClose : onOpenLogin}
-          />
-        </div>
-
-        <Separator />
+        {isAuthenticated && (
+          <>
+            <div className="py-2">
+              <MenuItem
+                to="/mypage"
+                icon={<User size={18} />}
+                label="프로필"
+                active={location.pathname.startsWith('/mypage')}
+                onClick={onClose}
+              />
+            </div>
+            <Separator />
+          </>
+        )}
 
         {!isAuthenticated && (
           <>
