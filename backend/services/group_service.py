@@ -321,6 +321,10 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_OWNER_LIMIT)
 
         group = self.repository.create_group(owner_user_id, name, description)
+
+        self.db.commit()
+        self.db.refresh(group)
+
         return self._to_group_detail_response(
             group=group,
             role=MembershipRole.OWNER,
@@ -366,10 +370,12 @@ class GroupService:
         group, role = result
         self._assert_group_readable(group)
 
-        return self._to_group_detail_response(
+        response = self._to_group_detail_response(
             group=group,
             role=role,
         )
+        self.db.commit()
+        return response
 
     def request_delete_group(self, user_id: int, group_id: int):
         """그룹 삭제를 요청"""
@@ -403,10 +409,12 @@ class GroupService:
                 target_id=group_id,
             )
 
-        return self._to_group_detail_response(
+        response = self._to_group_detail_response(
             group=group,
             role=MembershipRole.OWNER,
         )
+        self.db.commit()
+        return response
 
     def cancel_delete_group(self, user_id: int, group_id: int) -> GroupDetailResponse:
         """그룹 삭제 요청을 취소"""
@@ -423,6 +431,8 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_RESTORE_OWNER_LIMIT)
 
         group = self.repository.cancel_delete_group(group)
+        self.db.commit()
+
         return self._to_group_detail_response(
             group=group,
             role=MembershipRole.OWNER,
@@ -465,7 +475,10 @@ class GroupService:
             for member, user in invited_rows
         ]
 
-        return MemberListResponse(members=members, invited=invited)
+        response = MemberListResponse(members=members, invited=invited)
+        self.db.commit()
+
+        return response
 
     def get_my_invitations(self, user_id: int) -> list[InvitationResponse]:
         rows = self.repository.get_my_invitations(user_id)
@@ -481,10 +494,10 @@ class GroupService:
             for membership, group in rows
         ]
 
-    # 멤버 초대
     def invite_member(
         self, group_id: int, inviter_id: int, username: str, role: MembershipRole
     ) -> InvitedMemberResponse:
+        """멤버 초대"""
         self._check_owner_or_admin(inviter_id, group_id)
 
         group = self.repository.get_group_by_id(group_id)
@@ -538,33 +551,37 @@ class GroupService:
             target_id=group_id,
         )
 
-        return InvitedMemberResponse(
+        response = InvitedMemberResponse(
             user_id=target.id,
             username=target.username,
             role=membership.role,
             invited_at=membership.invited_at,
         )
+        self.db.commit()
+        return response
 
-    # 초대 수락
     def accept_invite(self, user_id: int, group_id: int) -> None:
+        """초대 수락"""
         membership = self.repository.get_invited_member(user_id, group_id)
 
         if not membership:
             raise AppException(ErrorCode.GROUP_MEMBER_NOT_FOUND)
 
         self.repository.accept_invite(membership)
+        self.db.commit()
 
-    # 초대 거절
     def decline_invite(self, user_id: int, group_id: int) -> None:
+        """초대 거절"""
         membership = self.repository.get_invited_member(user_id, group_id)
 
         if not membership:
             raise AppException(ErrorCode.GROUP_MEMBER_NOT_FOUND)
 
         self.repository.decline_invite(membership)
+        self.db.commit()
 
-    # 멤버 삭제
     def remove_member(self, target_id: int, group_id: int, remover_id: int) -> None:
+        """멤버 삭제"""
         remover = self._check_owner_or_admin(remover_id, group_id)
 
         group = self.repository.get_group_by_id(group_id)
@@ -603,11 +620,12 @@ class GroupService:
             target_type="group",
             target_id=group_id,
         )
+        self.db.commit()
 
-    # 멤버 권한 변경
     def change_member_role(
         self, changer_id: int, target_id: int, group_id: int, role: MembershipRole
     ) -> None:
+        """멤버 권한 변경"""
         changer = self._check_owner_or_admin(changer_id, group_id)
 
         group = self.repository.get_group_by_id(group_id)
@@ -636,6 +654,7 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_OWNER)
 
         self.repository.change_member_role(target_membership, role)
+        self.db.commit()
 
     def transfer_owner(self, user_id: int, group_id: int, target_id: int) -> None:
         """워크스페이스 오너를 양도"""
@@ -659,3 +678,4 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_PREMIUM)
 
         self.repository.transfer_owner(group, user_id, target_id)
+        self.db.commit()
