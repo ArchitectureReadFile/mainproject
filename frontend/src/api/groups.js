@@ -133,6 +133,12 @@ export async function getGroupDocumentDetail(groupId, docId) {
     return data
 }
 
+
+export function getGroupDocumentOriginalUrl(groupId, docId) {
+    return `/api/groups/${groupId}/documents/${docId}/original`
+}
+
+
 // DELETE /groups/{group_id}/documents/{doc_id} — 문서 삭제
 export async function deleteGroupDocument(groupId, docId) {
     await client.delete(`/groups/${groupId}/documents/${docId}`)

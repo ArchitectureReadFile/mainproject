@@ -1,10 +1,10 @@
-import { deleteGroupDocument, getGroupDocumentDetail } from '@/api/groups'
+import { deleteGroupDocument, getGroupDocumentDetail, getGroupDocumentOriginalUrl } from '@/api/groups'
 import { downloadSummaryPdf } from '@/api/documents'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ArrowLeft, Download, Trash2 } from 'lucide-react'
+import { ArrowLeft, Download, Trash2, ExternalLink } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -20,6 +20,7 @@ export default function DocumentPage() {
     const [showDeleteModal, setShowDeleteModal] = useState(false)
 
     const backToListUrl = `/workspace/${group_id}${location.search || '?tab=documents'}`
+    const originalPdfUrl = getGroupDocumentOriginalUrl(group_id, doc_id)
 
     useEffect(() => {
         const load = async () => {
@@ -97,7 +98,7 @@ export default function DocumentPage() {
     }
 
     return (
-        <div className="max-w-3xl mx-auto px-4 py-8 flex flex-col gap-5">
+        <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-5">
             <div className="flex items-center justify-between">
                 <Button variant="ghost" size="sm" onClick={() => navigate(backToListUrl)}>
                     <ArrowLeft size={15} />
@@ -116,6 +117,18 @@ export default function DocumentPage() {
                             <TooltipContent>요약본 PDF를 다운로드합니다</TooltipContent>
                         </Tooltip>
                     )}
+
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <a href={originalPdfUrl} target="_blank" rel="noreferrer">
+                                <Button variant="outline" size="sm" className="gap-1.5">
+                                    <ExternalLink size={14} />
+                                    원문 새 탭
+                                </Button>
+                            </a>
+                        </TooltipTrigger>
+                        <TooltipContent>원본 PDF를 새 탭에서 엽니다</TooltipContent>
+                    </Tooltip>
 
                     {canDelete && (
                         <Tooltip>
@@ -175,7 +188,6 @@ export default function DocumentPage() {
                 </div>
             )}
 
-            {/* 제목 + 메타 */}
             <div className="px-1">
                 <h1 className="text-2xl font-bold mb-3">{s.title || '문서 상세'}</h1>
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
@@ -205,7 +217,6 @@ export default function DocumentPage() {
                 </div>
             </div>
 
-            {/* AI 요약 */}
             <Card className="p-6">
                 <h3 className="text-sm font-semibold text-muted-foreground mb-2">AI 요약</h3>
 
@@ -220,7 +231,6 @@ export default function DocumentPage() {
                 )}
             </Card>
 
-            {/* 핵심 포인트 */}
             <Card className="p-6">
                 <h3 className="text-sm font-semibold text-muted-foreground mb-3">핵심 포인트</h3>
                 {s.key_points?.length ? (
@@ -232,6 +242,31 @@ export default function DocumentPage() {
                 ) : (
                     <p className="text-sm font-medium">-</p>
                 )}
+            </Card>
+
+            <Card className="overflow-hidden">
+                <div className="flex items-center justify-between border-b px-6 py-4">
+                    <div>
+                        <h3 className="text-sm font-semibold text-muted-foreground">원문 PDF</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            브라우저 기본 PDF 뷰어로 원문을 바로 확인할 수 있습니다.
+                        </p>
+                    </div>
+                    <a href={originalPdfUrl} target="_blank" rel="noreferrer">
+                        <Button variant="outline" size="sm" className="gap-1.5">
+                            <ExternalLink size={14} />
+                            새 탭에서 보기
+                        </Button>
+                    </a>
+                </div>
+
+                <div className="h-[75vh] bg-muted/20">
+                    <iframe
+                        title={`${s.title || '문서'} 원문 PDF`}
+                        src={originalPdfUrl}
+                        className="h-full w-full"
+                    />
+                </div>
             </Card>
         </div>
     )

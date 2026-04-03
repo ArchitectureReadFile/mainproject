@@ -1,6 +1,8 @@
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -241,6 +243,32 @@ def get_detail_document(
         group_id=group_id,
         current_user_id=current_user.id,
         current_user_role=role,
+    )
+
+
+@router.get("/{group_id}/documents/{doc_id}/original")
+def view_original_document(
+    group_id: int,
+    doc_id: int,
+    group_service: GroupService = Depends(get_group_service),
+    document_service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
+):
+    """권한이 있는 사용자가 원본 PDF를 브라우저에서 바로 볼 수 있게 반환"""
+    _, role = group_service.assert_view_permission(current_user.id, group_id)
+    file_path, original_filename = document_service.get_original_file_in_group(
+        doc_id=doc_id,
+        group_id=group_id,
+        current_user_id=current_user.id,
+        current_user_role=role,
+    )
+
+    encoded_filename = quote(original_filename)
+
+    return FileResponse(
+        path=file_path,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{encoded_filename}"},
     )
 
 
