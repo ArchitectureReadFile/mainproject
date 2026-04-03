@@ -50,3 +50,13 @@ export const updateUsername = async (newUsername) => {
   const response = await client.patch("/auth/username", { new_username: newUsername });
   return response.data;
 }
+
+export const subscribePremium =  async () => {
+  const response = await client.post('/auth/subscription/subscribe', { confirm: true })
+  return response.data
+}
+
+export const cancelSubscription = async () => {
+  const response = await client.post('/auth/subscription/cancel', { confirm: true })
+  return response.data
+}

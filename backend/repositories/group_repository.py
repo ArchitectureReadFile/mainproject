@@ -9,6 +9,7 @@ from models.model import (
     DocumentLifecycleStatus,
     Group,
     GroupMember,
+    GroupPendingReason,
     GroupStatus,
     MembershipRole,
     MembershipStatus,
@@ -128,18 +129,36 @@ class GroupRepository:
             or 0
         )
 
-    def request_delete_group(self, group: Group) -> Group:
-        """그룹 삭제 요청 — DELETE_PENDING으로 변경, 30일 유예"""
-        now = utc_now_naive()
+    def get_owned_groups(self, user_id: int) -> list[Group]:
+        """사용자가 소유한 삭제 전 워크스페이스 목록 조회"""
+        return (
+            self.db.query(Group)
+            .filter(
+                Group.owner_user_id == user_id,
+                Group.status != GroupStatus.DELETED,
+            )
+            .all()
+        )
+
+    def request_delete_group(
+        self,
+        group: Group,
+        reason: GroupPendingReason = GroupPendingReason.OWNER_DELETE_REQUEST,
+        requested_at=None,
+    ) -> Group:
+        """그룹을 삭제 대기 상태로 전환"""
+        base_time = requested_at or utc_now_naive()
         group.status = GroupStatus.DELETE_PENDING
-        group.delete_requested_at = now
-        group.delete_scheduled_at = now + timedelta(days=30)
+        group.pending_reason = reason
+        group.delete_requested_at = base_time
+        group.delete_scheduled_at = base_time + timedelta(days=30)
 
         return group
 
     def cancel_delete_group(self, group: Group) -> Group:
-        """그룹 삭제 취소 — ACTIVE 복구"""
+        """그룹 삭제 대기를 취소하고 활성 상태로 복구"""
         group.status = GroupStatus.ACTIVE
+        group.pending_reason = None
         group.delete_requested_at = None
         group.delete_scheduled_at = None
 

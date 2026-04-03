@@ -9,15 +9,14 @@ from models.model import (
     ChatMessageRole,
     ChatSession,
     Document,
-    Group,
     GroupMember,
-    GroupStatus,
-    MembershipStatus,
 )
+from repositories.group_repository import GroupRepository
 from schemas.knowledge import WorkspaceSelection
 from services.chat.session_document_payload_service import SessionDocumentPayloadService
 from services.document_extract_service import DocumentExtractService
 from services.document_normalize_service import DocumentNormalizeService
+from services.group_service import GroupService
 
 _extractor = DocumentExtractService()
 _normalizer = DocumentNormalizeService()
@@ -146,28 +145,24 @@ class ChatService:
     def _require_group_membership(
         self, db: Session, user_id: int, group_id: int | None
     ) -> None:
+        """워크스페이스 검색 사용 시 읽기 가능한 그룹 멤버인지 확인"""
         if group_id is None:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
-        group = (
-            db.query(Group)
-            .filter(Group.id == group_id, Group.status == GroupStatus.ACTIVE)
-            .first()
-        )
+        group_service = GroupService(GroupRepository(db), db)
+
+        result = group_service.repository.get_group_with_role(user_id, group_id)
+        if result:
+            group, _ = result
+            group_service._assert_group_readable(group)
+            return
+
+        group = group_service.repository.get_group_by_id(group_id)
         if not group:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
-        member = (
-            db.query(GroupMember)
-            .filter(
-                GroupMember.user_id == user_id,
-                GroupMember.group_id == group_id,
-                GroupMember.status == MembershipStatus.ACTIVE,
-            )
-            .first()
-        )
-        if not member:
-            raise AppException(ErrorCode.AUTH_FORBIDDEN)
+        group_service._assert_group_readable(group)
+        raise AppException(ErrorCode.AUTH_FORBIDDEN)
 
     def _get_session_with_permission(
         self, db: Session, user_id: int, session_id: int

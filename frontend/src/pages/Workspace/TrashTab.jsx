@@ -18,6 +18,11 @@ export default function TrashTab({ group }) {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const page = Number(searchParams.get('page') || '1')
+  const isWritable = group.status === 'ACTIVE'
+  const isWriteRestricted = group.status !== 'ACTIVE'
+  const isSubscriptionExpiredPending =
+    group.status === 'DELETE_PENDING' &&
+    group.pending_reason === 'SUBSCRIPTION_EXPIRED'
 
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
@@ -105,6 +110,20 @@ export default function TrashTab({ group }) {
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
+      {isWriteRestricted && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <div className="text-amber-800">
+                  <div>
+                      <p className="text-amber-800">
+                          {isSubscriptionExpiredPending
+                              ? '구독 만료 상태에서는 승인/반려 처리는 사용할 수 없고, 목록 조회와 다운로드만 가능합니다.'
+                              : '삭제 예정 상태에서는 복구 처리가 제한되며, 목록 조회와 다운로드만 가능합니다.'}
+                      </p>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -158,20 +177,22 @@ export default function TrashTab({ group }) {
                 </div>
               </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0 gap-1.5"
-                disabled={restoringId === doc.id}
-                onClick={(e) => handleRestore(e, doc.id)}
-              >
-                {restoringId === doc.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ArchiveRestore className="h-4 w-4" />
-                )}
-                복구
-              </Button>
+              {isWritable && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-1.5"
+                  disabled={restoringId === doc.id}
+                  onClick={(e) => handleRestore(e, doc.id)}
+                >
+                  {restoringId === doc.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ArchiveRestore className="h-4 w-4" />
+                  )}
+                  복구
+                </Button>
+              )}
             </div>
           ))}
         </div>
