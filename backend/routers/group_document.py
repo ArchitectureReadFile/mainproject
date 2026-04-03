@@ -11,6 +11,7 @@ from models.model import User
 from repositories.document_comment_repository import DocumentCommentRepository
 from repositories.document_repository import DocumentRepository
 from repositories.document_review_repository import DocumentReviewRepository
+from repositories.group_repository import GroupRepository
 from routers.auth import get_current_user
 from routers.group import get_group_service
 from schemas.comment import (
@@ -50,6 +51,7 @@ def get_document_comment_service(
     return DocumentCommentService(
         comment_repository=DocumentCommentRepository(db),
         document_service=DocumentService(document_repository),
+        group_repository=GroupRepository(db),
     )
 
 
@@ -347,6 +349,7 @@ def create_document_comment(
         current_user_role=role,
         content=payload.content,
         parent_id=payload.parent_id,
+        mentions=payload.mentions,
     )
 
 

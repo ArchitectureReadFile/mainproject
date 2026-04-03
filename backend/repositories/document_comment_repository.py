@@ -1,6 +1,10 @@
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from models.model import DocumentComment, utc_now_naive
+from models.model import (
+    DocumentComment,
+    DocumentCommentMention,
+    utc_now_naive,
+)
 
 
 class DocumentCommentRepository:
@@ -12,19 +16,25 @@ class DocumentCommentRepository:
     ) -> list[DocumentComment]:
         """
         문서의 루트 댓글 목록을 생성일 오름차순으로 조회
-        replies와 작성자 정보까지 함께 로드
+        replies, 작성자, 멘션 정보까지 함께 로드
         """
         return (
             self.db.query(DocumentComment)
             .options(
                 joinedload(DocumentComment.author),
                 joinedload(DocumentComment.deleted_by),
+                selectinload(DocumentComment.mentions).joinedload(
+                    DocumentCommentMention.mentioned_user
+                ),
                 selectinload(DocumentComment.replies).joinedload(
                     DocumentComment.author
                 ),
                 selectinload(DocumentComment.replies).joinedload(
                     DocumentComment.deleted_by
                 ),
+                selectinload(DocumentComment.replies)
+                .selectinload(DocumentComment.mentions)
+                .joinedload(DocumentCommentMention.mentioned_user),
             )
             .filter(
                 DocumentComment.document_id == document_id,
@@ -44,6 +54,9 @@ class DocumentCommentRepository:
                 joinedload(DocumentComment.author),
                 joinedload(DocumentComment.parent),
                 joinedload(DocumentComment.document),
+                selectinload(DocumentComment.mentions).joinedload(
+                    DocumentCommentMention.mentioned_user
+                ),
             )
             .filter(DocumentComment.id == comment_id)
             .first()
@@ -67,9 +80,33 @@ class DocumentCommentRepository:
             parent_id=parent_id,
         )
         self.db.add(comment)
-        self.db.commit()
-        self.db.refresh(comment)
+        self.db.flush()
         return comment
+
+    def create_comment_mentions(
+        self,
+        *,
+        comment_id: int,
+        mentions: list[dict],
+    ) -> list[DocumentCommentMention]:
+        """
+        댓글 멘션 목록을 생성
+        """
+        rows: list[DocumentCommentMention] = []
+
+        for mention in mentions:
+            row = DocumentCommentMention(
+                comment_id=comment_id,
+                mentioned_user_id=mention["mentioned_user_id"],
+                snapshot_username=mention["snapshot_username"],
+                start_index=mention["start_index"],
+                end_index=mention["end_index"],
+            )
+            self.db.add(row)
+            rows.append(row)
+
+        self.db.flush()
+        return rows
 
     def soft_delete_comment(
         self,
@@ -83,6 +120,5 @@ class DocumentCommentRepository:
         comment.deleted_at = utc_now_naive()
         comment.deleted_by_user_id = deleted_by_user_id
         comment.updated_at = utc_now_naive()
-        self.db.commit()
-        self.db.refresh(comment)
+        self.db.flush()
         return comment

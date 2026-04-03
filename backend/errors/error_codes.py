@@ -232,3 +232,13 @@ class ErrorCode(Enum):
         409,
         "삭제된 댓글에는 답글을 작성할 수 없습니다.",
     )
+    COMMENT_MENTION_INVALID = (
+        "COMMENT_006",
+        422,
+        "멘션 데이터가 댓글 본문과 일치하지 않습니다.",
+    )
+    COMMENT_MENTION_USER_NOT_FOUND = (
+        "COMMENT_007",
+        422,
+        "멘션할 수 없는 사용자입니다.",
+    )

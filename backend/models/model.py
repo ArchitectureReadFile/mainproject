@@ -553,6 +553,59 @@ class DocumentComment(Base):
         back_populates="parent",
     )
 
+    mentions = relationship(
+        "DocumentCommentMention",
+        back_populates="comment",
+        cascade="all, delete-orphan",
+        order_by="DocumentCommentMention.start_index.asc()",
+    )
+
+
+class DocumentCommentMention(Base):
+    """
+    댓글 본문 내 멘션 구간을 저장합니다.
+    mentioned_user_id는 식별용,
+    snapshot_username은 저장 시점 본문 검증용 스냅샷입니다.
+    """
+
+    __tablename__ = "document_comment_mentions"
+
+    id = Column(Integer, primary_key=True)
+
+    comment_id = Column(
+        Integer,
+        ForeignKey("document_comments.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # 식별용
+    mentioned_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # snapshot_username: 저장 시점 본문 검증용 스냅샷
+    snapshot_username = Column(String(20), nullable=False)
+    start_index = Column(Integer, nullable=False)
+    end_index = Column(Integer, nullable=False)
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "comment_id",
+            "start_index",
+            "end_index",
+            name="uq_comment_mention_span",
+        ),
+    )
+
+    comment = relationship("DocumentComment", back_populates="mentions")
+    mentioned_user = relationship("User", foreign_keys=[mentioned_user_id])
+
 
 class ChatSession(Base):
     __tablename__ = "chat_sessions"
