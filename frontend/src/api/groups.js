@@ -234,3 +234,8 @@ export async function rejectDocument(groupId, docId, feedback) {
     })
     return data
 }
+
+
+export async function leaveGroup(groupId) {
+    await client.post(`/groups/${groupId}/leave`)
+}
