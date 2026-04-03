@@ -3,8 +3,19 @@ import { downloadSummaryPdf } from '@/api/documents'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/Sheet'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ArrowLeft, Download, Trash2, ExternalLink } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import {
+    ArrowLeft,
+    Download,
+    ExternalLink,
+    MessageSquareText,
+    PanelRightClose,
+    PanelRightOpen,
+    Trash2,
+    X,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -18,6 +29,8 @@ export default function DocumentPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [showDeleteModal, setShowDeleteModal] = useState(false)
+    const [isCommentPanelOpen, setIsCommentPanelOpen] = useState(false)
+    const [isMobileCommentLayout, setIsMobileCommentLayout] = useState(false)
 
     const backToListUrl = `/workspace/${group_id}${location.search || '?tab=documents'}`
     const originalPdfUrl = getGroupDocumentOriginalUrl(group_id, doc_id)
@@ -36,6 +49,26 @@ export default function DocumentPage() {
 
         load()
     }, [group_id, doc_id])
+
+
+    useEffect(() => {
+        const mediaQuery = window.matchMedia('(max-width: 1023px)')
+
+        const syncCommentLayout = (matches) => {
+            setIsMobileCommentLayout(matches)
+        }
+
+        const handleChange = (event) => {
+            syncCommentLayout(event.matches)
+        }
+
+        syncCommentLayout(mediaQuery.matches)
+        mediaQuery.addEventListener('change', handleChange)
+
+        return () => {
+            mediaQuery.removeEventListener('change', handleChange)
+        }
+    }, [])
 
 
     if (loading) {
@@ -97,9 +130,46 @@ export default function DocumentPage() {
         }
     }
 
+    const commentPanelBody = (
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+            <div className="space-y-4">
+                <div className="rounded-lg border bg-muted/30 p-4">
+                    <div className="flex items-start gap-3">
+                        <div className="mt-0.5 rounded-full bg-primary/10 p-2 text-primary">
+                            <MessageSquareText size={16} />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-foreground">댓글 패널 UI 검증 단계입니다.</p>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                                현재는 우측 패널의 열림/닫힘, 높이, 내부 스크롤, 모바일 오버레이만 먼저 확인합니다.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="rounded-lg border border-dashed bg-background p-4">
+                    <p className="text-xs font-semibold text-muted-foreground">다음 단계 예정</p>
+                    <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
+                        <li>댓글 작성 / 삭제</li>
+                        <li>대댓글 스레드</li>
+                        <li>@멘션 및 알림 연동</li>
+                        <li>PDF 위치 기반 댓글 연결</li>
+                    </ul>
+                </div>
+
+                <div className="rounded-lg border bg-background p-4">
+                    <p className="text-sm font-medium text-foreground">레이아웃 체크 포인트</p>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        PC에서는 PDF가 좌측으로 줄어들고, 모바일에서는 우측 오버레이로 열리면 됩니다.
+                    </p>
+                </div>
+            </div>
+        </div>
+    )
+
     return (
-        <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-5">
-            <div className="flex items-center justify-between">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-5 px-4 py-8 lg:px-6 xl:px-8">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Button variant="ghost" size="sm" onClick={() => navigate(backToListUrl)}>
                     <ArrowLeft size={15} />
                     문서 목록으로
@@ -120,12 +190,12 @@ export default function DocumentPage() {
 
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <a href={originalPdfUrl} target="_blank" rel="noreferrer">
-                                <Button variant="outline" size="sm" className="gap-1.5">
+                            <Button asChild variant="outline" size="sm" className="gap-1.5">
+                                <a href={originalPdfUrl} target="_blank" rel="noreferrer">
                                     <ExternalLink size={14} />
-                                    원문 새 탭
-                                </Button>
-                            </a>
+                                    새 탭으로 열기
+                                </a>
+                            </Button>
                         </TooltipTrigger>
                         <TooltipContent>원본 PDF를 새 탭에서 엽니다</TooltipContent>
                     </Tooltip>
@@ -244,30 +314,85 @@ export default function DocumentPage() {
                 )}
             </Card>
 
-            <Card className="overflow-hidden">
-                <div className="flex items-center justify-between border-b px-6 py-4">
-                    <div>
-                        <h3 className="text-sm font-semibold text-muted-foreground">원문 PDF</h3>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            브라우저 기본 PDF 뷰어로 원문을 바로 확인할 수 있습니다.
-                        </p>
-                    </div>
-                    <a href={originalPdfUrl} target="_blank" rel="noreferrer">
-                        <Button variant="outline" size="sm" className="gap-1.5">
-                            <ExternalLink size={14} />
-                            새 탭에서 보기
-                        </Button>
-                    </a>
-                </div>
+            <div
+                className={cn(
+                    'grid gap-4 items-stretch',
+                    isCommentPanelOpen ? 'lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]' : 'grid-cols-1'
+                )}
+            >
+                <Card className="overflow-hidden lg:h-[75vh] lg:flex lg:flex-col">
+                    <div className="flex items-center justify-between border-b px-6 py-4">
+                        <div>
+                            <h3 className="text-sm font-semibold text-muted-foreground">원문 PDF</h3>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                브라우저 기본 PDF 뷰어로 원문을 바로 확인할 수 있습니다.
+                            </p>
+                        </div>
 
-                <div className="h-[75vh] bg-muted/20">
-                    <iframe
-                        title={`${s.title || '문서'} 원문 PDF`}
-                        src={originalPdfUrl}
-                        className="h-full w-full"
-                    />
-                </div>
-            </Card>
+                        <div className="flex flex-wrap gap-2">
+                            <Button
+                                variant={isCommentPanelOpen ? 'secondary' : 'outline'}
+                                size="sm"
+                                onClick={() => setIsCommentPanelOpen((prev) => !prev)}
+                                className="gap-1.5"
+                            >
+                                {isCommentPanelOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
+                                댓글 패널
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div className="bg-muted/20 lg:min-h-0 lg:flex-1">
+                        <iframe
+                            title={`${s.title || '문서'} 원문 PDF`}
+                            src={originalPdfUrl}
+                            className="h-full w-full"
+                        />
+                    </div>
+                </Card>
+
+                {isCommentPanelOpen && (
+                    <Card className="hidden overflow-hidden lg:flex lg:h-[75vh] lg:flex-col">
+                        <div className="flex items-center justify-between border-b px-5 py-4">
+                            <div>
+                                <h3 className="text-sm font-semibold text-foreground">댓글 패널</h3>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    댓글 기능 연결 전, 레이아웃만 먼저 검증합니다.
+                                </p>
+                            </div>
+
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setIsCommentPanelOpen(false)}
+                                aria-label="댓글 패널 닫기"
+                            >
+                                <X size={18} />
+                            </Button>
+                        </div>
+
+                        {commentPanelBody}
+                    </Card>
+                )}
+            </div>
+
+            <Sheet open={isMobileCommentLayout && isCommentPanelOpen} onOpenChange={setIsCommentPanelOpen}>
+                <SheetContent className="w-[min(92vw,360px)] lg:hidden">
+                    <SheetHeader>
+                        <SheetTitle>댓글 패널</SheetTitle>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setIsCommentPanelOpen(false)}
+                            aria-label="댓글 패널 닫기"
+                        >
+                            <X size={18} />
+                        </Button>
+                    </SheetHeader>
+
+                    {commentPanelBody}
+                </SheetContent>
+            </Sheet>
         </div>
     )
 }
