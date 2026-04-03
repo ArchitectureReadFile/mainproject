@@ -161,7 +161,7 @@ class PlatformDocumentChunk(Base):
         law:            "article"
         precedent:      "holding" | "summary" | "body"
         interpretation: "question" | "answer" | "reason"
-        admin_rule:     "rule"
+        admin_rule:     "rule" | "addendum" | "annex"
 
     chunk_id_str:
         BM25/Qdrant 저장 시 사용하는 외부 식별자.

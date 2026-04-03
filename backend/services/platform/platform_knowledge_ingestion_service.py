@@ -13,11 +13,11 @@ source_type 활성화 flag:
     settings/platform.py의 is_ingestion_enabled() 기반.
     비활성 source_type이 들어오면 raw 저장 없이 즉시 차단.
 
-현재 지원 범위:
+지원 범위:
     law:            활성
-    precedent:      활성
-    interpretation: 비활성 (placeholder mapper, 실제 필드 확인 후 전환)
-    admin_rule:     비활성 (placeholder mapper, 실제 필드 확인 후 전환)
+    precedent:      활성 (migration flag로 corpus 전환 관리)
+    interpretation: 활성
+    admin_rule:     활성
 """
 
 from __future__ import annotations

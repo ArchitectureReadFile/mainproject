@@ -21,7 +21,7 @@ chunk_type 값:
     law:            "article"
     precedent:      "holding" | "summary" | "body"
     interpretation: "question" | "answer" | "reason"
-    admin_rule:     "rule"
+    admin_rule:     "rule" | "addendum" | "annex"
 """
 
 from __future__ import annotations
@@ -64,9 +64,11 @@ class PlatformDocumentSchema:
         interpretation:
             agenda_no             str
             query_org             str
+            responder_name        str
         admin_rule:
             rule_no               str
             effective_date        str
+            promulgation_date     str
 
     raw_payload_ref:
         PlatformRawSource.id. normalize 후 역추적 기준.
@@ -92,14 +94,16 @@ class PlatformChunkSchema:
 
     source_type:   부모 문서와 동일
     external_id:   부모 문서와 동일 (chunk_id_str 생성 기준)
-    chunk_type:    "article" | "holding" | "summary" | "body" | "question" | "answer" | "reason" | "rule"
+    chunk_type:    "article" | "holding" | "summary" | "body"
+                   | "question" | "answer" | "reason"
+                   | "rule" | "addendum" | "annex"
     chunk_order:   문서 내 순서 (0-indexed)
-    section_title: 섹션명 (조문제목 / 판시사항 / 질의내용 등)
+    section_title: 섹션명 (조문제목 / 판시사항 / 질의요지 / 부칙 / 별표 등)
     chunk_text:    retrieval 및 answer context에 들어갈 실제 텍스트
     metadata:      chunk 단위 부가 정보
 
     metadata 권장 필드:
-        article_no        str    (law)
+        article_no        str    (law, admin_rule)
         related_law_refs  list[str]
         related_case_refs list[str]
         source_url        str
