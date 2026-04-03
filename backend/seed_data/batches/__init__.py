@@ -1,1 +1,0 @@
-"""Generated precedent source batches."""

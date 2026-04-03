@@ -6,14 +6,18 @@ from errors import AppException, ErrorCode
 from models.model import User, UserRole
 from routers.auth import get_current_user
 from schemas.admin import (
-    AdminPrecedentCreateRequest,
-    AdminPrecedentListResponse,
+    AdminPlatformFailuresResponse,
+    AdminPlatformStopRequest,
+    AdminPlatformStopResponse,
+    AdminPlatformSummaryResponse,
+    AdminPlatformSyncRequest,
+    AdminPlatformSyncResponse,
     AdminStatsResponse,
     AdminUsageResponse,
     AdminUserListResponse,
     AdminUserStatusUpdateRequest,
 )
-from services import admin_service
+from services import admin_platform_service, admin_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -47,54 +51,63 @@ def get_usage(
     return admin_service.get_admin_usage(db)
 
 
-# ── 판례 ──────────────────────────────────────────────────────────────────────
+# ── platform sync ────────────────────────────────────────────────────────────
 
 
-@router.get("/precedents", response_model=AdminPrecedentListResponse)
-def list_precedents(
-    skip: int = Query(default=0, ge=0),
+@router.get("/platform/summary", response_model=AdminPlatformSummaryResponse)
+def get_platform_summary(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    return admin_platform_service.get_admin_platform_summary(db)
+
+
+@router.post(
+    "/platform/sync",
+    response_model=AdminPlatformSyncResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def sync_platform_source(
+    payload: AdminPlatformSyncRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    return admin_platform_service.enqueue_platform_source_sync(
+        db,
+        source_type=payload.source_type,
+    )
+
+
+@router.post(
+    "/platform/sync/stop",
+    response_model=AdminPlatformStopResponse,
+    status_code=status.HTTP_200_OK,
+)
+def stop_platform_source(
+    payload: AdminPlatformStopRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    return admin_platform_service.stop_platform_source_sync(
+        db,
+        source_type=payload.source_type,
+    )
+
+
+@router.get("/platform/failures", response_model=AdminPlatformFailuresResponse)
+def get_platform_failures(
+    source_type: str = Query(default=None),
+    run_id: int = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    return admin_service.get_admin_precedents(db, skip=skip, limit=limit)
-
-
-@router.post("/precedents", status_code=status.HTTP_201_CREATED)
-def create_precedent(
-    payload: AdminPrecedentCreateRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    precedent = admin_service.create_precedent(db, current_user, payload.source_url)
-    return {
-        "id": precedent.id,
-        "source_url": precedent.source_url,
-        "processing_status": precedent.processing_status.value,
-        "error_message": precedent.error_message,
-    }
-
-
-@router.post("/precedents/reindex", status_code=status.HTTP_202_ACCEPTED)
-def reindex_precedents(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
-):
-    return admin_service.reindex_precedents(db)
-
-
-@router.post("/precedents/{precedent_id}/retry", status_code=status.HTTP_200_OK)
-def retry_precedent(
-    precedent_id: int,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
-):
-    precedent = admin_service.retry_precedent(db, precedent_id)
-    return {
-        "id": precedent.id,
-        "processing_status": precedent.processing_status.value,
-        "error_message": precedent.error_message,
-    }
+    return admin_platform_service.get_admin_platform_failures(
+        db,
+        source_type=source_type,
+        run_id=run_id,
+        limit=limit,
+    )
 
 
 # ── 회원 ──────────────────────────────────────────────────────────────────────

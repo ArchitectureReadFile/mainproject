@@ -18,11 +18,13 @@ migration 완료 단계 (ENABLE_PLATFORM_PRECEDENT_CORPUS=true):
     - source_id 체계가 달라 dedupe 키가 충돌 없이 통과해 중복 반환 위험이 있다.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-━━━ Source 지원 범위 (현재) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    law:            지원 (공식 API 필드 확인 완료)
-    precedent:      지원 (공식 API 필드 확인 완료, migration flag로 corpus 전환 관리)
-    interpretation: 구조 검증 전 fail-closed (상세 필드명 미확정 placeholder 상태)
-    admin_rule:     구조 검증 전 fail-closed (실제 응답 수신 전 placeholder 상태)
+━━━ Source 지원 범위 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4개 source 모두 공식 API 필드 확인 완료, platform public corpus 대상으로 확정.
+
+    law:            지원 (현행법령 — 조문 단위 article chunk)
+    precedent:      지원 (판례 — 목록 기준 기본 문서 + 상세 enrich, holding/summary/body/meta chunk)
+    interpretation: 지원 (법령해석례 — question/answer/reason chunk)
+    admin_rule:     지원 (행정규칙 — rule/addendum/annex chunk, 중첩 응답 자동 flatten)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
@@ -48,13 +50,25 @@ ENABLE_PLATFORM_PRECEDENT_CORPUS: bool = _bool_env(
 )
 
 # ── Source별 ingestion 활성화 플래그 ─────────────────────────────────────────
-# interpretation / admin_rule은 실제 API 필드 구조 확인 전까지 기본 비활성
+# 4개 source 모두 API 필드 구조 확인 완료 — 기본 활성
 ENABLE_INGESTION_LAW: bool = _bool_env("ENABLE_INGESTION_LAW", True)
 ENABLE_INGESTION_PRECEDENT: bool = _bool_env("ENABLE_INGESTION_PRECEDENT", True)
 ENABLE_INGESTION_INTERPRETATION: bool = _bool_env(
-    "ENABLE_INGESTION_INTERPRETATION", False
+    "ENABLE_INGESTION_INTERPRETATION", True
 )
-ENABLE_INGESTION_ADMIN_RULE: bool = _bool_env("ENABLE_INGESTION_ADMIN_RULE", False)
+ENABLE_INGESTION_ADMIN_RULE: bool = _bool_env("ENABLE_INGESTION_ADMIN_RULE", True)
+
+# ── Korea Law Open API client 설정 ───────────────────────────────────────────
+KOREA_LAW_OPEN_API_OC: str = os.getenv("KOREA_LAW_OPEN_API_OC", "").strip()
+KOREA_LAW_OPEN_API_BASE_URL: str = os.getenv(
+    "KOREA_LAW_OPEN_API_BASE_URL", "http://www.law.go.kr/DRF"
+).rstrip("/")
+KOREA_LAW_OPEN_API_TIMEOUT_SECONDS: int = int(
+    os.getenv("KOREA_LAW_OPEN_API_TIMEOUT_SECONDS", "20")
+)
+KOREA_LAW_OPEN_API_SYNC_PAGE_SIZE: int = int(
+    os.getenv("KOREA_LAW_OPEN_API_SYNC_PAGE_SIZE", "100")
+)
 
 _INGESTION_FLAG_MAP: dict[str, bool] = {
     "law": ENABLE_INGESTION_LAW,
@@ -67,6 +81,25 @@ _INGESTION_FLAG_MAP: dict[str, bool] = {
 def is_ingestion_enabled(source_type: str) -> bool:
     """source_type ingestion 활성화 여부를 반환한다."""
     return _INGESTION_FLAG_MAP.get(source_type, False)
+
+
+# precedent migration 판단 helper
+def use_legacy_precedent_corpus() -> bool:
+    """
+    기존 precedent corpus 사용 여부를 반환한다.
+
+    precedence 검색의 read path를 한곳에서 판단하기 위한 helper다.
+    """
+    return not ENABLE_PLATFORM_PRECEDENT_CORPUS
+
+
+def use_platform_precedent_corpus() -> bool:
+    """
+    precedent를 platform corpus에서 검색할지 여부를 반환한다.
+
+    migration 완료 후 True가 되며, 이때 legacy precedent corpus는 비활성화된다.
+    """
+    return ENABLE_PLATFORM_PRECEDENT_CORPUS
 
 
 # platform corpus 검색 대상 source_type 목록 (migration flag 기반)
@@ -83,6 +116,6 @@ def get_platform_corpus_source_types() -> list[str]:
         기존 corpus 비활성화, platform corpus에서 모두 처리
     """
     types = ["law", "interpretation", "admin_rule"]
-    if ENABLE_PLATFORM_PRECEDENT_CORPUS:
+    if use_platform_precedent_corpus():
         types.insert(0, "precedent")
     return types

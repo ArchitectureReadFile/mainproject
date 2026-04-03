@@ -15,6 +15,10 @@ chunk 전략:
     chunk_type = "summary"  : 판결요지
     chunk_type = "body"     : 판례내용 (길이 분할)
 
+metadata:
+    detail_mode = "enriched"        : 목록 기반 문서를 상세 본문으로 보강한 문서
+    detail_fetch_supported = True   : 상세 조회 가능 표시
+
 기존 Precedent 모델 / chunk_builder.py 와의 관계:
     - 기존 코드는 그대로 유지.
     - 이 mapper는 platform knowledge ingestion 경로 전용.
@@ -104,6 +108,8 @@ def normalize(raw_payload: dict) -> PlatformDocumentSchema:
         ]
 
     metadata: dict[str, Any] = {
+        "detail_mode": "enriched",
+        "detail_fetch_supported": True,
         "case_no": case_no or None,
         "case_type": raw_payload.get("사건종류명") or None,
         "judgment_type": raw_payload.get("판결유형") or None,
@@ -136,6 +142,7 @@ def build_chunks(
         "source_url": doc.source_url,
         "issued_at": doc.issued_at.isoformat() if doc.issued_at else None,
         "agency": doc.agency,
+        "detail_mode": "enriched",
         "related_law_refs": doc.metadata.get("related_law_refs"),
         "related_case_refs": doc.metadata.get("related_case_refs"),
     }

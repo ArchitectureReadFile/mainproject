@@ -9,7 +9,7 @@ schemas/knowledge.py
       플랫폼 공통 법령/판례/유권해석/행정규칙 지식.
       include_platform=True이면 항상 검색 대상.
       source_type: "law", "precedent", "interpretation", "admin_rule"
-      현재 두 corpus를 migration flag로 전환 관리:
+      현재 두 corpus를 migration helper로 전환 관리:
         - legacy: precedent corpus (bm25:p:* / Qdrant precedent_id 기반)
         - 신규:   platform corpus  (bm25:pl:* / Qdrant platform_document_id 기반)
       NOTE: platform은 판례(precedent) 단독이 아니라 법령·유권해석·행정규칙 등
@@ -32,7 +32,8 @@ schemas/knowledge.py
 
 현재 서비스 매핑:
     platform  ← PlatformKnowledgeRetriever
-                  (retrieve_precedents / vector_store + bm25_store.search_platform)
+                  (use_legacy_precedent_corpus / retrieve_precedents /
+                   vector_store + bm25_store.search_platform)
     workspace ← WorkspaceKnowledgeRetriever
                   (retrieve_group_documents)
     session   ← SessionDocumentRetriever
