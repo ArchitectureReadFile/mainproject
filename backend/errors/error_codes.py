@@ -213,3 +213,22 @@ class ErrorCode(Enum):
         403,
         "OWNER는 워크스페이스를 바로 탈퇴할 수 없습니다. 다른 멤버에게 오너를 양도한 뒤 탈퇴해주세요.",
     )
+
+    # ── 댓글 (COMMENT) ───────────────────────────────────────────────────────
+    COMMENT_NOT_FOUND = ("COMMENT_001", 404, "댓글을 찾을 수 없습니다.")
+    COMMENT_ALREADY_DELETED = ("COMMENT_002", 409, "이미 삭제된 댓글입니다.")
+    COMMENT_PARENT_MISMATCH = (
+        "COMMENT_003",
+        400,
+        "같은 문서의 댓글에만 답글을 작성할 수 있습니다.",
+    )
+    COMMENT_REPLY_DEPTH_EXCEEDED = (
+        "COMMENT_004",
+        400,
+        "대댓글에는 추가 답글을 작성할 수 없습니다.",
+    )
+    COMMENT_PARENT_DELETED = (
+        "COMMENT_005",
+        409,
+        "삭제된 댓글에는 답글을 작성할 수 없습니다.",
+    )

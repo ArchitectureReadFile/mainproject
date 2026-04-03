@@ -197,6 +197,18 @@ class User(Base):
         back_populates="deleted_by",
     )
 
+    authored_comments = relationship(
+        "DocumentComment",
+        foreign_keys="DocumentComment.author_user_id",
+        back_populates="author",
+    )
+
+    deleted_comments = relationship(
+        "DocumentComment",
+        foreign_keys="DocumentComment.deleted_by_user_id",
+        back_populates="deleted_by",
+    )
+
 
 class Subscription(Base):
     __tablename__ = "subscriptions"
@@ -392,6 +404,12 @@ class Document(Base):
         back_populates="deleted_documents",
     )
 
+    comments = relationship(
+        "DocumentComment",
+        back_populates="document",
+        cascade="all, delete-orphan",
+    )
+
 
 class DocumentApproval(Base):
     __tablename__ = "document_approvals"
@@ -466,6 +484,74 @@ class Summary(Base):
     )
 
     document = relationship("Document", back_populates="summary")
+
+
+class DocumentComment(Base):
+    __tablename__ = "document_comments"
+
+    id = Column(Integer, primary_key=True)
+
+    document_id = Column(
+        Integer,
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # 유저 탈퇴/비활성 상황을 고려해 SET NULL
+    author_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # parent_id가 있으면 대댓글
+    parent_id = Column(
+        Integer,
+        ForeignKey("document_comments.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
+    content = Column(Text, nullable=False)
+
+    deleted_by_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    deleted_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
+
+    document = relationship("Document", back_populates="comments")
+
+    author = relationship(
+        "User",
+        foreign_keys=[author_user_id],
+        back_populates="authored_comments",
+    )
+
+    deleted_by = relationship(
+        "User",
+        foreign_keys=[deleted_by_user_id],
+        back_populates="deleted_comments",
+    )
+
+    parent = relationship(
+        "DocumentComment",
+        remote_side=[id],
+        back_populates="replies",
+    )
+
+    replies = relationship(
+        "DocumentComment",
+        back_populates="parent",
+    )
 
 
 class ChatSession(Base):

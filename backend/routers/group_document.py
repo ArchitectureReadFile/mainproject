@@ -8,11 +8,18 @@ from sqlalchemy.orm import Session
 from database import get_db
 from errors import AppException, ErrorCode
 from models.model import User
+from repositories.document_comment_repository import DocumentCommentRepository
 from repositories.document_repository import DocumentRepository
 from repositories.document_review_repository import DocumentReviewRepository
 from routers.auth import get_current_user
 from routers.group import get_group_service
+from schemas.comment import (
+    DocumentCommentCreateRequest,
+    DocumentCommentListResponse,
+    DocumentCommentResponse,
+)
 from schemas.document import DocumentDetailResponse, DocumentRejectRequest
+from services.document_comment_service import DocumentCommentService
 from services.document_review_service import DocumentReviewService
 from services.document_service import DocumentService
 from services.group_service import GroupService
@@ -33,6 +40,17 @@ def get_document_review_service(
     db: Session = Depends(get_db),
 ) -> DocumentReviewService:
     return DocumentReviewService(DocumentReviewRepository(db))
+
+
+def get_document_comment_service(
+    db: Session = Depends(get_db),
+) -> DocumentCommentService:
+    document_repository = DocumentRepository(db)
+
+    return DocumentCommentService(
+        comment_repository=DocumentCommentRepository(db),
+        document_service=DocumentService(document_repository),
+    )
 
 
 @router.post("/{group_id}/documents/upload")
@@ -281,8 +299,77 @@ def delete_document(
     current_user: User = Depends(get_current_user),
 ):
     group, _ = group_service.assert_view_permission(current_user.id, group_id)
-    group_service._assert_group_writable(group)
+    group_service.assert_group_writable(group)
     service.delete_document(doc_id, current_user.id, group_id)
+
+
+@router.get(
+    "/{group_id}/documents/{doc_id}/comments",
+    response_model=DocumentCommentListResponse,
+)
+def list_document_comments(
+    group_id: int,
+    doc_id: int,
+    service: DocumentCommentService = Depends(get_document_comment_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    _, role = group_service.assert_view_permission(current_user.id, group_id)
+
+    return service.list_comments(
+        doc_id=doc_id,
+        group_id=group_id,
+        current_user_id=current_user.id,
+        current_user_role=role,
+    )
+
+
+@router.post(
+    "/{group_id}/documents/{doc_id}/comments",
+    response_model=DocumentCommentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_document_comment(
+    group_id: int,
+    doc_id: int,
+    payload: DocumentCommentCreateRequest,
+    service: DocumentCommentService = Depends(get_document_comment_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group, role = group_service.assert_view_permission(current_user.id, group_id)
+    group_service.assert_group_writable(group)
+
+    return service.create_comment(
+        doc_id=doc_id,
+        group_id=group_id,
+        current_user_id=current_user.id,
+        current_user_role=role,
+        content=payload.content,
+        parent_id=payload.parent_id,
+    )
+
+
+@router.delete(
+    "/{group_id}/comments/{comment_id}",
+    response_model=DocumentCommentResponse,
+)
+def delete_document_comment(
+    group_id: int,
+    comment_id: int,
+    service: DocumentCommentService = Depends(get_document_comment_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group, role = group_service.assert_view_permission(current_user.id, group_id)
+    group_service.assert_group_writable(group)
+
+    return service.delete_comment(
+        comment_id=comment_id,
+        group_id=group_id,
+        current_user_id=current_user.id,
+        current_user_role=role,
+    )
 
 
 @router.post(

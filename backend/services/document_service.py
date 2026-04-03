@@ -90,7 +90,7 @@ class DocumentService:
 
         return results, total
 
-    def _get_document_in_group_with_permission(
+    def get_document_in_group_with_permission(
         self,
         doc_id: int,
         group_id: int,
@@ -134,7 +134,7 @@ class DocumentService:
         current_user_role: MembershipRole | None,
     ) -> DocumentDetailResponse:
         """그룹 문서 상세 정보를 반환"""
-        doc = self._get_document_in_group_with_permission(
+        doc = self.get_document_in_group_with_permission(
             doc_id=doc_id,
             group_id=group_id,
             current_user_id=current_user_id,
@@ -191,7 +191,7 @@ class DocumentService:
         current_user_role: MembershipRole | None,
     ) -> tuple[str, str]:
         """그룹 문서의 원본 PDF 경로와 파일명을 반환"""
-        doc = self._get_document_in_group_with_permission(
+        doc = self.get_document_in_group_with_permission(
             doc_id=doc_id,
             group_id=group_id,
             current_user_id=current_user_id,

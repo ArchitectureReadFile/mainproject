@@ -82,7 +82,7 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
         group, role = result
-        self._assert_group_writable(group)
+        self.assert_group_writable(group)
 
         if group.status != GroupStatus.ACTIVE:
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
@@ -227,7 +227,7 @@ class GroupService:
         if not group:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
-        self._assert_group_writable(group)
+        self.assert_group_writable(group)
         return self._assert_owner_or_admin_member(user_id, group_id)
 
     def _to_group_summary_response(
@@ -287,7 +287,7 @@ class GroupService:
         ):
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
 
-    def _assert_group_writable(self, group: Group) -> None:
+    def assert_group_writable(self, group: Group) -> None:
         """그룹 쓰기 가능 여부를 현재 시각 기준 상태로 검사"""
         status, _, _ = self._get_effective_group_state(group)
         if status != GroupStatus.ACTIVE:
@@ -504,7 +504,7 @@ class GroupService:
         if not group:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
-        self._assert_group_writable(group)
+        self.assert_group_writable(group)
 
         if group.status != GroupStatus.ACTIVE:
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
@@ -588,7 +588,7 @@ class GroupService:
         if not group:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
-        self._assert_group_writable(group)
+        self.assert_group_writable(group)
 
         if remover_id == target_id:
             raise AppException(ErrorCode.GROUP_CANNOT_REMOVE_SELF)
@@ -643,7 +643,7 @@ class GroupService:
         if not group:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
-        self._assert_group_writable(group)
+        self.assert_group_writable(group)
 
         target_membership = self.repository.get_active_member(target_id, group_id)
         if not target_membership:
