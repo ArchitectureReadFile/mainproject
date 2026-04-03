@@ -70,33 +70,12 @@ async def send_message(
     text: str = Form(""),
     document_id: int = Form(None),
     file: UploadFile = File(None),
-    # ── workspace selection (선택 필드) ──────────────────────────────────────
-    # 미전송 또는 null → include_workspace=False (기존 동작 유지)
-    # 전달 시 JSON 문자열로 받아 backend에서 파싱
-    # 예시: {"mode":"all","document_ids":[]}
-    #       {"mode":"documents","document_ids":[12,15,18]}
     workspace_selection_json: str | None = Form(None),
     group_id: int | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
-    """
-    메시지 전송 + 챗봇 답변 생성 요청.
-
-    workspace_selection_json / group_id:
-        - 미전송: workspace 검색 비활성 (platform + session만)
-        - 전송 시: workspace 검색 활성. group_id 필수.
-
-    workspace_selection_json 형식:
-        {"mode": "all", "document_ids": []}
-        {"mode": "documents", "document_ids": [12, 15, 18]}
-
-    주의: mode="documents"는 backend 계약상 지원되나,
-          WorkspaceKnowledgeRetriever의 실제 document_ids 필터는
-          현재 미구현(fail-closed → 빈 결과). 추후 지원 예정.
-    """
-    # workspace selection validation
     try:
         workspace_selection = parse_workspace_selection(workspace_selection_json)
     except ValueError as e:
@@ -135,6 +114,22 @@ def delete_reference_document(
     chat_service: ChatService = Depends(get_chat_service),
 ):
     return chat_service.delete_reference_document(
+        db=db,
+        user_id=current_user.id,
+        session_id=session_id,
+    )
+
+
+@router.delete(
+    "/sessions/{session_id}/reference-group", response_model=ChatSessionResponse
+)
+def delete_reference_group(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+):
+    return chat_service.delete_reference_group(
         db=db,
         user_id=current_user.id,
         session_id=session_id,

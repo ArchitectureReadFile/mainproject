@@ -53,17 +53,35 @@ export default function ChatSection() {
   }, [searchParams, sessions, setSearchParams]);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || null;
+  const initialGroup = activeSession?.reference_group_id ? { id: activeSession.reference_group_id, name: activeSession.reference_group_name } : null;
 
-  const { messages, sendMessage, isLoading, referenceTitle, removeReference, currentSessionId } = useChat(
+  useEffect(() => {
+    setSelectedDoc(null);
+    setSelectedGroup(null);
+    setShowDocSelect(false);
+    setShowGroupSelect(false);
+  }, [activeSessionId]);
+
+  const { 
+    messages, 
+    sendMessage, 
+    isLoading, 
+    referenceTitle, 
+    referenceGroup,
+    removeReferenceDocument, 
+    removeReferenceGroup,
+    currentSessionId 
+  } = useChat(
     activeSessionId,
-    activeSession?.reference_document_title
+    activeSession?.reference_document_title,
+    initialGroup
   );
 
   useEffect(() => {
-    if (activeSessionId && currentSessionId === activeSessionId && referenceTitle !== activeSession?.reference_document_title) {
+    if (activeSessionId && currentSessionId === activeSessionId && (referenceTitle !== activeSession?.reference_document_title || referenceGroup?.id !== activeSession?.reference_group_id)) {
       refreshRooms();
     }
-  }, [referenceTitle, activeSessionId, currentSessionId, activeSession?.reference_document_title, refreshRooms]);
+  }, [referenceTitle, referenceGroup, activeSessionId, currentSessionId, activeSession, refreshRooms]);
   const [inputText, setInputText] = useState('');
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -80,7 +98,7 @@ export default function ChatSection() {
 
   useEffect(() => {
     if (activeSessionId && pendingMessage && currentSessionId === activeSessionId) {
-      sendMessage(pendingMessage.text, pendingMessage.doc, pendingMessage.group);
+      sendMessage(pendingMessage.text, pendingMessage.doc, pendingMessage.group, pendingMessage.workspaceSelection);
       setPendingMessage(null);
     }
   }, [activeSessionId, pendingMessage, currentSessionId, sendMessage]);
@@ -150,8 +168,18 @@ export default function ChatSection() {
   };
 
   const handleSend = () => {
-    if (!inputText.trim() && !selectedDoc && !selectedGroup) return;
-    sendMessage(inputText, selectedDoc, selectedGroup);
+    if (!inputText.trim() && !selectedDoc && !selectedGroup && !referenceTitle && !referenceGroup) return;
+
+    let workspaceSelection = null;
+    const groupToUse = selectedGroup || referenceGroup;
+    if (groupToUse) {
+      workspaceSelection = {
+        mode: "all",
+        document_ids: []
+      };
+    }
+
+    sendMessage(inputText, selectedDoc, selectedGroup, workspaceSelection);
     setInputText('');
     setSelectedDoc(null);
     setSelectedGroup(null);
@@ -161,7 +189,15 @@ export default function ChatSection() {
     const textToSend = inputText.trim();
     if (!textToSend && !selectedDoc && !selectedGroup) return;
 
-    const msg = { text: textToSend, doc: selectedDoc, group: selectedGroup };
+    let workspaceSelection = null;
+    if (selectedGroup) {
+      workspaceSelection = {
+        mode: "all",
+        document_ids: []
+      };
+    }
+
+    const msg = { text: textToSend, doc: selectedDoc, group: selectedGroup, workspaceSelection };
 
     setInputText('');
     setSelectedDoc(null);
@@ -367,13 +403,13 @@ export default function ChatSection() {
                 )}
 
                 <div className="max-w-5xl mx-auto space-y-4">
-                  {(referenceTitle || selectedDoc || selectedGroup) && (
+                  {(referenceTitle || referenceGroup || selectedDoc || selectedGroup) && (
                     <div className="flex flex-wrap gap-3 px-2">
                       {referenceTitle && !selectedDoc && (
                         <span className="flex items-center gap-2 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-4 py-2 rounded-full border border-indigo-200 dark:border-indigo-800 font-bold text-sm">
                           <IoDocumentTextOutline size={18} /> {referenceTitle}
                           <span className="text-xs opacity-70 ml-1">(참조 중)</span>
-                          <button onClick={removeReference} className="hover:text-indigo-900 dark:hover:text-indigo-100"><IoCloseCircle size={20} /></button>
+                          <button onClick={removeReferenceDocument} className="hover:text-indigo-900 dark:hover:text-indigo-100"><IoCloseCircle size={20} /></button>
                         </span>
                       )}
                       {selectedDoc && (
@@ -382,10 +418,11 @@ export default function ChatSection() {
                           <button onClick={() => setSelectedDoc(null)} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={20} /></button>
                         </span>
                       )}
-                      {selectedGroup && (
+                      {(referenceGroup || selectedGroup) && (
                         <span className="flex items-center gap-2 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-4 py-2 rounded-full border border-emerald-200 dark:border-emerald-800 font-bold text-sm">
-                          <IoPeopleOutline size={18} /> {selectedGroup.name}
-                          <button onClick={() => setSelectedGroup(null)} className="hover:text-emerald-900 dark:hover:text-emerald-100"><IoCloseCircle size={20} /></button>
+                          <IoPeopleOutline size={18} /> {selectedGroup?.name || referenceGroup?.name}
+                          {!selectedGroup && referenceGroup && <span className="text-xs opacity-70 ml-1">(참조 중)</span>}
+                          <button onClick={() => { selectedGroup ? setSelectedGroup(null) : removeReferenceGroup(); }} className="hover:text-emerald-900 dark:hover:text-emerald-100"><IoCloseCircle size={20} /></button>
                         </span>
                       )}
                     </div>
@@ -397,7 +434,7 @@ export default function ChatSection() {
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                        placeholder={referenceTitle || selectedDoc || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "궁금한 법률 내용을 입력하세요..."}
+                        placeholder={referenceTitle || referenceGroup || selectedDoc || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "궁금한 법률 내용을 입력하세요..."}
                         className="flex-1 bg-transparent border-none outline-none shadow-none text-xl px-6 h-14 focus:ring-0 text-foreground"
                       />
                       <Button onClick={handleSend} size="icon" className="bg-blue-600 hover:bg-blue-700 rounded-full w-14 h-14 shadow-2xl transition-all active:scale-90 shrink-0">

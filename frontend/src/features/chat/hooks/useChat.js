@@ -6,20 +6,20 @@ const toKSTTime = (date) =>
     date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' });
 
 
-export const useChat = (sessionId, initialReferenceTitle) => {
+export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup) => {
     const { user } = useAuth();
     const [messages, setMessages] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isFetchingHistory, setIsFetchingHistory] = useState(false);
     const [referenceTitle, setReferenceTitle] = useState(initialReferenceTitle || null);
+    const [referenceGroup, setReferenceGroup] = useState(initialReferenceGroup || null);
     const [currentSessionId, setCurrentSessionId] = useState(null);
     const ws = useRef(null);
 
     useEffect(() => {
-        if (initialReferenceTitle !== undefined) {
-            setReferenceTitle(initialReferenceTitle || null);
-        }
-    }, [sessionId, initialReferenceTitle]);
+        setReferenceTitle(initialReferenceTitle || null);
+        setReferenceGroup(initialReferenceGroup || null);
+    }, [sessionId, initialReferenceTitle, initialReferenceGroup]);
 
     const connectWebSocket = useCallback(() => {
         if (!sessionId || !user?.id) return;
@@ -145,19 +145,22 @@ export const useChat = (sessionId, initialReferenceTitle) => {
         };
     }, [sessionId, user, connectWebSocket]);
 
-    const sendMessage = useCallback(async (text, doc, group) => {
+    const sendMessage = useCallback(async (text, doc, group, workspaceSelection) => {
         if (!user) return;
 
+        const effectiveDoc = doc || (referenceTitle ? { title: referenceTitle } : null);
+        const effectiveGroup = group || referenceGroup;
+
         const userText = text || (doc ? `${doc.title || doc.file?.name} 검토 부탁드립니다.` : '');
-        if (!userText.trim() && !doc) return;
+        if (!userText.trim() && !doc && !group && !referenceGroup) return;
 
         const userMsg = {
             id: Date.now(),
             text: userText,
             sender: 'user',
             timestamp: toKSTTime(new Date()),
-            referenceDoc: doc,
-            referenceGroup: group
+            referenceDoc: effectiveDoc,
+            referenceGroup: effectiveGroup
         };
 
         setMessages((prev) => [...prev, userMsg]);
@@ -167,23 +170,49 @@ export const useChat = (sessionId, initialReferenceTitle) => {
             const newTitle = doc.title || doc.file?.name;
             setReferenceTitle(newTitle);
         }
+        
+        if (group) {
+            setReferenceGroup({ id: group.id, name: group.name });
+        }
+
+        const effectiveGroupId = effectiveGroup?.id;
+        const effectiveWorkspaceSelection = workspaceSelection || (effectiveGroupId ? { mode: "all", document_ids: [] } : null);
 
         try {
-            await chatApi.sendMessage(sessionId, userText, doc);
+            await chatApi.sendMessage(sessionId, userText, doc, effectiveGroupId, effectiveWorkspaceSelection);
         } catch (error) {
             console.error("Failed to send message via HTTP:", error);
             setIsLoading(false);
         }
-    }, [sessionId, user]);
+    }, [sessionId, user, referenceTitle, referenceGroup]);
 
-    const removeReference = useCallback(async () => {
+    const removeReferenceDocument = useCallback(async () => {
         try {
-            await chatApi.deleteReference(sessionId);
+            await chatApi.deleteReferenceDocument(sessionId);
             setReferenceTitle(null);
         } catch (error) {
-            console.error("Failed to delete reference:", error);
+            console.error("Failed to delete reference document:", error);
         }
     }, [sessionId]);
 
-    return { messages, isLoading, isFetchingHistory, sendMessage, referenceTitle, removeReference, currentSessionId };
+    const removeReferenceGroup = useCallback(async () => {
+        try {
+            await chatApi.deleteReferenceGroup(sessionId);
+            setReferenceGroup(null);
+        } catch (error) {
+            console.error("Failed to delete reference group:", error);
+        }
+    }, [sessionId]);
+
+    return { 
+        messages, 
+        isLoading, 
+        isFetchingHistory, 
+        sendMessage, 
+        referenceTitle, 
+        referenceGroup,
+        removeReferenceDocument, 
+        removeReferenceGroup,
+        currentSessionId 
+    };
 };

@@ -84,6 +84,13 @@ class ChatService:
         db.refresh(session)
         return session
 
+    def delete_reference_group(self, db: Session, user_id: int, session_id: int):
+        session = self._get_session_with_permission(db, user_id, session_id)
+        session.reference_group_id = None
+        db.commit()
+        db.refresh(session)
+        return session
+
     def send_message(
         self,
         db: Session,
@@ -100,6 +107,7 @@ class ChatService:
 
         if workspace_selection is not None:
             self._require_group_membership(db, user_id, group_id)
+            session.reference_group_id = group_id
 
         user_msg = ChatMessage(
             session_id=session_id, role=ChatMessageRole.USER, content=text
@@ -126,14 +134,18 @@ class ChatService:
         payload = {
             "user_id": user_id,
             "session_id": session_id,
-            "group_id": group_id,
+            "group_id": group_id or session.reference_group_id,
             "workspace_selection": (
                 {
                     "mode": workspace_selection.mode,
                     "document_ids": workspace_selection.document_ids,
                 }
                 if workspace_selection is not None
-                else None
+                else (
+                    {"mode": "all", "document_ids": []}
+                    if session.reference_group_id
+                    else None
+                )
             ),
         }
         process_chat_message.delay(payload)

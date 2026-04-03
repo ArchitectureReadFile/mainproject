@@ -8,7 +8,7 @@ import { AuthModal, useAuth } from '../../features/auth/index.js'
 import NotificationBell from '../../features/notification/components/NotificationBell.jsx'
 import MenuDrawer from './MenuDrawer.jsx'
 
-export default function Header() {
+export default function Header({ onMenuOpenChange }) {
   const {
     user,
     isAuthenticated,
@@ -25,14 +25,22 @@ export default function Header() {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const showUserChip = !isBootstrapping && isAuthenticated
+  
+  const handleToggleMenu = () => {
+    const newState = !menuOpen;
+    setMenuOpen(newState);
+    if (onMenuOpenChange) onMenuOpenChange(newState);
+  };
 
   const openLogin = () => {
-    setMenuOpen(false)
+    setMenuOpen(false);
+    if (onMenuOpenChange) onMenuOpenChange(false);
     openAuthModal('login')
   }
 
   const openSignup = () => {
-    setMenuOpen(false)
+    setMenuOpen(false);
+    if (onMenuOpenChange) onMenuOpenChange(false);
     openAuthModal('signup')
   }
 
@@ -104,7 +112,7 @@ export default function Header() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setMenuOpen((prev) => !prev)}
+              onClick={handleToggleMenu}
               aria-label={menuOpen ? '메뉴 닫기' : '메뉴 열기'}
               aria-expanded={menuOpen}
             >
@@ -116,7 +124,10 @@ export default function Header() {
 
       <MenuDrawer
         open={menuOpen}
-        onClose={() => setMenuOpen(false)}
+        onClose={() => {
+          setMenuOpen(false);
+          if (onMenuOpenChange) onMenuOpenChange(false);
+        }}
         isAuthenticated={isAuthenticated}
         user={user}
         onOpenLogin={openLogin}
