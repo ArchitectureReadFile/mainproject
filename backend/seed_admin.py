@@ -476,6 +476,38 @@ def seed_admin(db) -> User | None:
     return admin
 
 
+def seed_admin_subscription(db, admin: User):
+    """admin 계정에 PREMIUM/ACTIVE 구독을 upsert 처리."""
+    existing = db.query(Subscription).filter(Subscription.user_id == admin.id).first()
+
+    if existing:
+        changed = False
+        if existing.plan != SubscriptionPlan.PREMIUM:
+            existing.plan = SubscriptionPlan.PREMIUM
+            changed = True
+        if existing.status != SubscriptionStatus.ACTIVE:
+            existing.status = SubscriptionStatus.ACTIVE
+            changed = True
+
+        if changed:
+            existing.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            db.commit()
+            print("  [UPDATE] admin subscription → PREMIUM/ACTIVE (기존 구독 보정)")
+        else:
+            print("  [SKIP] admin subscription (이미 PREMIUM/ACTIVE)")
+        return
+
+    sub = Subscription(
+        user_id=admin.id,
+        plan=SubscriptionPlan.PREMIUM,
+        status=SubscriptionStatus.ACTIVE,
+        started_at=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    db.add(sub)
+    db.commit()
+    print("  [OK]   admin subscription → PREMIUM/ACTIVE (신규 생성)")
+
+
 def get_any_admin(db) -> User | None:
     return db.query(User).filter(User.role == UserRole.ADMIN).first()
 
@@ -582,6 +614,7 @@ def main():
         if args.with_admin:
             print("\n[ ADMIN ]")
             admin = seed_admin(db)
+            seed_admin_subscription(db, admin)
         else:
             admin = get_any_admin(db)
 

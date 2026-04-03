@@ -3,24 +3,31 @@ services/rag/bm25_store.py
 
 BM25 키워드 검색 레이어. chunk 단위 저장.
 
-판례(precedent_id)와 그룹 문서(document_id) 두 경로를 모두 지원한다.
+판례(precedent_id), 그룹 문서(document_id), platform corpus(platform_document_id)
+세 경로를 모두 지원한다.
 키 네임스페이스로 corpus를 물리적으로 분리한다.
 
 Redis 키 구조:
-    판례 corpus:
-        "bm25:p:docs"      → Hash  {chunk_id: text}
-        "bm25:p:ids"       → List  [chunk_id, ...]
-        "bm25:p:rev"       → Int   revision 카운터 (변경 시 INCR)
-        "bm25:pid:{pid}"   → Set   {chunk_id, ...}  (precedent_id별 역인덱스)
+    판례 corpus (legacy):
+        "bm25:p:docs"       → Hash  {chunk_id: text}
+        "bm25:p:ids"        → List  [chunk_id, ...]
+        "bm25:p:rev"        → Int   revision 카운터 (변경 시 INCR)
+        "bm25:pid:{pid}"    → Set   {chunk_id, ...}  (precedent_id별 역인덱스)
 
     그룹 문서 corpus:
-        "bm25:d:docs"      → Hash  {chunk_id: text}
-        "bm25:d:ids"       → List  [chunk_id, ...]
-        "bm25:d:rev"       → Int   revision 카운터 (변경 시 INCR)
-        "bm25:did:{did}"   → Set   {chunk_id, ...}  (document_id별 역인덱스)
+        "bm25:d:docs"       → Hash  {chunk_id: text}
+        "bm25:d:ids"        → List  [chunk_id, ...]
+        "bm25:d:rev"        → Int   revision 카운터 (변경 시 INCR)
+        "bm25:did:{did}"    → Set   {chunk_id, ...}  (document_id별 역인덱스)
 
     그룹 문서 검색 시 group_id 범위 제한:
-        "bm25:gid:{gid}"   → Set   {chunk_id, ...}  (group_id별 역인덱스)
+        "bm25:gid:{gid}"    → Set   {chunk_id, ...}  (group_id별 역인덱스)
+
+    platform corpus:
+        "bm25:pl:docs"      → Hash  {chunk_id: text}
+        "bm25:pl:ids"       → List  [chunk_id, ...]
+        "bm25:pl:rev"       → Int   revision 카운터 (변경 시 INCR)
+        "bm25:plid:{plid}"  → Set   {chunk_id, ...}  (platform_document_id별 역인덱스)
 
 환경 변수:
     REDIS_HOST   기본값 "redis"
@@ -59,6 +66,12 @@ _D_REV_KEY = "bm25:d:rev"
 _DID_KEY_PREFIX = "bm25:did:"
 _GID_KEY_PREFIX = "bm25:gid:"
 
+# platform corpus 키
+_PL_DOCS_KEY = "bm25:pl:docs"
+_PL_IDS_KEY = "bm25:pl:ids"
+_PL_REV_KEY = "bm25:pl:rev"
+_PLID_KEY_PREFIX = "bm25:plid:"
+
 _redis: redis.Redis | None = None
 
 
@@ -85,11 +98,13 @@ class _BM25Snapshot:
     bm25: BM25Okapi | None = None
 
 
-# 판례·문서 캐시 및 rebuild lock 분리
+# 판례·문서·platform 캐시 및 rebuild lock 분리
 _p_cache = _BM25Snapshot()
 _d_cache = _BM25Snapshot()
+_pl_cache = _BM25Snapshot()
 _p_lock = threading.Lock()
 _d_lock = threading.Lock()
+_pl_lock = threading.Lock()
 
 
 # ── 토크나이저 ────────────────────────────────────────────────────────────────
@@ -230,6 +245,12 @@ def _get_d_cache() -> _BM25Snapshot:
     return _d_cache
 
 
+def _get_pl_cache() -> _BM25Snapshot:
+    if _pl_cache.revision != _current_revision(_PL_REV_KEY):
+        _rebuild_snapshot(_pl_cache, _pl_lock, _PL_DOCS_KEY, _PL_IDS_KEY, _PL_REV_KEY)
+    return _pl_cache
+
+
 # ── 검색 코어 ─────────────────────────────────────────────────────────────────
 
 
@@ -298,7 +319,7 @@ def _fallback_lexical_search(
     return results[:top_k]
 
 
-# ── 공개 인터페이스 (판례) ────────────────────────────────────────────────────
+# ── 공개 인터페이스 (판례 legacy corpus) ─────────────────────────────────────
 
 
 def upsert(chunk_id: str, precedent_id: int, text: str) -> None:
@@ -316,11 +337,11 @@ def upsert(chunk_id: str, precedent_id: int, text: str) -> None:
 
 def delete(precedent_id: int) -> None:
     """precedent_id에 속한 모든 chunk를 삭제하고 revision을 INCR한다."""
-    count = _delete_by_index_key(
+    deleted = _delete_by_index_key(
         _P_DOCS_KEY, _P_IDS_KEY, _P_REV_KEY, f"{_PID_KEY_PREFIX}{precedent_id}"
     )
     logger.info(
-        "BM25 delete (판례) 완료: precedent_id=%s (%d chunks)", precedent_id, count
+        "BM25 delete (판례) 완료: precedent_id=%s (%d chunks)", precedent_id, deleted
     )
 
 
@@ -392,13 +413,11 @@ def search_documents(
 
     if document_ids is not None:
         if not document_ids:
-            # 방어 코드: 빈 whitelist → fallback 없이 즉시 반환
             logger.warning(
                 "[bm25_store] search_documents: document_ids 빈 리스트 → 빈 결과 반환"
             )
             return []
 
-        # document_ids whitelist: 각 did Set을 union → group_allowed와 intersection
         doc_keys = [f"{_DID_KEY_PREFIX}{did}" for did in document_ids]
         doc_allowed = r.sunion(*doc_keys)  # type: ignore[arg-type]
         allowed_ids = group_allowed & doc_allowed
@@ -421,12 +440,67 @@ def search_documents(
     return _fallback_lexical_search(query, _D_DOCS_KEY, allowed_ids, top_k)
 
 
+# ── 공개 인터페이스 (platform corpus) ────────────────────────────────────────
+
+
+def upsert_platform_chunk(chunk_id: str, platform_document_id: str, text: str) -> None:
+    """
+    platform corpus chunk를 저장하고 revision을 INCR한다.
+
+    platform_document_id: PlatformDocument의 식별자 (str 허용, UUID 등).
+    """
+    _save_chunk(
+        _PL_DOCS_KEY,
+        _PL_IDS_KEY,
+        _PL_REV_KEY,
+        [f"{_PLID_KEY_PREFIX}{platform_document_id}"],
+        chunk_id,
+        text,
+    )
+    logger.debug("BM25 upsert (platform) 완료: chunk_id=%s", chunk_id)
+
+
+def delete_platform_document(platform_document_id: str) -> None:
+    """platform_document_id에 속한 모든 chunk를 삭제하고 revision을 INCR한다."""
+    deleted = _delete_by_index_key(
+        _PL_DOCS_KEY,
+        _PL_IDS_KEY,
+        _PL_REV_KEY,
+        f"{_PLID_KEY_PREFIX}{platform_document_id}",
+    )
+    logger.info(
+        "BM25 delete (platform) 완료: platform_document_id=%s (%d chunks)",
+        platform_document_id,
+        deleted,
+    )
+
+
+def search_platform(query: str, top_k: int = 5) -> list[dict]:
+    """
+    platform corpus BM25 검색.
+
+    캐시 revision 확인 후 필요 시만 rebuild한다.
+    corpus가 비어 있으면 빈 리스트를 반환한다.
+    """
+    cache = _get_pl_cache()
+    return _bm25_search_from_cache(query, cache, top_k)
+
+
+def platform_corpus_exists() -> bool:
+    """platform corpus가 비어있지 않은지 확인한다. (PlatformRetriever 조기 반환용)"""
+    try:
+        r = _get_redis()
+        return bool(r.exists(_PL_IDS_KEY))
+    except Exception:
+        return False
+
+
 # ── 유틸리티 ─────────────────────────────────────────────────────────────────
 
 
 def count() -> int:
     r = _get_redis()
-    return r.llen(_P_IDS_KEY) + r.llen(_D_IDS_KEY)
+    return r.llen(_P_IDS_KEY) + r.llen(_D_IDS_KEY) + r.llen(_PL_IDS_KEY)
 
 
 def clear() -> None:
@@ -438,12 +512,15 @@ def clear() -> None:
         _D_DOCS_KEY,
         _D_IDS_KEY,
         _D_REV_KEY,
+        _PL_DOCS_KEY,
+        _PL_IDS_KEY,
+        _PL_REV_KEY,
     ]:
         r.delete(key)
-    for prefix in (_PID_KEY_PREFIX, _DID_KEY_PREFIX, _GID_KEY_PREFIX):
+    for prefix in (_PID_KEY_PREFIX, _DID_KEY_PREFIX, _GID_KEY_PREFIX, _PLID_KEY_PREFIX):
         for key in r.scan_iter(f"{prefix}*"):
             r.delete(key)
-    for cache in (_p_cache, _d_cache):
+    for cache in (_p_cache, _d_cache, _pl_cache):
         cache.revision = -1
         cache.chunk_ids = []
         cache.texts = []
