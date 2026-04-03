@@ -176,6 +176,25 @@ class DocumentService:
 
         self.repository.delete_document(doc, user_id)
 
+        if not is_uploader and doc.uploader_user_id:
+            from models.model import NotificationType
+            from repositories.notification_repository import NotificationRepository
+            from services.notification_service import NotificationService
+
+            notif_service = NotificationService()
+            notif_repo = NotificationRepository(self.repository.db)
+            notif_service.create_notification_sync(
+                repository=notif_repo,
+                user_id=doc.uploader_user_id,
+                actor_user_id=user_id,
+                group_id=group_id,
+                type=NotificationType.DOCUMENT_DELETED,
+                title="문서 삭제 알림",
+                body=f"회원님의 문서 '{doc.original_filename}'이(가) 관리자에 의해 삭제되었습니다.",
+                target_type="group",
+                target_id=group_id,
+            )
+
     def restore_document(self, doc_id: int, user_id: int, group_id: int) -> None:
         doc = self.repository.get_detail(doc_id)
 

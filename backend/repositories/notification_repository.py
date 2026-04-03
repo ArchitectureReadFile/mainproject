@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from models.model import Notification
+from models.model import Notification, NotificationSetting, NotificationType
 
 
 class NotificationRepository:
@@ -54,3 +55,47 @@ class NotificationRepository:
     def delete(self, notification: Notification):
         self.db.delete(notification)
         self.db.commit()
+
+    def get_all_settings_by_user(self, user_id: int) -> list[NotificationSetting]:
+        return (
+            self.db.query(NotificationSetting)
+            .filter(NotificationSetting.user_id == user_id)
+            .all()
+        )
+
+    def get_setting(
+        self, user_id: int, notification_type: NotificationType
+    ) -> Optional[NotificationSetting]:
+        return (
+            self.db.query(NotificationSetting)
+            .filter(
+                NotificationSetting.user_id == user_id,
+                NotificationSetting.notification_type == notification_type,
+            )
+            .first()
+        )
+
+    def upsert_setting(
+        self,
+        user_id: int,
+        notification_type: NotificationType,
+        is_enabled: bool,
+        is_toast_enabled: bool,
+    ) -> NotificationSetting:
+        setting = self.get_setting(user_id, notification_type)
+        if setting:
+            setting.is_enabled = is_enabled
+            setting.is_toast_enabled = is_toast_enabled
+            setting.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        else:
+            setting = NotificationSetting(
+                user_id=user_id,
+                notification_type=notification_type,
+                is_enabled=is_enabled,
+                is_toast_enabled=is_toast_enabled,
+            )
+            self.db.add(setting)
+
+        self.db.commit()
+        self.db.refresh(setting)
+        return setting

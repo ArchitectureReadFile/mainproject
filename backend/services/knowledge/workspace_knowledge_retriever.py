@@ -3,6 +3,16 @@ services/knowledge/workspace_knowledge_retriever.py
 
 Workspace 지식원 retriever.
 
+책임:
+    - workspace layer 검색 정책 결정 (include_workspace / group_id 조건)
+    - selection mode에 따라 group 전체 or document whitelist 범위 결정
+    - retrieve_group_documents() 호출
+    - 결과를 mapper에 위임해 RetrievedKnowledgeItem으로 변환
+
+비책임:
+    - 직접 검색 구현 (→ group_document_retrieval_service)
+    - RetrievedKnowledgeItem 매핑 로직 (→ mappers/workspace_item_mapper)
+
 mode="all":
     group_id 전체 범위 검색.
 
@@ -18,6 +28,7 @@ import logging
 
 from schemas.knowledge import KnowledgeRetrievalRequest, RetrievedKnowledgeItem
 from schemas.search import SearchMode
+from services.knowledge.mappers.workspace_item_mapper import workspace_grouped_to_item
 from services.rag.group_document_retrieval_service import retrieve_group_documents
 
 logger = logging.getLogger(__name__)
@@ -50,27 +61,6 @@ class WorkspaceKnowledgeRetriever:
             group_id=request.group_id,
             top_k=request.top_k,
             search_mode=search_mode,
-            document_ids=document_ids,  # None → all, list → whitelist
+            document_ids=document_ids,
         )
-        return [self._to_item(g) for g in grouped]
-
-    def _to_item(self, grouped: dict) -> RetrievedKnowledgeItem:
-        chunks = grouped.get("chunks") or []
-        chunk_text = "\n".join(c.get("text", "") for c in chunks).strip()
-        chunk_id = chunks[0].get("chunk_id") if chunks else None
-        top_chunk = chunks[0] if chunks else {}
-
-        return RetrievedKnowledgeItem(
-            knowledge_type="workspace",
-            source_type="workspace_document",
-            source_id=grouped.get("document_id", ""),
-            title=grouped.get("file_name") or "문서",
-            chunk_text=chunk_text,
-            score=grouped.get("score", 0.0),
-            chunk_id=chunk_id,
-            metadata={
-                "group_id": grouped.get("group_id"),
-                "file_name": grouped.get("file_name"),
-                "chunk_type": top_chunk.get("chunk_type"),
-            },
-        )
+        return [workspace_grouped_to_item(g) for g in grouped]

@@ -11,7 +11,11 @@ export async function createGroup({ name, description }) {
 // GET   /api/groups 내가 속한 그룹 목록 조회
 export async function getMyGroups() {
     const { data } = await client.get("/groups")
-    return data
+    return {
+        groups: data.groups ?? [],
+        has_blocked_owned_group: Boolean(data.has_blocked_owned_group),
+        blocked_owned_group_reason: data.blocked_owned_group_reason ?? null,
+    }
 }
 
 

@@ -9,6 +9,14 @@ def validate_password_bytes(password: str) -> str:
     return password
 
 
+class SubscriptionResponse(BaseModel):
+    plan: str
+    status: str
+    auto_renew: bool
+    started_at: datetime
+    ended_at: datetime | None = None
+
+
 class SignupRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=255)
     username: str = Field(..., min_length=2, max_length=20)
@@ -31,8 +39,8 @@ class UserResponse(BaseModel):
     username: str
     role: str
     is_active: bool
-    is_toast_notification_enabled: bool
     created_at: datetime
+    subscription: SubscriptionResponse | None = None
 
 
 class ConfirmAccountRequest(BaseModel):
@@ -75,5 +83,9 @@ class UpdateEmailRequest(BaseModel):
     new_email: EmailStr = Field(..., min_length=5, max_length=255)
 
 
-class UpdateNotificationRequest(BaseModel):
-    is_toast_notification_enabled: bool
+class SubscribePremiumRequest(BaseModel):
+    confirm: bool = True
+
+
+class CancelSubscriptionRequest(BaseModel):
+    confirm: bool = True

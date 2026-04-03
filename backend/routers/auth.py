@@ -12,12 +12,13 @@ from dependencies import (
 )
 from models.model import User
 from schemas.auth import (
+    CancelSubscriptionRequest,
     ConfirmAccountRequest,
     LoginRequest,
     ResetPasswordRequest,
     SignupRequest,
+    SubscribePremiumRequest,
     UpdateEmailRequest,
-    UpdateNotificationRequest,
     UpdatePasswordRequest,
     UpdateUsernameRequest,
     UserResponse,
@@ -84,10 +85,11 @@ def logout(
 
 @router.get("/me", response_model=UserResponse)
 def me(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    return auth_service.to_user_response(current_user)
+    return auth_service.to_user_response(db, current_user)
 
 
 @router.post("/confirm-account", response_model=UserResponse)
@@ -176,13 +178,21 @@ def update_email(
     return user_resp
 
 
-@router.patch("/notification", response_model=UserResponse)
-def update_notification_settings(
-    payload: UpdateNotificationRequest,
+@router.post("/subscription/subscribe", response_model=UserResponse)
+def subscribe_premium(
+    payload: SubscribePremiumRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    return auth_service.update_notification_settings(
-        db, current_user.id, payload.is_toast_notification_enabled
-    )
+    return auth_service.subscribe_premium(db, current_user.id, payload)
+
+
+@router.post("/subscription/cancel", response_model=UserResponse)
+def cancel_subscription(
+    payload: CancelSubscriptionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    return auth_service.cancel_subscription(db, current_user.id, payload)

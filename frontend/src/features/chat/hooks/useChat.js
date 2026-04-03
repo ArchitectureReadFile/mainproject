@@ -27,7 +27,8 @@ export const useChat = (sessionId, initialReferenceTitle) => {
             return;
         }
 
-        const wsUrl = `ws://localhost:8000/api/ws/chat/${sessionId}/${user.id}`;
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+        const wsUrl = `${protocol}://${window.location.host}/api/ws/notifications/${user.id}`
         ws.current = new WebSocket(wsUrl);
 
         ws.current.onopen = () => {
@@ -115,8 +116,8 @@ export const useChat = (sessionId, initialReferenceTitle) => {
                     isStreaming: false
                 }));
 
-                const isLastMsgUser = formattedMessages.length > 0 && 
-                                    formattedMessages[formattedMessages.length - 1].sender === 'user';
+                const isLastMsgUser = formattedMessages.length > 0 &&
+                    formattedMessages[formattedMessages.length - 1].sender === 'user';
 
                 setMessages(formattedMessages || []);
                 setIsLoading(isLastMsgUser);
@@ -156,7 +157,7 @@ export const useChat = (sessionId, initialReferenceTitle) => {
             sender: 'user',
             timestamp: toKSTTime(new Date()),
             referenceDoc: doc,
-            referenceGroup: group 
+            referenceGroup: group
         };
 
         setMessages((prev) => [...prev, userMsg]);

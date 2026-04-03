@@ -5,7 +5,12 @@ import { useAuth } from '../../auth'
 import { showNotificationToast } from '../utils/NotificationToastUtil'
 
 const toKSTDisplay = (dateStr) => {
-  const date = new Date(dateStr)
+  if (!dateStr) return ''
+  let safeDateStr = dateStr
+  if (!safeDateStr.endsWith('Z') && !safeDateStr.includes('+')) {
+    safeDateStr += 'Z'
+  }
+  const date = new Date(safeDateStr)
   return date.toLocaleString('ko-KR', {
     timeZone: 'Asia/Seoul',
     year: 'numeric',
@@ -21,13 +26,13 @@ export const useNotification = () => {
   const { user, isAuthenticated } = useAuth()
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
-  
+
   const [hasMore, setHasMore] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  
+
   const ws = useRef(null)
   const navigate = useNavigate()
-  
+
   const userRef = useRef(user)
   useEffect(() => {
     userRef.current = user
@@ -45,13 +50,13 @@ export const useNotification = () => {
       setUnreadCount(data.filter(n => !n.is_read).length)
       setHasMore(data.length === 20)
     } catch (error) {
-      console.error('Failed to fetch notifications', error)
+      console.error(error)
     }
   }, [isAuthenticated])
 
   const loadMoreNotifications = useCallback(async () => {
     if (!isAuthenticated || !hasMore || isLoadingMore) return
-    
+
     setIsLoadingMore(true)
     try {
       const response = await getNotifications(notifications.length, 20)
@@ -59,24 +64,28 @@ export const useNotification = () => {
         ...n,
         displayTime: toKSTDisplay(n.created_at)
       }))
-      
+
       setNotifications(prev => {
         const newItems = data.filter(d => !prev.some(p => p.id === d.id))
         return [...prev, ...newItems]
       })
-      
+
       const newUnreadCount = data.filter(n => !n.is_read).length
       if (newUnreadCount > 0) {
         setUnreadCount(prev => prev + newUnreadCount)
       }
-      
+
       setHasMore(data.length === 20)
     } catch (error) {
-      console.error('Failed to load more notifications', error)
+      console.error(error)
     } finally {
       setIsLoadingMore(false)
     }
   }, [isAuthenticated, hasMore, isLoadingMore, notifications.length])
+
+  const updateInviteStatus = useCallback((id, status) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, inviteStatus: status } : n))
+  }, [])
 
   const markAsRead = useCallback(async (id) => {
     try {
@@ -84,7 +93,7 @@ export const useNotification = () => {
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
       setUnreadCount(prev => Math.max(0, prev - 1))
     } catch (error) {
-      console.error('Failed to mark notification as read', error)
+      console.error(error)
     }
   }, [])
 
@@ -97,28 +106,56 @@ export const useNotification = () => {
       }
       setNotifications(prev => prev.filter(n => n.id !== id))
     } catch (error) {
-      console.error('Failed to delete notification', error)
+      console.error(error)
     }
   }, [notifications])
 
   const handleNavigate = useCallback((n) => {
-    if (!n.is_read) markAsRead(n.id)
+    const type = n.notification_type || n.type
 
-    if (n.target_type === 'chat') {
+    if (!n.is_read) {
+      if (type !== 'WORKSPACE_INVITED') {
+        markAsRead(n.id)
+      }
+    }
+
+    if (type === 'WORKSPACE_KICKED') {
+      return
+    }
+
+    if (n.target_type === 'chat' && n.target_id) {
       navigate(`/?sessionId=${n.target_id}`)
-    } else if (n.target_type === 'group' && n.target_id) {
-      navigate(`/workspace/${n.target_id}`)
+      return
+    }
+
+    if (n.target_type === 'group' && n.target_id) {
+      const groupId = n.target_id
+
+      switch (type) {
+        case 'WORKSPACE_INVITED':
+          navigate(`/workspace/${groupId}?tab=workspace`)
+          break
+        case 'DOCUMENT_UPLOAD_REQUESTED':
+          navigate(`/workspace/${groupId}?tab=approval`)
+          break
+        case 'DOCUMENT_DELETED':
+          navigate(`/workspace/${groupId}?tab=trash`)
+          break
+        case 'WORKSPACE_DELETE_NOTICE':
+          navigate(`/workspace/${groupId}?tab=workspace`)
+      }
     }
   }, [navigate, markAsRead])
 
   const connectWebSocket = useCallback(() => {
     if (!isAuthenticated || !user?.id) return
-    
+
     if (ws.current && (ws.current.readyState === WebSocket.OPEN || ws.current.readyState === WebSocket.CONNECTING)) {
       return
     }
 
-    const wsUrl = `ws://localhost:8000/api/ws/notifications/${user.id}`
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    const wsUrl = `${protocol}://${window.location.host}/api/ws/notifications/${user.id}`
     ws.current = new WebSocket(wsUrl)
 
     ws.current.onmessage = (event) => {
@@ -126,22 +163,23 @@ export const useNotification = () => {
         const rawNotification = JSON.parse(event.data)
         const notification = {
           ...rawNotification,
-          displayTime: toKSTDisplay(rawNotification.created_at || new Date())
+          displayTime: toKSTDisplay(rawNotification.created_at || new Date().toISOString())
         }
-        
-        setNotifications(prev => [notification, ...prev]) 
+
+        setNotifications(prev => [notification, ...prev])
         setUnreadCount(prev => prev + 1)
-        
-        if (userRef.current?.is_toast_notification_enabled !== false) {
-            showNotificationToast(notification, handleNavigate, userRef.current)
+
+        if (notification.is_toast_enabled !== false) {
+          showNotificationToast(notification, handleNavigate, updateInviteStatus, markAsRead, userRef.current)
         }
+
       } catch (e) {
-        console.error('Error parsing notification message', e)
+        console.error(e)
       }
     }
 
-    ws.onerror = (error) => console.error('Notification WebSocket error:', error)
-  }, [isAuthenticated, user?.id, handleNavigate]) 
+    ws.onerror = (error) => console.error(error)
+  }, [isAuthenticated, user?.id, handleNavigate, updateInviteStatus, markAsRead])
 
   useEffect(() => {
     fetchNotifications()
@@ -163,7 +201,7 @@ export const useNotification = () => {
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
       setUnreadCount(0)
     } catch (error) {
-      console.error('Failed to mark all as read', error)
+      console.error(error)
     }
   }
 
@@ -177,6 +215,7 @@ export const useNotification = () => {
     fetchNotifications,
     loadMoreNotifications,
     hasMore,
-    isLoadingMore
+    isLoadingMore,
+    updateInviteStatus
   }
 }

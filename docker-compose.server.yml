@@ -58,6 +58,18 @@ services:
     networks:
       - app-network
 
+  celery_beat:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: celery_beat_container
+    command: celery -A celery_app beat --loglevel=info
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - TZ=UTC
+    volumes: []
+    networks:
+      - app-network
+
   # ───────────────────────────────────────────
   # DB / Redis / Qdrant
   # 외부 포트 노출 제거 + app-network 명시
