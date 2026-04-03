@@ -3,23 +3,18 @@ services/knowledge/session_document_retriever.py
 
 Session 지식원 retriever.
 
-역할:
-    - 챗봇 임시 업로드 문서를 retrieval 결과 계약으로 감싼다.
-    - include_session=True이고 reference_document_text가 있을 때만 사용.
-    - 현재: ChatSession.reference_document_text 단일 텍스트를
-      RetrievedKnowledgeItem 1개로 반환 (직접 프롬프트 주입 대체).
-    - score는 의미 없으므로 1.0 고정.
+━━━ 예외 경로 명시 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+이 retriever는 platform / workspace와 달리 벡터 검색을 수행하지 않는다.
+ChatSession에 첨부된 문서 텍스트를 직접 RetrievedKnowledgeItem으로 wrapping하는
+direct context injection 경로다.
 
-현재 매핑:
-    ChatSession.reference_document_text (str)
-    → RetrievedKnowledgeItem(
-          knowledge_type="session",
-          source_type="session_document",
-          source_id=f"session:{session_id}",
-          title=session_title or "첨부 문서",
-          chunk_text=reference_document_text,
-          score=1.0,
-      )
+따라서:
+    - search service를 호출하지 않는다
+    - score는 의미가 없으므로 1.0 고정
+    - retrieve_from_text() 시그니처가 다른 retriever의 retrieve()와 다르다
+
+향후 session 문서가 벡터 검색 대상이 되면 이 클래스는 재설계 대상이다.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 TODO:
     - reference_document_text가 매우 길 경우 분할 후 top chunk 반환으로 교체 가능.
@@ -29,6 +24,7 @@ TODO:
 from __future__ import annotations
 
 from schemas.knowledge import KnowledgeRetrievalRequest, RetrievedKnowledgeItem
+from services.knowledge.mappers.session_item_mapper import session_text_to_item
 
 
 class SessionDocumentRetriever:
@@ -42,6 +38,8 @@ class SessionDocumentRetriever:
         """
         reference_document_text를 RetrievedKnowledgeItem으로 감싸 반환한다.
 
+        벡터 검색 없이 텍스트를 직접 context로 주입하는 예외 경로다.
+
         Args:
             reference_document_text: ChatSession.reference_document_text
             session_title: 표시용 제목 (없으면 "첨부 문서")
@@ -50,16 +48,9 @@ class SessionDocumentRetriever:
             return []
 
         return [
-            RetrievedKnowledgeItem(
-                knowledge_type="session",
-                source_type="session_document",
-                source_id=f"session:{request.session_id}",
-                title=session_title or "첨부 문서",
-                chunk_text=reference_document_text.strip(),
-                score=1.0,
-                metadata={
-                    "session_id": request.session_id,
-                    "session_title": session_title,
-                },
+            session_text_to_item(
+                session_id=request.session_id,
+                reference_document_text=reference_document_text,
+                session_title=session_title,
             )
         ]
