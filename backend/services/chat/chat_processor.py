@@ -35,12 +35,9 @@ class ChatProcessor:
         workspace_selection: WorkspaceSelection | None = None,
     ):
         """
-        group_id / workspace_selection:
-            - 미전달: include_workspace=False (기존 동작 유지)
-            - 전달 시: include_workspace=True
-
-        주의: WorkspaceKnowledgeRetriever의 mode="documents" 필터는
-              현재 미구현(fail-closed → 빈 결과). 추후 지원 예정.
+        주의: WorkspaceKnowledgeRetriever의 mode="documents"를 지원하게 된다면
+             front에서 각 문서들을 DB에서 조회하여 해당 group_id에 맞는 문서들을 반환해 선택 후 백엔드에서 처리하는 로직을
+             구현해야 하므로 많이 복잡해질 수 있음. 따라서 임시로 workspace_selection의 mode는 "all"로 고정
         """
         self._publish_status(
             redis_client, session_id, user_id, "processing", "답변을 생성중입니다..."
@@ -59,7 +56,6 @@ class ChatProcessor:
             doc_context = session.reference_document_text or ""
             doc_title = session.reference_document_title or None
 
-            # ── 대화 요약 (redis) ─────────────────────────────────────────────
             summary_key = f"chat_summary:{session_id}"
             last_msg_key = f"chat_last_summarized_id:{session_id}"
 
@@ -97,13 +93,11 @@ class ChatProcessor:
             else:
                 recent_msgs = unsummarized_msgs
 
-            # ── system prompt 기본 조립 ───────────────────────────────────────
             system_content = CHAT_SYSTEM_PROMPT
 
             if existing_summary:
                 system_content += f"\n\n[이전 대화 핵심 요약]\n{existing_summary}"
 
-            # ── retrieval ─────────────────────────────────────────────────────
             if recent_msgs:
                 user_query = recent_msgs[-1].content
                 logger.info("[RETRIEVAL_START] query=%s", user_query[:100])
@@ -140,7 +134,6 @@ class ChatProcessor:
                 except Exception as e:
                     logger.warning("[RETRIEVAL_FAILED] %s", e)
 
-            logger.info("[FINAL_SYSTEM_PROMPT] %s...", system_content[:2000])
             chat_messages = [{"role": "system", "content": system_content.strip()}]
 
             for msg in recent_msgs:

@@ -620,6 +620,9 @@ class ChatSession(Base):
 
     reference_document_title = Column(String(255), nullable=True)
     reference_document_text = Column(Text, nullable=True)
+    reference_group_id = Column(
+        Integer, ForeignKey("groups.id", ondelete="SET NULL"), nullable=True
+    )
 
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
     updated_at = Column(
@@ -627,6 +630,7 @@ class ChatSession(Base):
     )
 
     user = relationship("User", back_populates="chat_sessions")
+    group = relationship("Group")
 
     messages = relationship(
         "ChatMessage",

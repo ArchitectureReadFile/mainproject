@@ -16,8 +16,19 @@ class ChatSessionResponse(BaseModel):
     user_id: int
     title: str
     reference_document_title: str | None = None
+    reference_group_id: int | None = None
+    reference_group_name: str | None = None
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="before")
+    @classmethod
+    def extract_group_name(cls, data: any) -> any:
+        if hasattr(data, "group") and data.group:
+            data.reference_group_name = data.group.name
+        elif isinstance(data, dict) and data.get("group"):
+            data["reference_group_name"] = data["group"].name
+        return data
 
     class Config:
         from_attributes = True

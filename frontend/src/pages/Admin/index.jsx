@@ -1,4 +1,4 @@
-import { fetchAdminPrecedents, fetchAdminStats, fetchAdminUsage, fetchAdminUsers } from "@/api/admin";
+import { fetchAdminPlatformSummary, fetchAdminStats, fetchAdminUsage, fetchAdminUsers } from "@/api/admin";
 import AdminMembersSection from "@/features/admin/components/AdminMembersSection";
 import AdminOverviewSection from "@/features/admin/components/AdminOverviewSection";
 import AdminRagDbSection from "@/features/admin/components/AdminRagDbSection";
@@ -16,14 +16,14 @@ const TABS = [
 const FETCHER_MAP = {
   overview: fetchAdminStats,
   usage: fetchAdminUsage,
-  ragdb: fetchAdminPrecedents,
+  ragdb: fetchAdminPlatformSummary,
   members: fetchAdminUsers,
 };
 
 const SETTER_MAP = (setters) => ({
   overview: setters.setStats,
   usage: setters.setUsage,
-  ragdb: setters.setPrecedents,
+  ragdb: setters.setPlatformSummary,
   members: setters.setUsers,
 });
 
@@ -31,7 +31,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [stats, setStats] = useState(null);
   const [usage, setUsage] = useState(null);
-  const [precedents, setPrecedents] = useState(null);
+  const [platformSummary, setPlatformSummary] = useState(null);
   const [users, setUsers] = useState({ items: [], total: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -39,7 +39,7 @@ export default function AdminPage() {
 
   const loadTab = useCallback((tab) => {
     const fetcher = FETCHER_MAP[tab];
-    const setter = SETTER_MAP({ setStats, setUsage, setPrecedents, setUsers })[tab];
+    const setter = SETTER_MAP({ setStats, setUsage, setPlatformSummary, setUsers })[tab];
     if (!fetcher || !setter) return;
 
     setLoading(true);
@@ -107,8 +107,8 @@ export default function AdminPage() {
         <>
           {activeTab === "overview" && stats && <AdminOverviewSection stats={stats} />}
           {activeTab === "usage" && usage && <AdminUsageSection usage={usage} />}
-          {activeTab === "ragdb" && precedents && (
-            <AdminRagDbSection precedents={precedents} onRefetch={handleRagRefetch} />
+          {activeTab === "ragdb" && platformSummary && (
+            <AdminRagDbSection summary={platformSummary} onRefetch={handleRagRefetch} />
           )}
           {activeTab === "members" && (
             <AdminMembersSection users={users.items} total={users.total} />

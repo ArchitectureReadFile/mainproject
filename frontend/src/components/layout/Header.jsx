@@ -1,14 +1,14 @@
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { useTheme } from '@/hooks/useTheme'
-import { LogIn, Menu, Moon, Scale, Sun, X } from 'lucide-react'
+import { LogIn, Menu, Moon, Sun, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AuthModal, useAuth } from '../../features/auth/index.js'
 import NotificationBell from '../../features/notification/components/NotificationBell.jsx'
 import MenuDrawer from './MenuDrawer.jsx'
 
-export default function Header() {
+export default function Header({ onMenuOpenChange }) {
   const {
     user,
     isAuthenticated,
@@ -25,14 +25,22 @@ export default function Header() {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const showUserChip = !isBootstrapping && isAuthenticated
+  
+  const handleToggleMenu = () => {
+    const newState = !menuOpen;
+    setMenuOpen(newState);
+    if (onMenuOpenChange) onMenuOpenChange(newState);
+  };
 
   const openLogin = () => {
-    setMenuOpen(false)
+    setMenuOpen(false);
+    if (onMenuOpenChange) onMenuOpenChange(false);
     openAuthModal('login')
   }
 
   const openSignup = () => {
-    setMenuOpen(false)
+    setMenuOpen(false);
+    if (onMenuOpenChange) onMenuOpenChange(false);
     openAuthModal('signup')
   }
 
@@ -52,7 +60,25 @@ export default function Header() {
 
           <Link to="/" onClick={handleLogoClick} className="no-underline text-inherit min-w-0">
             <div className="flex items-center gap-2.5">
-              <Scale className="w-8 h-8 text-primary shrink-0" />
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2.5" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                className="w-8 h-8 text-primary shrink-0"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+                <path d="M12 11v7" />
+                <path d="M8 13h8" />
+                <path d="M7 16a1 1 0 0 0 2 0" />
+                <path d="M15 16a1 1 0 0 0 2 0" />
+                <path d="M8 13v3" />
+                <path d="M16 13v3" />
+              </svg>
               <div>
                 <p className="m-0 text-lg font-extrabold leading-tight text-foreground">판례 AI 플랫폼</p>
                 <p className="m-0 mt-0.5 text-xs text-muted-foreground hidden sm:block">Legal AI Platform</p>
@@ -86,7 +112,7 @@ export default function Header() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setMenuOpen((prev) => !prev)}
+              onClick={handleToggleMenu}
               aria-label={menuOpen ? '메뉴 닫기' : '메뉴 열기'}
               aria-expanded={menuOpen}
             >
@@ -98,7 +124,10 @@ export default function Header() {
 
       <MenuDrawer
         open={menuOpen}
-        onClose={() => setMenuOpen(false)}
+        onClose={() => {
+          setMenuOpen(false);
+          if (onMenuOpenChange) onMenuOpenChange(false);
+        }}
         isAuthenticated={isAuthenticated}
         user={user}
         onOpenLogin={openLogin}

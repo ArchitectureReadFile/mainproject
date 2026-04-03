@@ -127,14 +127,16 @@ class ErrorCode(Enum):
     # ── 파일 다운로드 (FILE) ─────────────────────────────────────────────────
     FILE_NOT_FOUND = ("FILE_001", 404, "파일을 찾을 수 없습니다.")
 
-    # ── 판례 (PRECEDENT) ─────────────────────────────────────────────────────
-    PRECEDENT_NOT_FOUND = ("PRECEDENT_001", 404, "판례를 찾을 수 없습니다.")
-    PRECEDENT_DUPLICATE_URL = ("PRECEDENT_002", 409, "이미 등록된 판례 URL입니다.")
-    PRECEDENT_INVALID_URL = ("PRECEDENT_003", 422, "유효하지 않은 URL 형식입니다.")
-    PRECEDENT_DOMAIN_NOT_ALLOWED = (
-        "PRECEDENT_004",
-        422,
-        "허용되지 않은 도메인입니다. 등록 가능한 판례 사이트의 URL만 입력해주세요.",
+    # ── 플랫폼 동기화 (PLATFORM) ───────────────────────────────────────────
+    PLATFORM_SYNC_CONFIG_MISSING = (
+        "PLATFORM_001",
+        500,
+        "공공 법령 Open API 설정이 올바르지 않습니다.",
+    )
+    PLATFORM_SYNC_REQUEST_FAILED = (
+        "PLATFORM_002",
+        502,
+        "공공 법령 Open API 호출에 실패했습니다.",
     )
 
     # ── 채팅 (CHAT) ──────────────────────────────────────────────────────────

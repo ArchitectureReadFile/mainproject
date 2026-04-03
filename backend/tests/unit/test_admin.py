@@ -4,37 +4,38 @@ admin API 검증 테스트
 대상:
 - GET  /api/admin/stats
 - GET  /api/admin/usage
-- GET  /api/admin/precedents
-- POST /api/admin/precedents
-- POST /api/admin/precedents/{id}/retry
+- GET  /api/admin/platform/summary
+- POST /api/admin/platform/sync
+- POST /api/admin/platform/sync/stop
+- GET  /api/admin/platform/failures
 - GET  /api/admin/users
 - PATCH /api/admin/users/{id}
 
 검증 항목:
 1. ADMIN이 아닌 사용자 → 403
-2. precedent 중복 URL → 409
-3. precedent 허용되지 않은 도메인 → 422
-4. precedent 허용되지 않은 scheme → 422
-5. user status toggle에서 ADMIN 계정 차단 → 403
-6. user status toggle에서 자기 자신 차단 → 403
-7. stats/usage/users 정상 응답 shape 확인
+2. user status toggle에서 ADMIN 계정 차단 → 403
+3. user status toggle에서 자기 자신 차단 → 403
+4. stats/usage/users/platform 정상 응답 shape 확인
+5. stop — queued/running 중단, cancelled 재확인 안전성
+6. failure error_type 분류 — fetch/normalize/index
 """
+
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy.orm import Session
 
 from main import app
 from models.model import (
-    DocumentStatus,
     Group,
     GroupMember,
     GroupStatus,
-    Precedent,
     Subscription,
     SubscriptionPlan,
     SubscriptionStatus,
     User,
 )
+from models.platform_knowledge import PlatformSyncFailure, PlatformSyncRun
 from routers.auth import get_current_user
 from services.auth_service import AuthService
 
@@ -61,6 +62,22 @@ def _make_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+def _make_sync_run(db: Session, source_type: str, status: str) -> PlatformSyncRun:
+    run = PlatformSyncRun(
+        source_type=source_type,
+        status=status,
+        message="테스트 run",
+        fetched_count=0,
+        created_count=0,
+        skipped_count=0,
+        failed_count=0,
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
 
 
 def _override_user(user: User):
@@ -105,10 +122,6 @@ class TestAdminAccessControl:
 
     def test_usage_forbidden_for_general(self, general_client):
         res = general_client.get("/api/admin/usage")
-        assert res.status_code == 403
-
-    def test_precedents_forbidden_for_general(self, general_client):
-        res = general_client.get("/api/admin/precedents")
         assert res.status_code == 403
 
     def test_users_forbidden_for_general(self, general_client):
@@ -185,116 +198,396 @@ class TestAdminUsage:
         assert len(data["service_usage"]["daily_uploads"]) == 7
 
 
-# ── precedents ────────────────────────────────────────────────────────────────
+# ── platform sync ────────────────────────────────────────────────────────────
 
 
-class TestAdminPrecedents:
-    VALID_URL = "https://www.law.go.kr/cases/001"
-    DUPLICATE_URL = "https://www.law.go.kr/cases/duplicate"
-    INVALID_DOMAIN_URL = "https://notallowed.com/cases/001"
-    INVALID_SCHEME_URL = "ftp://www.law.go.kr/cases/001"
+class TestAdminPlatformSync:
+    def test_platform_summary_forbidden_for_general(self, general_client):
+        res = general_client.get("/api/admin/platform/summary")
+        assert res.status_code == 403
 
-    def test_list_empty(self, admin_client):
-        res = admin_client.get("/api/admin/precedents")
+    def test_platform_sync_forbidden_for_general(self, general_client):
+        res = general_client.post(
+            "/api/admin/platform/sync",
+            json={"source_type": "law"},
+        )
+        assert res.status_code == 403
+
+    def test_platform_summary_response_shape(self, admin_client, monkeypatch):
+        def _fake_summary(_db):
+            return {
+                "total_documents": 3,
+                "total_chunks": 9,
+                "sources": [
+                    {
+                        "source_type": "law",
+                        "label": "현행 법령",
+                        "document_count": 2,
+                        "chunk_count": 6,
+                        "last_synced_at": None,
+                        "last_sync_status": "running",
+                        "last_sync_message": "3페이지 처리 중 · 조회 250건 · 신규 12건 · 스킵 238건 · 실패 0건",
+                        "fetched_count": 250,
+                        "created_count": 12,
+                        "skipped_count": 238,
+                        "failed_count": 0,
+                        "current_page": 3,
+                        "total_count": 5575,
+                        "last_external_id": "253527",
+                        "last_display_title": "10·27법난 피해자의 명예회복 등에 관한 법률",
+                    },
+                    {
+                        "source_type": "precedent",
+                        "label": "판례",
+                        "document_count": 1,
+                        "chunk_count": 3,
+                        "last_synced_at": None,
+                        "last_sync_status": None,
+                        "last_sync_message": None,
+                        "fetched_count": 0,
+                        "created_count": 0,
+                        "skipped_count": 0,
+                        "failed_count": 0,
+                        "current_page": None,
+                        "total_count": None,
+                        "last_external_id": None,
+                        "last_display_title": None,
+                    },
+                    {
+                        "source_type": "interpretation",
+                        "label": "법령해석례",
+                        "document_count": 0,
+                        "chunk_count": 0,
+                        "last_synced_at": None,
+                        "last_sync_status": None,
+                        "last_sync_message": None,
+                        "fetched_count": 0,
+                        "created_count": 0,
+                        "skipped_count": 0,
+                        "failed_count": 0,
+                        "current_page": None,
+                        "total_count": None,
+                        "last_external_id": None,
+                        "last_display_title": None,
+                    },
+                    {
+                        "source_type": "admin_rule",
+                        "label": "행정규칙",
+                        "document_count": 0,
+                        "chunk_count": 0,
+                        "last_synced_at": None,
+                        "last_sync_status": None,
+                        "last_sync_message": None,
+                        "fetched_count": 0,
+                        "created_count": 0,
+                        "skipped_count": 0,
+                        "failed_count": 0,
+                        "current_page": None,
+                        "total_count": None,
+                        "last_external_id": None,
+                        "last_display_title": None,
+                    },
+                ],
+                "recent_items": [],
+            }
+
+        monkeypatch.setattr(
+            "routers.admin.admin_platform_service.get_admin_platform_summary",
+            _fake_summary,
+        )
+
+        res = admin_client.get("/api/admin/platform/summary")
         assert res.status_code == 200
         data = res.json()
-        assert data["total"] == 0
-        assert data["items"] == []
-        assert data["failed_items"] == []
-        assert data["pending_items"] == []
-        assert data["recent_items"] == []
-        assert data["summary"]["total"] == 0
+        assert data["total_documents"] == 3
+        assert data["total_chunks"] == 9
+        assert len(data["sources"]) == 4
+        assert data["sources"][0]["current_page"] == 3
+        assert data["sources"][0]["last_external_id"] == "253527"
 
-    def test_list_includes_panel_items_outside_default_page(
-        self, admin_client, db_session, admin_user
-    ):
-        for i in range(25):
-            db_session.add(
-                Precedent(
-                    source_url=f"https://taxlaw.nts.go.kr/pd/ok-{i}",
-                    title=f"정상 {i}",
-                    processing_status=DocumentStatus.DONE,
-                    uploaded_by_admin_id=admin_user.id,
+    def test_platform_sync_response_shape(self, admin_client, monkeypatch):
+        def _fake_sync(_db, *, source_type):
+            assert source_type == "law"
+            return {
+                "run_id": 10,
+                "source_type": source_type,
+                "started_at": "2026-04-03T01:00:00",
+                "finished_at": None,
+                "status": "queued",
+                "fetched": 0,
+                "created": 0,
+                "skipped": 0,
+                "failed": 0,
+                "message": "동기화 대기 중입니다.",
+            }
+
+        monkeypatch.setattr(
+            "routers.admin.admin_platform_service.enqueue_platform_source_sync",
+            _fake_sync,
+        )
+
+        res = admin_client.post(
+            "/api/admin/platform/sync",
+            json={"source_type": "law"},
+        )
+        assert res.status_code == 202
+        data = res.json()
+        assert data["run_id"] == 10
+        assert data["status"] == "queued"
+        assert data["created"] == 0
+        assert data["message"] == "동기화 대기 중입니다."
+
+
+# ── platform sync stop ────────────────────────────────────────────────────────
+
+
+class TestAdminPlatformSyncStop:
+    def test_stop_queued_run(self, admin_client, db_session):
+        """queued 상태 run을 stop하면 cancelled가 된다."""
+        run = _make_sync_run(db_session, "law", "queued")
+        res = admin_client.post(
+            "/api/admin/platform/sync/stop",
+            json={"source_type": "law"},
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] == "cancelled"
+        assert data["run_id"] == run.id
+
+        db_session.refresh(run)
+        assert run.status == "cancelled"
+        assert run.finished_at is not None
+
+    def test_stop_running_run(self, admin_client, db_session):
+        """running 상태 run을 stop하면 cancelled가 된다."""
+        run = _make_sync_run(db_session, "precedent", "running")
+        res = admin_client.post(
+            "/api/admin/platform/sync/stop",
+            json={"source_type": "precedent"},
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] == "cancelled"
+        assert data["run_id"] == run.id
+
+    def test_stop_when_no_active_run(self, admin_client, db_session):
+        """진행 중인 run이 없으면 not_found를 반환한다."""
+        _make_sync_run(db_session, "law", "success")
+        res = admin_client.post(
+            "/api/admin/platform/sync/stop",
+            json={"source_type": "law"},
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] == "not_found"
+
+    def test_stop_forbidden_for_general(self, general_client):
+        res = general_client.post(
+            "/api/admin/platform/sync/stop",
+            json={"source_type": "law"},
+        )
+        assert res.status_code == 403
+
+    def test_repeated_stop_is_safe(self, admin_client, db_session):
+        """이미 cancelled인 run에 stop을 반복해도 not_found만 반환한다."""
+        _make_sync_run(db_session, "law", "cancelled")
+        res = admin_client.post(
+            "/api/admin/platform/sync/stop",
+            json={"source_type": "law"},
+        )
+        assert res.status_code == 200
+        assert res.json()["status"] == "not_found"
+
+    def test_cancelled_does_not_become_running(self, db_session):
+        """cancelled run은 _update_run_progress를 호출해도 running으로 바뀌지 않는다."""
+        from services.admin_platform_service import _update_run_progress
+
+        run = _make_sync_run(db_session, "law", "cancelled")
+        _update_run_progress(
+            db_session,
+            run,
+            counts={"fetched": 10, "created": 5, "skipped": 5, "failed": 0},
+            current_page=2,
+            total_count=100,
+        )
+        db_session.refresh(run)
+        assert run.status == "cancelled"
+
+
+# ── platform sync failure error_type 분류 ────────────────────────────────────
+
+
+class TestAdminPlatformSyncFailureType:
+    """
+    execute_platform_source_sync item-level 실패 시 error_type이
+    올바르게 기록되는지 검증한다.
+
+    실제 Celery/API 호출 없이 SessionLocal + client/ingestion_service를
+    mock으로 교체해 단위 테스트한다.
+    """
+
+    def _run_sync(self, db_session, run, *, patch_client, patch_ingestion=None):
+        """
+        execute_platform_source_sync를 실제 DB session으로 실행한다.
+        SessionLocal을 mock해서 db_session을 재사용한다.
+        """
+        from services.admin_platform_service import execute_platform_source_sync
+
+        with patch(
+            "services.admin_platform_service.SessionLocal",
+            return_value=db_session,
+        ):
+            # db.close()가 session을 닫지 않도록 noop 처리
+            db_session.close = lambda: None
+
+            patches = [
+                patch(
+                    "services.admin_platform_service.KoreaLawOpenApiClient",
+                    return_value=patch_client,
+                ),
+            ]
+            if patch_ingestion is not None:
+                patches.append(
+                    patch(
+                        "services.admin_platform_service.PlatformKnowledgeIngestionService",
+                        return_value=patch_ingestion,
+                    )
                 )
+
+            for p in patches:
+                p.start()
+            try:
+                execute_platform_source_sync(run.id)
+            except Exception:
+                pass
+            finally:
+                for p in patches:
+                    p.stop()
+
+    def _make_client(self, *, extract_detail_link=None, fetch_detail=None):
+        """KoreaLawOpenApiClient mock 생성 헬퍼."""
+        c = MagicMock()
+        c.search_page.return_value = (
+            [{"id": "LAW-001", "title": "테스트 법령"}],
+            1,
+        )
+        c.extract_external_id.return_value = "LAW-001"
+        c.extract_display_title.return_value = "테스트 법령"
+
+        if extract_detail_link is not None:
+            c.extract_detail_link.side_effect = extract_detail_link
+        else:
+            c.extract_detail_link.return_value = (
+                "https://api.example.com/detail/LAW-001"
             )
-        failed = Precedent(
-            source_url="https://taxlaw.nts.go.kr/pd/failed-1",
-            title="실패 판례",
-            processing_status=DocumentStatus.FAILED,
-            error_message="파싱 실패",
-            uploaded_by_admin_id=admin_user.id,
+
+        if fetch_detail is not None:
+            c.fetch_detail_from_link.side_effect = fetch_detail
+        else:
+            c.fetch_detail_from_link.return_value = {"법령ID": "LAW-001"}
+
+        return c
+
+    def test_detail_link_extract_failure_is_fetch_error(self, db_session):
+        """detail_link 추출 실패 → fetch_error."""
+        run = _make_sync_run(db_session, "law", "queued")
+        mock_client = self._make_client(
+            extract_detail_link=RuntimeError("링크 추출 실패")
         )
-        db_session.add(failed)
-        db_session.commit()
 
-        res = admin_client.get("/api/admin/precedents")
-        assert res.status_code == 200
-        data = res.json()
-        assert data["summary"]["failed"] == 1
-        assert len(data["items"]) == 20
-        assert len(data["failed_items"]) == 1
-        assert data["failed_items"][0]["title"] == "실패 판례"
+        self._run_sync(db_session, run, patch_client=mock_client)
 
-    def test_create_success(self, admin_client):
-        res = admin_client.post(
-            "/api/admin/precedents", json={"source_url": self.VALID_URL}
+        failures = (
+            db_session.query(PlatformSyncFailure).filter_by(sync_run_id=run.id).all()
         )
-        assert res.status_code == 201
-        assert res.json()["source_url"] == self.VALID_URL
+        assert len(failures) == 1
+        assert failures[0].error_type == "fetch_error"
+        assert failures[0].external_id == "LAW-001"
+        assert failures[0].page == 1
 
-    def test_create_duplicate_url(self, admin_client, db_session, admin_user):
-        db_session.add(
-            Precedent(
-                source_url=self.DUPLICATE_URL,
-                processing_status=DocumentStatus.PENDING,
-                uploaded_by_admin_id=admin_user.id,
-            )
+    def test_detail_fetch_failure_is_fetch_error(self, db_session):
+        """상세 API 호출 실패 → fetch_error."""
+        run = _make_sync_run(db_session, "law", "queued")
+        mock_client = self._make_client(fetch_detail=ConnectionError("API 호출 실패"))
+
+        self._run_sync(db_session, run, patch_client=mock_client)
+
+        failures = (
+            db_session.query(PlatformSyncFailure).filter_by(sync_run_id=run.id).all()
         )
-        db_session.commit()
+        assert len(failures) == 1
+        assert failures[0].error_type == "fetch_error"
+        assert failures[0].detail_link == "https://api.example.com/detail/LAW-001"
 
-        res = admin_client.post(
-            "/api/admin/precedents", json={"source_url": self.DUPLICATE_URL}
+    def test_normalize_failure_is_normalize_error(self, db_session):
+        """PlatformNormalizeError → normalize_error."""
+        from services.platform.platform_knowledge_ingestion_service import (
+            PlatformNormalizeError,
         )
-        assert res.status_code == 409
-        assert res.json()["code"] == "PRECEDENT_002"
 
-    def test_create_invalid_domain(self, admin_client):
-        res = admin_client.post(
-            "/api/admin/precedents", json={"source_url": self.INVALID_DOMAIN_URL}
+        run = _make_sync_run(db_session, "law", "queued")
+        mock_client = self._make_client()
+        mock_ingestion = MagicMock()
+        mock_ingestion.ingest_from_payload.side_effect = PlatformNormalizeError(
+            "normalize 실패"
         )
-        assert res.status_code == 422
-        assert res.json()["code"] == "PRECEDENT_004"
 
-    def test_create_invalid_scheme(self, admin_client):
-        res = admin_client.post(
-            "/api/admin/precedents", json={"source_url": self.INVALID_SCHEME_URL}
+        self._run_sync(
+            db_session, run, patch_client=mock_client, patch_ingestion=mock_ingestion
         )
-        assert res.status_code == 422
-        assert res.json()["code"] == "PRECEDENT_003"
 
-    def test_retry_success(self, admin_client, db_session, admin_user):
-        precedent = Precedent(
-            source_url="https://www.law.go.kr/cases/retry",
-            processing_status=DocumentStatus.FAILED,
-            error_message="파싱 오류",
-            uploaded_by_admin_id=admin_user.id,
+        failures = (
+            db_session.query(PlatformSyncFailure).filter_by(sync_run_id=run.id).all()
         )
-        db_session.add(precedent)
-        db_session.commit()
-        db_session.refresh(precedent)
+        assert len(failures) == 1
+        assert failures[0].error_type == "normalize_error"
+        assert failures[0].external_id == "LAW-001"
 
-        res = admin_client.post(f"/api/admin/precedents/{precedent.id}/retry")
-        assert res.status_code == 200
-        assert res.json()["processing_status"] == "PENDING"
+    def test_index_failure_is_index_error(self, db_session):
+        """normalize 이후 일반 Exception → index_error."""
+        run = _make_sync_run(db_session, "law", "queued")
+        mock_client = self._make_client()
+        mock_ingestion = MagicMock()
+        mock_ingestion.ingest_from_payload.side_effect = RuntimeError(
+            "Qdrant 저장 실패"
+        )
 
-        db_session.refresh(precedent)
-        assert precedent.processing_status == DocumentStatus.PENDING
-        assert precedent.error_message is None
+        self._run_sync(
+            db_session, run, patch_client=mock_client, patch_ingestion=mock_ingestion
+        )
 
-    def test_retry_not_found(self, admin_client):
-        res = admin_client.post("/api/admin/precedents/99999/retry")
-        assert res.status_code == 404
-        assert res.json()["code"] == "PRECEDENT_001"
+        failures = (
+            db_session.query(PlatformSyncFailure).filter_by(sync_run_id=run.id).all()
+        )
+        assert len(failures) == 1
+        assert failures[0].error_type == "index_error"
+
+    def test_failure_row_has_correct_fields(self, db_session):
+        """failure row에 external_id / display_title / page / error_message가 저장된다."""
+        run = _make_sync_run(db_session, "law", "queued")
+        mock_client = self._make_client(extract_detail_link=ValueError("링크 없음"))
+
+        self._run_sync(db_session, run, patch_client=mock_client)
+
+        f = db_session.query(PlatformSyncFailure).filter_by(sync_run_id=run.id).first()
+        assert f is not None
+        assert f.external_id == "LAW-001"
+        assert f.display_title == "테스트 법령"
+        assert f.page == 1
+        assert f.error_message is not None
+        assert len(f.error_message) > 0
+
+    def test_cancelled_run_no_failure_saved(self, db_session):
+        """cancelled run은 failure row 저장 후 progress update가 running으로 바꾸지 않는다."""
+        run = _make_sync_run(db_session, "law", "cancelled")
+        mock_client = self._make_client(
+            extract_detail_link=RuntimeError("링크 추출 실패")
+        )
+
+        self._run_sync(db_session, run, patch_client=mock_client)
+
+        db_session.refresh(run)
+        assert run.status == "cancelled"
 
 
 # ── users ─────────────────────────────────────────────────────────────────────

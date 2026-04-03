@@ -159,9 +159,9 @@ class PlatformDocumentChunk(Base):
 
     chunk_type:
         law:            "article"
-        precedent:      "holding" | "summary" | "body"
+        precedent:      "holding" | "summary" | "body" | "meta"
         interpretation: "question" | "answer" | "reason"
-        admin_rule:     "rule"
+        admin_rule:     "rule" | "addendum" | "annex"
 
     chunk_id_str:
         BM25/Qdrant 저장 시 사용하는 외부 식별자.
@@ -197,4 +197,91 @@ class PlatformDocumentChunk(Base):
     __table_args__ = (
         Index("ix_platform_doc_chunks_source_type", "source_type"),
         Index("ix_platform_doc_chunks_chunk_type", "chunk_type"),
+    )
+
+
+class PlatformSyncRun(Base):
+    """
+    source_type별 수동 전체 동기화 실행 기록.
+
+    status:
+        "queued" | "running" | "success" | "no_changes" | "failed" | "cancelled"
+
+    message:
+        UI에 바로 노출할 수 있는 실행 요약 문구.
+    """
+
+    __tablename__ = "platform_sync_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_type = Column(String(32), nullable=False)
+    status = Column(String(32), nullable=False, default="running")
+    started_at = Column(DateTime, nullable=False, default=_utc_now)
+    finished_at = Column(DateTime, nullable=True)
+    fetched_count = Column(Integer, nullable=False, default=0)
+    created_count = Column(Integer, nullable=False, default=0)
+    skipped_count = Column(Integer, nullable=False, default=0)
+    failed_count = Column(Integer, nullable=False, default=0)
+    message = Column(String(512), nullable=True)
+    metadata_json = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, nullable=False, default=_utc_now)
+    updated_at = Column(DateTime, nullable=False, default=_utc_now, onupdate=_utc_now)
+
+    failures = relationship(
+        "PlatformSyncFailure",
+        back_populates="sync_run",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("ix_platform_sync_runs_source_type", "source_type"),
+        Index("ix_platform_sync_runs_started_at", "started_at"),
+    )
+
+
+class PlatformSyncFailure(Base):
+    """
+    platform sync 중 item 단위 실패 추적.
+
+    실패 문서를 run 단위로 조회하거나 재시도 여부를 관리하기 위한 테이블.
+
+    error_type:
+        주 사용값은 "fetch_error" | "normalize_error" | "index_error".
+        기본값 "unknown"은 예외적/수동 입력 대비용 fallback이다.
+
+    payload_snippet:
+        raw_payload의 앞 500자. 디버깅용. 전체 저장 과함.
+
+    retried_at / resolved_at:
+        재시도 / 해소 시점 기록용. nullable.
+    """
+
+    __tablename__ = "platform_sync_failures"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sync_run_id = Column(
+        Integer,
+        ForeignKey("platform_sync_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_type = Column(String(32), nullable=False)
+    external_id = Column(String(128), nullable=True)
+    display_title = Column(String(512), nullable=True)
+    detail_link = Column(String(2048), nullable=True)
+    page = Column(Integer, nullable=True)
+    error_type = Column(String(32), nullable=False, default="unknown")
+    error_message = Column(String(1024), nullable=True)
+    payload_snippet = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, nullable=False, default=_utc_now)
+    retried_at = Column(DateTime, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+
+    sync_run = relationship("PlatformSyncRun", back_populates="failures")
+
+    __table_args__ = (
+        Index("ix_platform_sync_failures_sync_run_id", "sync_run_id"),
+        Index("ix_platform_sync_failures_source_type", "source_type"),
+        Index("ix_platform_sync_failures_created_at", "created_at"),
     )

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel
 
@@ -63,41 +63,98 @@ class AdminUsageResponse(BaseModel):
     rag_usage: RagUsage
 
 
-# ── 판례 (precedents) ─────────────────────────────────────────────────────────
+# ── platform sync ────────────────────────────────────────────────────────────
+
+AdminPlatformSourceType = Literal["law", "precedent", "interpretation", "admin_rule"]
 
 
-class PrecedentSummary(BaseModel):
-    total: int
-    indexed: int
-    pending: int
-    failed: int
+class AdminPlatformSourceSummary(BaseModel):
+    source_type: AdminPlatformSourceType
+    label: str
+    document_count: int
+    chunk_count: int
+    last_synced_at: Optional[datetime] = None
+    last_sync_status: Optional[str] = None
+    last_sync_message: Optional[str] = None
+    fetched_count: int = 0
+    created_count: int = 0
+    skipped_count: int = 0
+    failed_count: int = 0
+    current_page: Optional[int] = None
+    total_count: Optional[int] = None
+    last_external_id: Optional[str] = None
+    last_display_title: Optional[str] = None
 
 
-class PrecedentItem(BaseModel):
+class AdminPlatformRecentItem(BaseModel):
     id: int
-    source_url: str
-    title: Optional[str]
-    processing_status: str
-    error_message: Optional[str]
-    uploaded_by_admin_id: Optional[int]
-    created_at: datetime
+    source_type: AdminPlatformSourceType
+    display_title: Optional[str]
+    external_id: str
+    issued_at: Optional[datetime]
     updated_at: datetime
 
     class Config:
         from_attributes = True
 
 
-class AdminPrecedentListResponse(BaseModel):
-    summary: PrecedentSummary
-    items: list[PrecedentItem]
-    failed_items: list[PrecedentItem]
-    pending_items: list[PrecedentItem]
-    recent_items: list[PrecedentItem]
+class AdminPlatformSummaryResponse(BaseModel):
+    total_documents: int
+    total_chunks: int
+    sources: list[AdminPlatformSourceSummary]
+    recent_items: list[AdminPlatformRecentItem]
+
+
+class AdminPlatformSyncRequest(BaseModel):
+    source_type: AdminPlatformSourceType
+
+
+class AdminPlatformSyncResponse(BaseModel):
+    run_id: int
+    source_type: AdminPlatformSourceType
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+    status: Literal["queued", "running", "success", "no_changes", "failed", "cancelled"]
+    fetched: int
+    created: int
+    skipped: int
+    failed: int
+    message: str
+
+
+class AdminPlatformStopRequest(BaseModel):
+    source_type: AdminPlatformSourceType
+
+
+class AdminPlatformStopResponse(BaseModel):
+    run_id: int
+    source_type: AdminPlatformSourceType
+    status: Literal["cancelled", "not_found"]
+    message: str
+
+
+# ── platform sync failures ────────────────────────────────────────────────────
+
+
+class AdminPlatformFailureItem(BaseModel):
+    id: int
+    sync_run_id: int
+    source_type: AdminPlatformSourceType
+    external_id: Optional[str] = None
+    display_title: Optional[str] = None
+    detail_link: Optional[str] = None
+    page: Optional[int] = None
+    error_type: str
+    error_message: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AdminPlatformFailuresResponse(BaseModel):
+    items: list[AdminPlatformFailureItem]
     total: int
-
-
-class AdminPrecedentCreateRequest(BaseModel):
-    source_url: str
 
 
 # ── 회원 (users) ──────────────────────────────────────────────────────────────

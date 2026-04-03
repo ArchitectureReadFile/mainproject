@@ -44,17 +44,32 @@ export default function MenuDrawer({
           </Button>
         </SheetHeader>
 
-        <div className="py-2">
+        {isAuthenticated && (
+          <>
+            <div className="py-2">
+              <MenuItem
+                to="/mypage"
+                icon={<User size={18} />}
+                label="프로필"
+                active={location.pathname.startsWith('/mypage')}
+                onClick={onClose}
+              />
+            </div>
+            <Separator />
+          </>
+        )}
+        <>
+          <div className="py-2">
           <MenuItem
-            to="/mypage"
-            icon={<User size={18} />}
-            label={isAuthenticated ? user?.username || '프로필' : '프로필'}
-            active={location.pathname.startsWith('/mypage')}
-            onClick={isAuthenticated ? onClose : onOpenLogin}
+            to="/"
+            icon={<Home size={18} />}
+            label="홈"
+            active={location.pathname === '/'}
+            onClick={onClose}
           />
         </div>
-
         <Separator />
+        </>
 
         {!isAuthenticated && (
           <>
@@ -83,7 +98,6 @@ export default function MenuDrawer({
         {isAuthenticated && (
           <>
             <div className="py-2">
-              <p className="mx-5 my-2 text-xs font-semibold text-muted-foreground tracking-wide">워크스페이스</p>
               <MenuItem
                 to="/workspace"
                 icon={<FolderOpen size={18} />}
@@ -92,25 +106,13 @@ export default function MenuDrawer({
                 onClick={onClose}
               />
             </div>
-            <Separator />
           </>
         )}
-
-        <div className="py-2">
-          <MenuItem
-            to="/"
-            icon={<Home size={18} />}
-            label="홈"
-            active={location.pathname === '/'}
-            onClick={onClose}
-          />
-        </div>
 
         {isAuthenticated && user?.role === 'ADMIN' && (
           <>
             <Separator />
             <div className="py-2">
-              <p className="mx-5 my-2 text-xs font-semibold text-muted-foreground tracking-wide">관리자</p>
               <MenuItem
                 to="/admin"
                 icon={<Shield size={18} />}
