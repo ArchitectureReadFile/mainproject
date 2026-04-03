@@ -14,25 +14,28 @@ export async function fetchAdminUsage() {
   return res.data;
 }
 
-// ── 판례 ──────────────────────────────────────────────────────────────────────
+// ── platform sync ────────────────────────────────────────────────────────────
 
-export async function fetchAdminPrecedents({ skip = 0, limit = 20 } = {}) {
-  const res = await client.get("/admin/precedents", { params: { skip, limit } });
+export async function fetchAdminPlatformSummary() {
+  const res = await client.get("/admin/platform/summary");
   return res.data;
 }
 
-export async function createPrecedent(source_url) {
-  const res = await client.post("/admin/precedents", { source_url });
+export async function syncAdminPlatform({ source_type }) {
+  const res = await client.post("/admin/platform/sync", { source_type });
   return res.data;
 }
 
-export async function retryPrecedent(precedent_id) {
-  const res = await client.post(`/admin/precedents/${precedent_id}/retry`);
+export async function stopAdminPlatform({ source_type }) {
+  const res = await client.post("/admin/platform/sync/stop", { source_type });
   return res.data;
 }
 
-export async function reindexPrecedents() {
-  const res = await client.post("/admin/precedents/reindex");
+export async function fetchAdminPlatformFailures({ source_type, run_id, limit = 20 } = {}) {
+  const params = { limit };
+  if (source_type) params.source_type = source_type;
+  if (run_id != null) params.run_id = run_id;
+  const res = await client.get("/admin/platform/failures", { params });
   return res.data;
 }
 

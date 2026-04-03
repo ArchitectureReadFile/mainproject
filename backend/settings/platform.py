@@ -22,7 +22,7 @@ migration 완료 단계 (ENABLE_PLATFORM_PRECEDENT_CORPUS=true):
 4개 source 모두 공식 API 필드 확인 완료, platform public corpus 대상으로 확정.
 
     law:            지원 (현행법령 — 조문 단위 article chunk)
-    precedent:      지원 (판례 — holding/summary/body chunk, migration flag로 corpus 전환 관리)
+    precedent:      지원 (판례 — 목록 기준 기본 문서 + 상세 enrich, holding/summary/body/meta chunk)
     interpretation: 지원 (법령해석례 — question/answer/reason chunk)
     admin_rule:     지원 (행정규칙 — rule/addendum/annex chunk, 중첩 응답 자동 flatten)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -57,6 +57,18 @@ ENABLE_INGESTION_INTERPRETATION: bool = _bool_env(
     "ENABLE_INGESTION_INTERPRETATION", True
 )
 ENABLE_INGESTION_ADMIN_RULE: bool = _bool_env("ENABLE_INGESTION_ADMIN_RULE", True)
+
+# ── Korea Law Open API client 설정 ───────────────────────────────────────────
+KOREA_LAW_OPEN_API_OC: str = os.getenv("KOREA_LAW_OPEN_API_OC", "").strip()
+KOREA_LAW_OPEN_API_BASE_URL: str = os.getenv(
+    "KOREA_LAW_OPEN_API_BASE_URL", "http://www.law.go.kr/DRF"
+).rstrip("/")
+KOREA_LAW_OPEN_API_TIMEOUT_SECONDS: int = int(
+    os.getenv("KOREA_LAW_OPEN_API_TIMEOUT_SECONDS", "20")
+)
+KOREA_LAW_OPEN_API_SYNC_PAGE_SIZE: int = int(
+    os.getenv("KOREA_LAW_OPEN_API_SYNC_PAGE_SIZE", "100")
+)
 
 _INGESTION_FLAG_MAP: dict[str, bool] = {
     "law": ENABLE_INGESTION_LAW,

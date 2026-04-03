@@ -1,12 +1,10 @@
 """
-seed_admin.py — admin 화면 테스트용 + 실제 판례 URL 기반 초기 데이터 주입 스크립트
+seed_admin.py — admin 화면 테스트용 초기 데이터 주입 스크립트
 
 실행 방법:
     cd backend
     python seed_admin.py
     python seed_admin.py --with-admin
-    python seed_admin.py --with-admin --seed-precedents
-    python seed_admin.py --reset --with-admin --seed-precedents
 """
 
 import argparse
@@ -19,7 +17,6 @@ from sqlalchemy import delete
 sys.path.insert(0, os.path.dirname(__file__))
 
 from database import Base, SessionLocal, init_db
-from errors import AppException, ErrorCode
 from models.model import (
     Document,
     DocumentLifecycleStatus,
@@ -35,15 +32,9 @@ from models.model import (
     User,
     UserRole,
 )
-from services import admin_service
 from services.auth_service import AuthService
 
 _auth_service = AuthService()
-
-try:
-    from seed_data.precedent_sources import SEED_PRECEDENT_SOURCES
-except ImportError:
-    SEED_PRECEDENT_SOURCES = None
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 
@@ -161,74 +152,6 @@ SEED_DOCUMENTS = [
     (f"jung{SEED_EMAIL_DOMAIN}", "DONE", 1),
     (f"han{SEED_EMAIL_DOMAIN}", "FAILED", 1),
 ]
-
-# 실제 판례 URL 기반 seed fallback
-# topic/notes 는 seed 관리용 메타 정보이며 DB에 저장하지 않음
-FALLBACK_PRECEDENT_SOURCES = [
-    {
-        "topic": "소득세/주거용건물개발공급업",
-        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018971",
-        "notes": "오피스텔이 주거용 건물에 해당하는지, 경비율 적용",
-    },
-    {
-        "topic": "조세소송/기판력",
-        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000019026",
-        "notes": "확정판결의 기판력이 후속 무효확인소송에 미치는지",
-    },
-    {
-        "topic": "부가가치세/세무조사",
-        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018968",
-        "notes": "거래상대방 재조사 관련 협력의무와 중복조사 여부",
-    },
-    {
-        "topic": "소득세/주거용건물개발공급업",
-        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018996",
-        "notes": "오피스텔의 주거용 건물 해당 여부",
-    },
-    {
-        "topic": "근로소득/주식매수선택권",
-        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018980",
-        "notes": "스톡옵션 행사이익 산정과 행사 시점의 시가",
-    },
-    {
-        "topic": "민사집행/사해행위취소",
-        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000019043",
-        "notes": "현금증여 사해행위 취소 시 지연배상금 기산점",
-    },
-    {
-        "topic": "행정소송/고유번호증",
-        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000019084",
-        "notes": "고유번호증 대표자 정정 발급의 처분성",
-    },
-    {
-        "topic": "법인세/부당행위·용역수수료",
-        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018840",
-        "notes": "과다 용역수수료의 손금 인정 여부",
-    },
-    {
-        "topic": "양도소득세/비상장주식 대주주",
-        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018969",
-        "notes": "비상장주식 대주주 판단 기준의 유효성",
-    },
-    {
-        "topic": "지방세·법인세/고유목적사업",
-        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000019024",
-        "notes": "고유목적사업 직접 사용과 비과세 예외 여부",
-    },
-    {
-        "topic": "법인세/대손·회수불능채권",
-        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018930",
-        "notes": "채권 회수불능 판단 기준",
-    },
-    {
-        "topic": "민사소송/재심",
-        "url": "https://taxlaw.nts.go.kr/pd/USEPDA002P.do?ntstDcmId=200000000000018812",
-        "notes": "재심대상판결의 판단누락 여부",
-    },
-]
-
-if SEED_PRECEDENT_SOURCES is None:
-    SEED_PRECEDENT_SOURCES = FALLBACK_PRECEDENT_SOURCES
 
 
 # ── reset ────────────────────────────────────────────────────────────────────
@@ -512,63 +435,6 @@ def get_any_admin(db) -> User | None:
     return db.query(User).filter(User.role == UserRole.ADMIN).first()
 
 
-def _normalize_seed_precedent_sources() -> list[dict]:
-    normalized = []
-
-    for item in SEED_PRECEDENT_SOURCES:
-        topic = str(item.get("topic") or "").strip()
-        url = str(item.get("url") or "").strip()
-        notes = str(item.get("notes") or "").strip()
-
-        if not url:
-            continue
-
-        normalized.append(
-            {
-                "topic": topic or "미분류",
-                "url": url,
-                "notes": notes or None,
-            }
-        )
-
-    return normalized
-
-
-def seed_precedent_sources(db, admin: User | None):
-    sources = _normalize_seed_precedent_sources()
-
-    if not admin:
-        print("  [SKIP] precedent seed (admin 계정 없음)")
-        return
-
-    if not sources:
-        print("  [SKIP] precedent seed (등록된 실제 URL 없음)")
-        return
-
-    print("\n[ PRECEDENT SOURCES ]")
-
-    for item in sources:
-        topic = item["topic"]
-        url = item["url"]
-        notes = item["notes"]
-
-        try:
-            precedent = admin_service.create_precedent(db, admin, url)
-            extra = f" / {notes}" if notes else ""
-            print(
-                f"  [OK]   precedent [{topic}] {url} "
-                f"→ {precedent.processing_status.value}{extra}"
-            )
-        except AppException as exc:
-            if exc.code == ErrorCode.PRECEDENT_DUPLICATE_URL.code:
-                print(f"  [SKIP] precedent [{topic}] {url} (중복 URL)")
-                continue
-
-            print(f"  [FAIL] precedent [{topic}] {url} → {exc.code}: {exc.message}")
-        except Exception as exc:
-            print(f"  [FAIL] precedent [{topic}] {url} → {exc}")
-
-
 # ── main ─────────────────────────────────────────────────────────────────────
 
 
@@ -579,11 +445,6 @@ def main():
     )
     parser.add_argument(
         "--with-admin", action="store_true", help="ADMIN 계정도 함께 생성"
-    )
-    parser.add_argument(
-        "--seed-precedents",
-        action="store_true",
-        help="실제 판례 URL 기반 precedent 등록 수행",
     )
     args = parser.parse_args()
 
@@ -617,9 +478,6 @@ def main():
             seed_admin_subscription(db, admin)
         else:
             admin = get_any_admin(db)
-
-        if args.seed_precedents:
-            seed_precedent_sources(db, admin)
 
         print("\n✅ seed 완료")
 

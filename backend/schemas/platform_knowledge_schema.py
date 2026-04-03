@@ -19,7 +19,7 @@ source_type 값:
 
 chunk_type 값:
     law:            "article"
-    precedent:      "holding" | "summary" | "body"
+    precedent:      "holding" | "summary" | "body" | "meta"
     interpretation: "question" | "answer" | "reason"
     admin_rule:     "rule" | "addendum" | "annex"
 """
@@ -61,6 +61,7 @@ class PlatformDocumentSchema:
             case_no               str
             case_type             str
             judgment_type         str
+            detail_mode           "list_only" | "enriched"
         interpretation:
             agenda_no             str
             query_org             str
@@ -94,7 +95,7 @@ class PlatformChunkSchema:
 
     source_type:   부모 문서와 동일
     external_id:   부모 문서와 동일 (chunk_id_str 생성 기준)
-    chunk_type:    "article" | "holding" | "summary" | "body"
+    chunk_type:    "article" | "holding" | "summary" | "body" | "meta"
                    | "question" | "answer" | "reason"
                    | "rule" | "addendum" | "annex"
     chunk_order:   문서 내 순서 (0-indexed)

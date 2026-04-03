@@ -17,6 +17,7 @@ celery_app = Celery(
         "tasks.upload_task",
         "tasks.chat_task",
         "tasks.precedent_task",
+        "tasks.platform_sync_task",
         "tasks.subscription_task",
     ],
 )

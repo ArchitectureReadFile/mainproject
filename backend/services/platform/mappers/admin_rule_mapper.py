@@ -15,15 +15,15 @@ services/platform/mappers/admin_rule_mapper.py
             ...
         },
         "조문내용": [
-            {"조문번호": "1", "조문내용": "..."},
+            {"조문번호": "1", "조문내용": "..."},   # 조문내용이 str 또는 list
             ...
         ],
         "부칙": {
-            "부칙내용": "..."
+            "부칙내용": "..."   # str 또는 list
         },
         "별표": {
             "별표단위": [
-                {"별표내용": "..."},
+                {"별표내용": "..."},   # str 또는 list
                 ...
             ]
         }
@@ -32,16 +32,27 @@ services/platform/mappers/admin_rule_mapper.py
     normalize 전에 adapter를 거쳐 top-level 구조로 변환한 뒤
     이후 로직은 flat dict 기반으로 동작한다.
 
+텍스트 안전화:
+    adapter와 mapper는 모두 _to_text()를 통해 str/list/dict 혼합 필드를
+    안전하게 문자열로 변환한다. .strip() 직접 호출은 금지한다.
+
 chunk 전략:
-    chunk_type = "rule"        : 조문 단위 (기본)
-    chunk_type = "addendum"    : 부칙내용 (별도 chunk, 본문과 분리)
-    chunk_type = "annex"       : 별표내용 (별도 chunk, 본문과 분리)
-    조문 없을 때 body_text 전체를 단일 rule chunk로.
+    chunk_type = "rule"        : 조문 단위 (기존 유지)
+    chunk_type = "addendum"    : 부칙내용 (기존 유지)
+    chunk_type = "annex"       : 별표 — annex_formatter를 통해 유형별 요약 텍스트로 적재
+                                  원칙 1개, 최대 2개 chunk로 제한
+                                  원문은 PlatformRawSource.raw_payload에 보존됨
+
+annex body_text 정책:
+    - PlatformDocument.body_text에는 조문 + 부칙 중심으로 유지
+    - annex는 normalize_annex_for_rag() 요약 텍스트만 body_text에 포함
+    - 표/흐름도형 원문이 body_text에 그대로 섞이지 않게 한다
 """
 
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 from typing import Any
 
@@ -49,7 +60,13 @@ from schemas.platform_knowledge_schema import (
     PlatformChunkSchema,
     PlatformDocumentSchema,
 )
+from services.platform.mappers.admin_rule_annex_formatter import (
+    build_annex_chunks_text,
+    classify_annex_text,
+    normalize_annex_for_rag,
+)
 from services.platform.mappers.admin_rule_payload_adapter import (
+    _to_text,
     canonicalize_admin_rule_payload,
 )
 
@@ -72,13 +89,16 @@ _FIELD_ADDENDUM = "부칙내용"
 _FIELD_ANNEX = "별표내용"
 # ─────────────────────────────────────────────────────────────────────────────
 
+_ARTICLE_PREFIX_RE = re.compile(r"^제\s*\d+\s*조(?:\s*\(|\b)")
+_HEADING_PREFIX_RE = re.compile(r"^제\s*\d+\s*[장절관]\b")
+
 
 def _parse_date(raw: str | None) -> datetime | None:
     if not raw:
         return None
-    raw = raw.strip().replace("-", "").replace(".", "").replace(" ", "")
+    text = _to_text(raw).replace("-", "").replace(".", "").replace(" ", "")
     try:
-        return datetime.strptime(raw[:8], "%Y%m%d")
+        return datetime.strptime(text[:8], "%Y%m%d")
     except (ValueError, IndexError):
         return None
 
@@ -98,17 +118,17 @@ def _build_article_text(article: dict | str) -> str:
     """
     조문 항목에서 본문 텍스트를 추출한다.
 
-    - dict: 조문번호 + 조문내용 조합
+    - dict: 조문번호 + 조문내용 조합. 조문내용은 _to_text()로 안전하게 처리.
     - str: 텍스트 그대로 반환
     """
     if isinstance(article, str):
-        return article.strip()
+        return _to_text(article)
 
     if isinstance(article, dict):
-        no = str(article.get(_FIELD_ARTICLE_NO) or "").strip()
-        content = (article.get(_FIELD_ARTICLE_CONTENT) or "").strip()
+        no = _to_text(article.get(_FIELD_ARTICLE_NO))
+        content = _to_text(article.get(_FIELD_ARTICLE_CONTENT))
         if no:
-            return f"제{no}조\n{content}".strip()
+            return f"제{no}조\n{content}".strip() if content else f"제{no}조"
         return content
 
     return ""
@@ -117,8 +137,42 @@ def _build_article_text(article: dict | str) -> str:
 def _get_article_no(article: dict | str) -> str:
     """dict 조문에서 조문번호를 추출한다. str이면 빈 문자열 반환."""
     if isinstance(article, dict):
-        return str(article.get(_FIELD_ARTICLE_NO) or "").strip()
+        return _to_text(article.get(_FIELD_ARTICLE_NO))
     return ""
+
+
+def _classify_article_entry(article: dict | str) -> str:
+    """
+    canonicalized 조문 항목을 article / heading / unknown으로 분류한다.
+
+    - dict 조문은 article로 간주한다.
+    - str 조문은 접두 패턴으로 장/절/관 제목과 실제 조문을 구분한다.
+    """
+    if isinstance(article, dict):
+        return "article"
+
+    text = _to_text(article)
+    if not text:
+        return "unknown"
+    if _ARTICLE_PREFIX_RE.match(text):
+        return "article"
+    if _HEADING_PREFIX_RE.match(text):
+        return "heading"
+    return "unknown"
+
+
+def _join_heading_context(headings: list[str], article_no: str) -> str | None:
+    """
+    누적된 heading context를 조문 section_title로 합친다.
+
+    예:
+        ["제2장 정원관리", "제1절 채용"] + "5"
+        -> "제2장 정원관리 / 제1절 채용 / 제5조"
+    """
+    parts = [heading for heading in headings if heading]
+    if article_no:
+        parts.append(f"제{article_no}조")
+    return " / ".join(parts) if parts else None
 
 
 def validate_payload(flat: dict) -> None:
@@ -136,18 +190,18 @@ def validate_payload(flat: dict) -> None:
     """
     errors: list[str] = []
 
-    external_id = str(flat.get(_FIELD_ID) or "").strip()
+    external_id = _to_text(flat.get(_FIELD_ID))
     if not external_id:
         errors.append(f"{_FIELD_ID}(external_id) 누락")
 
-    title = (flat.get(_FIELD_NAME) or "").strip()
+    title = _to_text(flat.get(_FIELD_NAME))
     if not title:
         errors.append(f"{_FIELD_NAME}(title) 누락")
 
     articles: list[dict | str] = flat.get(_FIELD_ARTICLES) or []
     has_article_text = any(_build_article_text(a) for a in articles)
-    has_addendum = (flat.get(_FIELD_ADDENDUM) or "").strip()
-    has_annex = (flat.get(_FIELD_ANNEX) or "").strip()
+    has_addendum = _to_text(flat.get(_FIELD_ADDENDUM))
+    has_annex = _to_text(flat.get(_FIELD_ANNEX))
 
     if not has_article_text and not has_addendum and not has_annex:
         errors.append(
@@ -166,14 +220,19 @@ def normalize(raw_payload: dict) -> PlatformDocumentSchema:
 
     중첩 구조와 flat 구조 모두 수용한다.
     adapter에서 canonical payload로 통일한 뒤 정규화를 진행한다.
+    모든 텍스트 필드는 _to_text()를 통해 안전하게 문자열로 변환한다.
+
+    body_text annex 정책:
+        annex 원문 대신 normalize_annex_for_rag() 요약 텍스트만 포함한다.
+        표/흐름도형 레이아웃 원문이 body_text에 섞이지 않게 한다.
     """
     flat = canonicalize_admin_rule_payload(raw_payload)
     validate_payload(flat)
 
-    external_id = str(flat.get(_FIELD_ID) or "")
-    rule_name = flat.get(_FIELD_NAME) or ""
-    agency = flat.get(_FIELD_AGENCY) or None
-    rule_no = flat.get(_FIELD_RULE_NO) or None
+    external_id = _to_text(flat.get(_FIELD_ID))
+    rule_name = _to_text(flat.get(_FIELD_NAME))
+    agency = _to_text(flat.get(_FIELD_AGENCY)) or None
+    rule_no = _to_text(flat.get(_FIELD_RULE_NO)) or None
 
     title = rule_name or None
     display_title = title
@@ -184,12 +243,34 @@ def normalize(raw_payload: dict) -> PlatformDocumentSchema:
     effective_date_str = flat.get(_FIELD_EFFECTIVE_DATE)
 
     articles: list[dict | str] = flat.get(_FIELD_ARTICLES) or []
-    article_texts = [_build_article_text(a) for a in articles if _build_article_text(a)]
-    body_parts = article_texts + [
-        flat.get(_FIELD_ADDENDUM) or "",
-        flat.get(_FIELD_ANNEX) or "",
-    ]
-    body_text = "\n\n".join(p.strip() for p in body_parts if p.strip())
+    article_texts: list[str] = []
+    pending_headings: list[str] = []
+    for article in articles:
+        kind = _classify_article_entry(article)
+        if kind == "heading":
+            heading = _to_text(article)
+            if heading:
+                pending_headings.append(heading)
+            continue
+
+        text = _build_article_text(article)
+        if not text:
+            continue
+
+        if pending_headings:
+            article_texts.append("\n".join([*pending_headings, text]))
+            pending_headings = []
+        else:
+            article_texts.append(text)
+    addendum_text = _to_text(flat.get(_FIELD_ADDENDUM))
+
+    # annex: 원문 대신 요약 텍스트만 body_text에 포함
+    annex_raw = _to_text(flat.get(_FIELD_ANNEX))
+    annex_type = classify_annex_text(annex_raw) if annex_raw else "plain_text"
+    annex_summary = normalize_annex_for_rag(annex_raw, annex_type) if annex_raw else ""
+
+    body_parts = article_texts + [addendum_text, annex_summary]
+    body_text = "\n\n".join(p for p in body_parts if p)
 
     metadata: dict[str, Any] = {
         "rule_no": rule_no,
@@ -216,9 +297,13 @@ def build_chunks(
     조문 단위 chunk 생성 + 부칙/별표 별도 chunk 분리.
 
     chunk_type 분류:
-        "rule"     — 조문 단위
-        "addendum" — 부칙내용 (본문과 분리)
-        "annex"    — 별표내용 (본문과 분리)
+        "rule"     — 조문 단위 (기존 유지)
+        "addendum" — 부칙내용 (기존 유지)
+        "annex"    — 별표: annex_formatter 통해 유형별 요약 텍스트, 최대 2개
+
+    annex chunk metadata 추가 필드:
+        annex_type:       "plain_text" | "table" | "flowchart" | "diagram_like"
+        normalized_from:  "raw_annex"
     """
     flat = canonicalize_admin_rule_payload(raw_payload)
     chunks: list[PlatformChunkSchema] = []
@@ -234,9 +319,17 @@ def build_chunks(
 
     articles: list[dict | str] = flat.get(_FIELD_ARTICLES) or []
 
-    # 조문 chunk
+    # ── 조문 chunk ────────────────────────────────────────────────────────────
     if articles:
+        pending_headings: list[str] = []
         for article in articles:
+            kind = _classify_article_entry(article)
+            if kind == "heading":
+                heading = _to_text(article)
+                if heading:
+                    pending_headings.append(heading)
+                continue
+
             text = _build_article_text(article)
             if not text:
                 continue
@@ -251,20 +344,32 @@ def build_chunks(
                         chunk_type="rule",
                         chunk_order=order,
                         chunk_text=part,
-                        section_title=f"제{article_no}조" if article_no else None,
-                        metadata={**base_meta, "article_no": article_no or None},
+                        section_title=_join_heading_context(
+                            pending_headings, article_no
+                        ),
+                        metadata={
+                            **base_meta,
+                            "article_no": article_no or None,
+                            "heading_context": pending_headings or None,
+                        },
                     )
                 )
                 order += 1
+            pending_headings = []
     else:
-        # 조문 없을 때 — body_text에서 부칙/별표 제외 부분을 단일 chunk
-        addendum_text = (flat.get(_FIELD_ADDENDUM) or "").strip()
-        annex_text = (flat.get(_FIELD_ANNEX) or "").strip()
+        # 조문 없을 때 — body_text에서 부칙/별표 요약 제외 부분을 단일 chunk
+        addendum_text = _to_text(flat.get(_FIELD_ADDENDUM))
+        annex_raw = _to_text(flat.get(_FIELD_ANNEX))
+        annex_type = classify_annex_text(annex_raw) if annex_raw else "plain_text"
+        annex_summary = (
+            normalize_annex_for_rag(annex_raw, annex_type) if annex_raw else ""
+        )
+
         remaining = doc.body_text
         if addendum_text:
             remaining = remaining.replace(addendum_text, "").strip()
-        if annex_text:
-            remaining = remaining.replace(annex_text, "").strip()
+        if annex_summary:
+            remaining = remaining.replace(annex_summary, "").strip()
 
         if remaining:
             for part in _split_by_length(
@@ -282,8 +387,8 @@ def build_chunks(
                 )
                 order += 1
 
-    # 부칙 chunk (본문과 분리)
-    addendum = (flat.get(_FIELD_ADDENDUM) or "").strip()
+    # ── 부칙 chunk ────────────────────────────────────────────────────────────
+    addendum = _to_text(flat.get(_FIELD_ADDENDUM))
     if addendum:
         for part in _split_by_length(
             addendum, max_chars=_MAX_CHUNK_CHARS, overlap=_OVERLAP_CHARS
@@ -301,12 +406,16 @@ def build_chunks(
             )
             order += 1
 
-    # 별표 chunk (본문과 분리)
-    annex = (flat.get(_FIELD_ANNEX) or "").strip()
-    if annex:
-        for part in _split_by_length(
-            annex, max_chars=_MAX_CHUNK_CHARS, overlap=_OVERLAP_CHARS
-        ):
+    # ── 별표 chunk — 유형별 요약 텍스트, 최대 2개 ────────────────────────────
+    annex_raw = _to_text(flat.get(_FIELD_ANNEX))
+    if annex_raw:
+        annex_parts, annex_type = build_annex_chunks_text(annex_raw)
+        annex_meta = {
+            **base_meta,
+            "annex_type": annex_type,
+            "normalized_from": "raw_annex",
+        }
+        for part in annex_parts:
             chunks.append(
                 PlatformChunkSchema(
                     source_type="admin_rule",
@@ -315,9 +424,18 @@ def build_chunks(
                     chunk_order=order,
                     chunk_text=part,
                     section_title="별표",
-                    metadata=base_meta,
+                    metadata=annex_meta,
                 )
             )
             order += 1
+
+        if annex_parts:
+            logger.debug(
+                "[admin_rule mapper] annex chunk 생성: external_id=%s "
+                "annex_type=%s chunks=%d",
+                doc.external_id,
+                annex_type,
+                len(annex_parts),
+            )
 
     return chunks
