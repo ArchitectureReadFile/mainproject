@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+DocumentCommentScopeLiteral = Literal["GENERAL", "REVIEW"]
 
 
 class DocumentCommentMentionRequest(BaseModel):
@@ -47,6 +49,7 @@ class DocumentCommentCreateRequest(BaseModel):
 
     content: str = Field(..., min_length=1, max_length=2000)
     parent_id: Optional[int] = None
+    scope: DocumentCommentScopeLiteral = "GENERAL"
     page: Optional[int] = Field(None, ge=1)
     x: Optional[float] = Field(None, ge=0.0, le=1.0)
     y: Optional[float] = Field(None, ge=0.0, le=1.0)
@@ -120,6 +123,8 @@ class DocumentCommentResponse(BaseModel):
 
     content: str
     is_deleted: bool = False
+
+    scope: DocumentCommentScopeLiteral = "GENERAL"
 
     page: Optional[int] = None
     x: Optional[float] = None

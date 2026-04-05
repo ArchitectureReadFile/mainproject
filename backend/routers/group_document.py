@@ -1,7 +1,7 @@
 from typing import Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -312,6 +312,7 @@ def delete_document(
 def list_document_comments(
     group_id: int,
     doc_id: int,
+    scope: str = Query("GENERAL", pattern="^(GENERAL|REVIEW)$"),
     service: DocumentCommentService = Depends(get_document_comment_service),
     group_service: GroupService = Depends(get_group_service),
     current_user: User = Depends(get_current_user),
@@ -323,6 +324,7 @@ def list_document_comments(
         group_id=group_id,
         current_user_id=current_user.id,
         current_user_role=role,
+        scope=scope,
     )
 
 
@@ -352,6 +354,7 @@ def create_document_comment(
         page=payload.page,
         x=payload.x,
         y=payload.y,
+        scope=payload.scope,
         mentions=payload.mentions,
     )
 

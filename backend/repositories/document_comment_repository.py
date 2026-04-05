@@ -12,7 +12,10 @@ class DocumentCommentRepository:
         self.db = db
 
     def get_root_comments_by_document_id(
-        self, document_id: int
+        self,
+        document_id: int,
+        *,
+        scope: str,
     ) -> list[DocumentComment]:
         """
         문서의 루트 댓글 목록을 생성일 오름차순으로 조회
@@ -39,6 +42,7 @@ class DocumentCommentRepository:
             .filter(
                 DocumentComment.document_id == document_id,
                 DocumentComment.parent_id.is_(None),
+                DocumentComment.comment_scope == scope,
             )
             .order_by(DocumentComment.created_at.asc(), DocumentComment.id.asc())
             .all()
@@ -72,6 +76,7 @@ class DocumentCommentRepository:
         page: int | None = None,
         x: float | None = None,
         y: float | None = None,
+        scope: str = "GENERAL",
     ) -> DocumentComment:
         """
         댓글 또는 대댓글을 생성
@@ -84,6 +89,7 @@ class DocumentCommentRepository:
             page=page,
             x=x,
             y=y,
+            comment_scope=scope,
         )
         self.db.add(comment)
         self.db.flush()

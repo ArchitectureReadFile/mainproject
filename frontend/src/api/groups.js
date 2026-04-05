@@ -170,8 +170,10 @@ export async function getPendingDocuments(
 /**
  * 문서 댓글 목록을 조회
  */
-export async function getDocumentComments(groupId, docId) {
-    const { data } = await client.get(`/groups/${groupId}/documents/${docId}/comments`)
+export async function getDocumentComments(groupId, docId, { scope = 'GENERAL' } = {}) {
+    const { data } = await client.get(`/groups/${groupId}/documents/${docId}/comments`, {
+        params: { scope },
+    })
     return data
 }
 

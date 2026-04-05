@@ -166,7 +166,7 @@ function getCommentAnchor(comment) {
 }
 
 /**
- * 멘션 span을 반영해서 댓글 본문을 렌더링한다.
+ * 멘션 span을 반영해서 댓글 본문을 렌더링한다.(멘션 강조)
  */
 function renderCommentContent(content, mentions) {
     if (!mentions?.length) {
@@ -239,6 +239,26 @@ export default function DocumentPage() {
     const [deletingCommentId, setDeletingCommentId] = useState(null)
     const [isComposerOpen, setIsComposerOpen] = useState(false)
 
+    const commentScope = useMemo(() => {
+        const params = new URLSearchParams(location.search)
+        const rawScope = params.get('comment_scope')
+        return rawScope === 'review' ? 'REVIEW' : 'GENERAL'
+    }, [location.search])
+
+    const commentPanelMeta = useMemo(() => {
+        if (commentScope === 'REVIEW') {
+            return {
+                title: '검토 댓글',
+                description: '검토 중 의견 공유용 댓글입니다. 최종 반려 사유는 별도로 입력해주세요.',
+            }
+        }
+
+        return {
+            title: '문서 댓글',
+            description: '문서 협업용 댓글입니다.',
+        }
+    }, [commentScope])
+
     const [mentionState, setMentionState] = useState({
         open: false,
         query: '',
@@ -273,14 +293,16 @@ export default function DocumentPage() {
         setCommentsLoading(true)
 
         try {
-            const commentData = await getDocumentComments(group_id, doc_id)
+            const commentData = await getDocumentComments(group_id, doc_id, {
+                scope: commentScope,
+            })
             setComments(commentData.items ?? [])
         } catch (e) {
             toast.error(e.message || '댓글을 불러오지 못했습니다.')
         } finally {
             setCommentsLoading(false)
         }
-    }, [group_id, doc_id])
+    }, [group_id, doc_id, commentScope])
 
     /**
      * 문서 상세, 댓글, 멤버 목록을 한 번에 로드한다.
@@ -292,7 +314,9 @@ export default function DocumentPage() {
         try {
             const [docData, commentData, memberData] = await Promise.all([
                 getGroupDocumentDetail(group_id, doc_id),
-                getDocumentComments(group_id, doc_id),
+                getDocumentComments(group_id, doc_id, {
+                    scope: commentScope,
+                }),
                 getMembers(group_id),
             ])
 
@@ -306,7 +330,7 @@ export default function DocumentPage() {
             setLoading(false)
             setCommentsLoading(false)
         }
-    }, [group_id, doc_id])
+    }, [group_id, doc_id, commentScope])
 
     /**
      * 멘션 팝오버 상태를 현재 커서 기준으로 동기화한다.
@@ -590,6 +614,7 @@ export default function DocumentPage() {
 
         try {
             const payload = {
+                scope: commentScope,
                 content,
                 parent_id: replyParentId,
                 mentions: buildMentionPayloads(content, mentionableMembers),
@@ -791,9 +816,9 @@ export default function DocumentPage() {
                                 <MessageSquareText size={16} />
                             </div>
                             <div>
-                                <p className="text-sm font-semibold text-foreground">문서 댓글</p>
+                                <p className="text-sm font-semibold text-foreground">{commentPanelMeta.title}</p>
                                 <p className="text-xs text-muted-foreground">
-                                    댓글 목록을 보면서 필요할 때만 작성창을 열 수 있습니다.
+                                    {commentPanelMeta.description}
                                 </p>
                             </div>
                         </div>
@@ -1207,9 +1232,6 @@ export default function DocumentPage() {
                         <div className="flex items-center justify-between border-b px-5 py-4">
                             <div>
                                 <h3 className="text-sm font-semibold text-foreground">댓글 패널</h3>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                    위치 마커, 스레드, 멘션 입력이 연결된 상태입니다.
-                                </p>
                             </div>
 
                             <Button

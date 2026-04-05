@@ -97,6 +97,11 @@ class SubscriptionPlan(enum.Enum):
     PREMIUM = "PREMIUM"
 
 
+class DocumentCommentScope(enum.Enum):
+    GENERAL = "GENERAL"
+    REVIEW = "REVIEW"
+
+
 document_categories = Table(
     "document_categories",
     Base.metadata,
@@ -487,9 +492,6 @@ class Summary(Base):
     document = relationship("Document", back_populates="summary")
 
 
-# /Users/dew0211/Desktop/mainproject/backend/models/model.py
-
-
 class DocumentComment(Base):
     __tablename__ = "document_comments"
 
@@ -515,6 +517,14 @@ class DocumentComment(Base):
     )
 
     content = Column(Text, nullable=False)
+
+    comment_scope = Column(
+        String(20),
+        nullable=False,
+        default=DocumentCommentScope.GENERAL.value,
+        server_default=DocumentCommentScope.GENERAL.value,
+        index=True,
+    )
 
     page = Column(Integer, nullable=True)
     x = Column(Float, nullable=True)

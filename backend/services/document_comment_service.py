@@ -79,6 +79,7 @@ class DocumentCommentService:
             document_id=comment.document_id,
             parent_id=comment.parent_id,
             content=display_content,
+            scope=comment.comment_scope,
             is_deleted=is_deleted,
             page=None if is_deleted else comment.page,
             x=None if is_deleted else comment.x,
@@ -194,6 +195,7 @@ class DocumentCommentService:
         group_id: int,
         current_user_id: int,
         current_user_role: MembershipRole | None,
+        scope: str,
     ) -> DocumentCommentListResponse:
         """
         문서의 루트 댓글과 대댓글 목록을 반환
@@ -205,7 +207,10 @@ class DocumentCommentService:
             current_user_role=current_user_role,
         )
 
-        comments = self.comment_repository.get_root_comments_by_document_id(doc_id)
+        comments = self.comment_repository.get_root_comments_by_document_id(
+            doc_id,
+            scope=scope,
+        )
 
         items = [
             self._apply_delete_permission_recursively(
@@ -231,6 +236,7 @@ class DocumentCommentService:
         page: int | None = None,
         x: float | None = None,
         y: float | None = None,
+        scope: str = "GENERAL",
         mentions: list[DocumentCommentMentionRequest] | None = None,
     ) -> DocumentCommentResponse:
         """
@@ -260,6 +266,9 @@ class DocumentCommentService:
             if parent_comment.deleted_at is not None:
                 raise AppException(ErrorCode.COMMENT_PARENT_DELETED)
 
+            if parent_comment.comment_scope != scope:
+                raise AppException(ErrorCode.COMMENT_PARENT_MISMATCH)
+
         normalized_mentions = self._validate_and_normalize_mentions(
             group_id=group_id,
             content=content,
@@ -275,6 +284,7 @@ class DocumentCommentService:
                 page=page,
                 x=x,
                 y=y,
+                scope=scope,
             )
 
             self.comment_repository.create_comment_mentions(
