@@ -47,6 +47,9 @@ class DocumentCommentCreateRequest(BaseModel):
 
     content: str = Field(..., min_length=1, max_length=2000)
     parent_id: Optional[int] = None
+    page: Optional[int] = Field(None, ge=1)
+    x: Optional[float] = Field(None, ge=0.0, le=1.0)
+    y: Optional[float] = Field(None, ge=0.0, le=1.0)
     mentions: list[DocumentCommentMentionRequest] = Field(default_factory=list)
 
     @field_validator("content")
@@ -59,6 +62,23 @@ class DocumentCommentCreateRequest(BaseModel):
         if not value.strip():
             raise ValueError("댓글 내용은 공백만 입력할 수 없습니다.")
         return value
+
+    @model_validator(mode="after")
+    def validate_anchor_fields(self):
+        """
+        루트 댓글은 위치 좌표를 함께 받아야 하고,
+        대댓글은 위치 좌표를 직접 받지 않음
+        """
+        has_anchor = self.page is not None or self.x is not None or self.y is not None
+
+        if self.parent_id is None:
+            if self.page is None or self.x is None or self.y is None:
+                raise ValueError("루트 댓글은 page, x, y 좌표가 필요합니다.")
+        else:
+            if has_anchor:
+                raise ValueError("대댓글은 위치 좌표를 직접 받을 수 없습니다.")
+
+        return self
 
 
 class DocumentCommentAuthorResponse(BaseModel):
@@ -101,6 +121,10 @@ class DocumentCommentResponse(BaseModel):
     content: str
     is_deleted: bool = False
 
+    page: Optional[int] = None
+    x: Optional[float] = None
+    y: Optional[float] = None
+
     author: Optional[DocumentCommentAuthorResponse] = None
     can_delete: bool = False
 
@@ -109,7 +133,7 @@ class DocumentCommentResponse(BaseModel):
     deleted_at: Optional[datetime] = None
 
     mentions: list[DocumentCommentMentionResponse] = Field(default_factory=list)
-    replies: list[DocumentCommentResponse] = Field(default_factory=list)
+    replies: list["DocumentCommentResponse"] = Field(default_factory=list)
 
     class Config:
         from_attributes = True

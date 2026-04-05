@@ -69,6 +69,9 @@ class DocumentCommentRepository:
         author_user_id: int,
         content: str,
         parent_id: int | None = None,
+        page: int | None = None,
+        x: float | None = None,
+        y: float | None = None,
     ) -> DocumentComment:
         """
         댓글 또는 대댓글을 생성
@@ -78,6 +81,9 @@ class DocumentCommentRepository:
             author_user_id=author_user_id,
             content=content,
             parent_id=parent_id,
+            page=page,
+            x=x,
+            y=y,
         )
         self.db.add(comment)
         self.db.flush()

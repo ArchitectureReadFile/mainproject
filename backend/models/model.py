@@ -6,6 +6,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -486,6 +487,9 @@ class Summary(Base):
     document = relationship("Document", back_populates="summary")
 
 
+# /Users/dew0211/Desktop/mainproject/backend/models/model.py
+
+
 class DocumentComment(Base):
     __tablename__ = "document_comments"
 
@@ -497,15 +501,12 @@ class DocumentComment(Base):
         nullable=False,
         index=True,
     )
-    # 유저 탈퇴/비활성 상황을 고려해 SET NULL
     author_user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-
-    # parent_id가 있으면 대댓글
     parent_id = Column(
         Integer,
         ForeignKey("document_comments.id", ondelete="CASCADE"),
@@ -514,6 +515,10 @@ class DocumentComment(Base):
     )
 
     content = Column(Text, nullable=False)
+
+    page = Column(Integer, nullable=True)
+    x = Column(Float, nullable=True)
+    y = Column(Float, nullable=True)
 
     deleted_by_user_id = Column(
         Integer,
@@ -529,30 +534,25 @@ class DocumentComment(Base):
     )
 
     document = relationship("Document", back_populates="comments")
-
     author = relationship(
         "User",
         foreign_keys=[author_user_id],
         back_populates="authored_comments",
     )
-
     deleted_by = relationship(
         "User",
         foreign_keys=[deleted_by_user_id],
         back_populates="deleted_comments",
     )
-
     parent = relationship(
         "DocumentComment",
         remote_side=[id],
         back_populates="replies",
     )
-
     replies = relationship(
         "DocumentComment",
         back_populates="parent",
     )
-
     mentions = relationship(
         "DocumentCommentMention",
         back_populates="comment",

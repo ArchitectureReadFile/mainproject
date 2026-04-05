@@ -349,6 +349,9 @@ def create_document_comment(
         current_user_role=role,
         content=payload.content,
         parent_id=payload.parent_id,
+        page=payload.page,
+        x=payload.x,
+        y=payload.y,
         mentions=payload.mentions,
     )
 

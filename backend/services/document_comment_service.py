@@ -80,6 +80,9 @@ class DocumentCommentService:
             parent_id=comment.parent_id,
             content=display_content,
             is_deleted=is_deleted,
+            page=None if is_deleted else comment.page,
+            x=None if is_deleted else comment.x,
+            y=None if is_deleted else comment.y,
             author=self._build_author_response(comment),
             can_delete=False,
             created_at=comment.created_at,
@@ -225,6 +228,9 @@ class DocumentCommentService:
         current_user_role: MembershipRole | None,
         content: str,
         parent_id: int | None = None,
+        page: int | None = None,
+        x: float | None = None,
+        y: float | None = None,
         mentions: list[DocumentCommentMentionRequest] | None = None,
     ) -> DocumentCommentResponse:
         """
@@ -266,6 +272,9 @@ class DocumentCommentService:
                 author_user_id=current_user_id,
                 content=content,
                 parent_id=parent_id,
+                page=page,
+                x=x,
+                y=y,
             )
 
             self.comment_repository.create_comment_mentions(
