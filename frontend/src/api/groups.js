@@ -166,6 +166,33 @@ export async function getPendingDocuments(
     return data
 }
 
+
+/**
+ * 문서 댓글 목록을 조회
+ */
+export async function getDocumentComments(groupId, docId) {
+    const { data } = await client.get(`/groups/${groupId}/documents/${docId}/comments`)
+    return data
+}
+
+/**
+ * 문서 댓글 또는 대댓글을 생성
+ * 루트 댓글일 때는 PDF 위치 좌표를 함께 전달
+ */
+export async function createDocumentComment(groupId, docId, payload) {
+    const { data } = await client.post(`/groups/${groupId}/documents/${docId}/comments`, payload)
+    return data
+}
+
+/**
+ * 문서 댓글을 삭제
+ */
+export async function deleteDocumentComment(groupId, commentId) {
+    const { data } = await client.delete(`/groups/${groupId}/comments/${commentId}`)
+    return data
+}
+
+
 export async function restoreGroupDocument(groupId, docId) {
   await client.post(`/groups/${groupId}/documents/${docId}/restore`)
 }
@@ -245,3 +272,5 @@ export async function rejectDocument(groupId, docId, feedback) {
 export async function leaveGroup(groupId) {
     await client.post(`/groups/${groupId}/leave`)
 }
+
+
