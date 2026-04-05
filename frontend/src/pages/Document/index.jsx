@@ -166,15 +166,6 @@ function getCommentAnchor(comment) {
 }
 
 /**
- * 댓글 트리 전체 개수를 계산한다.
- */
-function countAllComments(comments) {
-    return comments.reduce((count, comment) => {
-        return count + 1 + countAllComments(comment.replies ?? [])
-    }, 0)
-}
-
-/**
  * 멘션 span을 반영해서 댓글 본문을 렌더링한다.
  */
 function renderCommentContent(content, mentions) {
@@ -210,6 +201,17 @@ function renderCommentContent(content, mentions) {
 
     return parts
 }
+
+/**
+ * 삭제되지 않은 댓글 트리 전체 개수를 계산
+ */
+function countVisibleComments(comments) {
+    return comments.reduce((count, comment) => {
+        const selfCount = comment.is_deleted ? 0 : 1
+        return count + selfCount + countVisibleComments(comment.replies ?? [])
+    }, 0)
+}
+
 
 export default function DocumentPage() {
     const { user } = useAuth()
@@ -465,7 +467,7 @@ export default function DocumentPage() {
     }, [anchoredThreads])
 
     const totalCommentCount = useMemo(() => {
-        return countAllComments(comments)
+        return countVisibleComments(comments)
     }, [comments])
 
     const replyTarget = useMemo(() => {
@@ -582,6 +584,8 @@ export default function DocumentPage() {
             return
         }
 
+        const isRootComment = !replyParentId
+
         setIsSubmittingComment(true)
 
         try {
@@ -607,6 +611,10 @@ export default function DocumentPage() {
                 query: '',
                 start: -1,
             })
+
+            if (isRootComment) {
+                setIsComposerOpen(false)
+            }
 
             await loadComments()
             setIsCommentPanelOpen(true)
@@ -1074,13 +1082,16 @@ export default function DocumentPage() {
 
                         <div className="flex flex-wrap gap-2">
                             <Button
-                                variant={isCommentPanelOpen ? 'secondary' : 'outline'}
+                                variant={isCommentPanelOpen ? 'secondary' : 'default'}
                                 size="sm"
                                 onClick={() => setIsCommentPanelOpen((prev) => !prev)}
-                                className="gap-1.5"
+                                className={cn(
+                                    'gap-1.5 shadow-sm',
+                                    !isCommentPanelOpen && 'bg-primary text-primary-foreground hover:bg-primary/90'
+                                )}
                             >
                                 {isCommentPanelOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
-                                댓글 패널
+                                {isCommentPanelOpen ? '댓글 닫기' : `댓글 열기 (${totalCommentCount})`}
                             </Button>
                         </div>
                     </div>
