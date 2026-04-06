@@ -46,8 +46,26 @@ class JobStatusCount(BaseModel):
     FAILED: int
 
 
+class DocumentOverview(BaseModel):
+    total_documents: int
+    active_documents: int
+    delete_pending_documents: int
+    deleted_documents: int
+    summary_completed_documents: int
+
+
+class ChatOverview(BaseModel):
+    total_sessions: int
+    total_messages: int
+    total_ai_responses: int
+    today_ai_responses: int
+    last_7d_ai_responses: int
+
+
 class ServiceUsage(BaseModel):
     storage: StorageInfo
+    document_overview: DocumentOverview
+    chat_overview: ChatOverview
     daily_uploads: list[DailyUploadItem]
     document_jobs: JobStatusCount
 

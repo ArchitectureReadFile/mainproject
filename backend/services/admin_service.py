@@ -21,7 +21,11 @@ from sqlalchemy.orm import Session
 
 from errors import AppException, ErrorCode
 from models.model import (
+    ChatMessage,
+    ChatMessageRole,
+    ChatSession,
     Document,
+    DocumentLifecycleStatus,
     DocumentStatus,
     Group,
     GroupMember,
@@ -39,7 +43,9 @@ from schemas.admin import (
     AdminStatsResponse,
     AdminUsageResponse,
     AdminUserListResponse,
+    ChatOverview,
     DailyUploadItem,
+    DocumentOverview,
     JobStatusCount,
     RagUsage,
     ServiceUsage,
@@ -187,9 +193,74 @@ def get_admin_usage(db: Session) -> AdminUsageResponse:
             FAILED=mapping.get(DocumentStatus.FAILED, 0),
         )
 
+    today_start = datetime.combine(today, datetime.min.time()).replace(tzinfo=None)
+    last_7d_start = datetime.combine(
+        today - timedelta(days=6), datetime.min.time()
+    ).replace(tzinfo=None)
+
     return AdminUsageResponse(
         service_usage=ServiceUsage(
             storage=StorageInfo(used_gb=0.0, limit_gb=10.0),
+            document_overview=DocumentOverview(
+                total_documents=db.query(func.count(Document.id)).scalar() or 0,
+                active_documents=(
+                    db.query(func.count(Document.id))
+                    .filter(Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE)
+                    .scalar()
+                    or 0
+                ),
+                delete_pending_documents=(
+                    db.query(func.count(Document.id))
+                    .filter(
+                        Document.lifecycle_status
+                        == DocumentLifecycleStatus.DELETE_PENDING
+                    )
+                    .scalar()
+                    or 0
+                ),
+                deleted_documents=(
+                    db.query(func.count(Document.id))
+                    .filter(
+                        Document.lifecycle_status == DocumentLifecycleStatus.DELETED
+                    )
+                    .scalar()
+                    or 0
+                ),
+                summary_completed_documents=(
+                    db.query(func.count(Document.id))
+                    .filter(Document.processing_status == DocumentStatus.DONE)
+                    .scalar()
+                    or 0
+                ),
+            ),
+            chat_overview=ChatOverview(
+                total_sessions=db.query(func.count(ChatSession.id)).scalar() or 0,
+                total_messages=db.query(func.count(ChatMessage.id)).scalar() or 0,
+                total_ai_responses=(
+                    db.query(func.count(ChatMessage.id))
+                    .filter(ChatMessage.role == ChatMessageRole.ASSISTANT)
+                    .scalar()
+                    or 0
+                ),
+                today_ai_responses=(
+                    db.query(func.count(ChatMessage.id))
+                    .filter(
+                        ChatMessage.role == ChatMessageRole.ASSISTANT,
+                        ChatMessage.created_at >= today_start,
+                    )
+                    .scalar()
+                    or 0
+                ),
+                last_7d_ai_responses=(
+                    db.query(func.count(ChatMessage.id))
+                    .filter(
+                        ChatMessage.role == ChatMessageRole.ASSISTANT,
+                        ChatMessage.created_at >= last_7d_start,
+                    )
+                    .scalar()
+                    or 0
+                ),
+            ),
             daily_uploads=list(reversed(daily_uploads)),
             document_jobs=_job_counts(Document.processing_status),
         ),

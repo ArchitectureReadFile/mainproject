@@ -1,34 +1,39 @@
 import { fetchAdminPlatformSummary, fetchAdminStats, fetchAdminUsage, fetchAdminUsers } from "@/api/admin";
 import AdminMembersSection from "@/features/admin/components/AdminMembersSection";
+import AdminDocumentAiSection from "@/features/admin/components/AdminDocumentAiSection";
 import AdminOverviewSection from "@/features/admin/components/AdminOverviewSection";
 import AdminRagDbSection from "@/features/admin/components/AdminRagDbSection";
-import AdminUsageSection from "@/features/admin/components/AdminUsageSection";
 import { ERROR_CODE } from "@/lib/errors";
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 const TABS = [
   { key: "overview", label: "개요" },
-  { key: "usage", label: "사용량" },
+  { key: "documentAi", label: "문서/AI 현황" },
   { key: "ragdb", label: "RAG DB 관리" },
   { key: "members", label: "회원 관리" },
 ];
 
 const FETCHER_MAP = {
   overview: fetchAdminStats,
-  usage: fetchAdminUsage,
+  documentAi: fetchAdminUsage,
   ragdb: fetchAdminPlatformSummary,
   members: fetchAdminUsers,
 };
 
 const SETTER_MAP = (setters) => ({
   overview: setters.setStats,
-  usage: setters.setUsage,
+  documentAi: setters.setUsage,
   ragdb: setters.setPlatformSummary,
   members: setters.setUsers,
 });
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(() =>
+    TABS.some((tab) => tab.key === tabFromUrl) ? tabFromUrl : "overview",
+  );
   const [stats, setStats] = useState(null);
   const [usage, setUsage] = useState(null);
   const [platformSummary, setPlatformSummary] = useState(null);
@@ -36,6 +41,11 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [forbidden, setForbidden] = useState(false);
+
+  useEffect(() => {
+    const nextTab = TABS.some((tab) => tab.key === tabFromUrl) ? tabFromUrl : "overview";
+    setActiveTab(nextTab);
+  }, [tabFromUrl]);
 
   const loadTab = useCallback((tab) => {
     const fetcher = FETCHER_MAP[tab];
@@ -60,6 +70,13 @@ export default function AdminPage() {
   useEffect(() => {
     loadTab(activeTab);
   }, [activeTab, loadTab]);
+
+  const handleTabChange = useCallback((tab) => {
+    setActiveTab(tab);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", tab);
+    setSearchParams(nextParams);
+  }, [searchParams, setSearchParams]);
 
   const handleRagRefetch = useCallback(() => loadTab("ragdb"), [loadTab]);
 
@@ -88,7 +105,7 @@ export default function AdminPage() {
         {TABS.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => handleTabChange(tab.key)}
             className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.key
                 ? "border-primary bg-primary/10 text-primary"
@@ -110,7 +127,7 @@ export default function AdminPage() {
       {!loading && !error && (
         <>
           {activeTab === "overview" && stats && <AdminOverviewSection stats={stats} />}
-          {activeTab === "usage" && usage && <AdminUsageSection usage={usage} />}
+          {activeTab === "documentAi" && usage && <AdminDocumentAiSection usage={usage} />}
           {activeTab === "ragdb" && platformSummary && (
             <AdminRagDbSection summary={platformSummary} onRefetch={handleRagRefetch} />
           )}

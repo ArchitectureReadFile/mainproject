@@ -1,5 +1,6 @@
 import { fetchAdminPlatformFailures, stopAdminPlatform, syncAdminPlatform } from "@/api/admin";
 import { ERROR_CODE, getErrorMessageByCode } from "@/lib/errors";
+import { AlertTriangle, CheckCircle2, Clock3, Database, RefreshCcw, Rows3, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 const SOURCE_OPTIONS = [
@@ -23,6 +24,22 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
     () => Object.fromEntries(summary.sources.map((item) => [item.source_type, item])),
     [summary.sources],
   );
+  const runningSourceCount = useMemo(
+    () => summary.sources.filter((item) => _RUNNING_STATUSES.has(item.last_sync_status)).length,
+    [summary.sources],
+  );
+  const failedSourceCount = useMemo(
+    () => summary.sources.filter((item) => item.last_sync_status === "failed").length,
+    [summary.sources],
+  );
+  const lastSyncedAt = useMemo(() => {
+    const values = summary.sources
+      .map((item) => item.last_synced_at)
+      .filter(Boolean)
+      .sort()
+      .reverse();
+    return values[0] ?? null;
+  }, [summary.sources]);
 
   useEffect(() => {
     setFailuresLoading(true);
@@ -66,24 +83,58 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
-        <SummaryCard label="전체 문서" value={summary.total_documents.toLocaleString()} />
-        <SummaryCard label="전체 청크" value={summary.total_chunks.toLocaleString()} />
-        {SOURCE_OPTIONS.map((option) => (
-          <SummaryCard
-            key={option.value}
-            label={option.label}
-            value={(sourceMap[option.value]?.document_count ?? 0).toLocaleString()}
-          />
-        ))}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <SummaryCard
+          icon={Database}
+          label="전체 원천 문서"
+          value={summary.total_documents.toLocaleString()}
+          hint="적재된 플랫폼 원문 전체 수"
+        />
+        <SummaryCard
+          icon={Rows3}
+          label="전체 청크"
+          value={summary.total_chunks.toLocaleString()}
+          hint="검색용으로 분할된 chunk 수"
+        />
+        <SummaryCard
+          icon={Clock3}
+          label="진행 중 source"
+          value={runningSourceCount.toLocaleString()}
+          hint="최신화가 현재 동작 중인 source"
+          tone="amber"
+        />
+        <SummaryCard
+          icon={XCircle}
+          label="실패 source"
+          value={failedSourceCount.toLocaleString()}
+          hint="마지막 실행 결과가 실패인 source"
+          tone="rose"
+        />
+        <SummaryCard
+          icon={CheckCircle2}
+          label="마지막 최신화"
+          value={lastSyncedAt ? formatDateTime(lastSyncedAt).slice(5, 16) : "-"}
+          hint={lastSyncedAt ? formatDateTime(lastSyncedAt) : "아직 실행 기록 없음"}
+          tone="emerald"
+        />
       </div>
 
       <div className="space-y-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
-        <div>
-          <p className="text-sm font-semibold text-card-foreground">공공 데이터 전체 최신화</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            source별 전체 목록을 서버가 자동으로 순회해 신규 문서를 적재합니다. 작업 상태는 새로고침 시 반영됩니다.
-          </p>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-card-foreground">공공 데이터 전체 최신화</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              source별 전체 목록을 서버가 자동으로 순회해 신규 문서를 적재합니다. 새로고침을 눌러 현재 상태를 반영할 수 있습니다.
+            </p>
+          </div>
+          <button
+            onClick={onRefetch}
+            disabled={actionLoading}
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            새로고침
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -94,14 +145,20 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
 
             return (
               <div key={option.value} className="flex flex-col gap-3 rounded-xl border border-border bg-muted/30 p-4">
-                <div>
-                  <p className="text-sm font-medium text-foreground">{option.label}</p>
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm font-medium text-foreground">{option.label}</p>
+                    <StatusBadge status={source?.last_sync_status} />
+                  </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     현재 문서 {source?.document_count ?? 0} / 청크{" "}
                     {source?.chunk_count ?? 0}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {describeSourceState(source)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatLastRunLabel(source)}
                   </p>
                 </div>
                 {isRunning ? (
@@ -151,33 +208,7 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Panel title="source별 현황">
-          {summary.sources.map((item) => (
-            <div key={item.source_type} className="flex items-center justify-between border-b border-border py-2 text-sm last:border-b-0">
-              <div>
-                <p className="text-foreground">{item.label}</p>
-                <p className="text-xs text-muted-foreground">문서 {item.document_count} / 청크 {item.chunk_count}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatLastRunLabel(item)}
-                </p>
-                {item.last_sync_status && (
-                  <p className="text-xs text-muted-foreground">
-                    현재 상태 {syncStatusLabel(item.last_sync_status)}
-                    {formatProgressSummary(item)}
-                  </p>
-                )}
-                {(item.last_display_title || item.last_external_id) && (
-                  <p className="truncate text-xs text-muted-foreground" title={item.last_display_title ?? item.last_external_id}>
-                    마지막 확인 {item.last_display_title ?? item.last_external_id}
-                  </p>
-                )}
-                {item.last_sync_message && <p className="text-xs text-muted-foreground">{item.last_sync_message}</p>}
-              </div>
-            </div>
-          ))}
-        </Panel>
-
+      <div className="grid grid-cols-1 gap-4">
         <Panel title="최근 적재 문서">
           {summary.recent_items.length === 0 && <EmptyRow />}
           {summary.recent_items.map((item) => (
@@ -197,23 +228,43 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
       </div>
 
       <Panel title="최근 실패 목록">
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-muted/40 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">최근 실패 {failures.length}건</p>
+            <p className="text-xs text-muted-foreground">
+              반복 실패 source나 수집 오류 유형을 우선 점검하세요.
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-destructive/10 px-3 py-1 text-xs font-semibold text-destructive">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            장애 점검 영역
+          </div>
+        </div>
+        <div className="hidden grid-cols-[0.8fr,0.7fr,1.4fr,1.8fr,0.9fr] gap-3 border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground md:grid">
+          <span>source</span>
+          <span>유형</span>
+          <span>대상</span>
+          <span>오류 요약</span>
+          <span>발생 시각</span>
+        </div>
         {failuresLoading && <p className="py-2 text-xs text-muted-foreground">불러오는 중...</p>}
         {!failuresLoading && failures.length === 0 && <EmptyRow />}
         {!failuresLoading && failures.map((f) => (
-          <div key={f.id} className="border-b border-border py-2 text-sm last:border-b-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{sourceLabel(f.source_type)}</span>
-              {f.page != null && <span className="text-xs text-muted-foreground">{f.page}페이지</span>}
-              <span className="text-xs text-destructive">{f.error_type}</span>
+          <div
+            key={f.id}
+            className="grid gap-3 rounded-xl border border-border/70 bg-muted/20 px-4 py-3 text-sm md:grid-cols-[0.8fr,0.7fr,1.4fr,1.8fr,0.9fr] md:items-start md:rounded-none md:border-0 md:border-b md:bg-transparent md:px-0 md:last:border-b-0"
+          >
+            <div>
+              <p className="text-foreground">{sourceLabel(f.source_type)}</p>
+              {f.page != null && <p className="text-xs text-muted-foreground">{f.page}페이지</p>}
             </div>
+            <p className="text-sm text-destructive">{f.error_type}</p>
             <p className="truncate text-foreground" title={f.display_title ?? f.external_id ?? ""}>
               {f.display_title ?? f.external_id ?? "(문서명 없음)"}
             </p>
-            {f.error_message && (
-              <p className="truncate text-xs text-muted-foreground" title={f.error_message}>
-                {f.error_message}
-              </p>
-            )}
+            <p className="truncate text-xs text-muted-foreground" title={f.error_message ?? ""}>
+              {f.error_message ?? "오류 메시지 없음"}
+            </p>
             <p className="text-xs text-muted-foreground/70">{formatDateTime(f.created_at)}</p>
           </div>
         ))}
@@ -222,11 +273,26 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
   );
 }
 
-function SummaryCard({ label, value }) {
+function SummaryCard({ icon: Icon, label, value, hint, tone = "sky" }) {
+  const toneClasses = {
+    sky: "bg-sky-50 text-sky-700 ring-sky-100 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/20",
+    amber: "bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20",
+    rose: "bg-rose-50 text-rose-700 ring-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20",
+    emerald: "bg-emerald-50 text-emerald-700 ring-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20",
+  };
+
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <p className="mb-1 text-xs text-muted-foreground">{label}</p>
-      <p className="text-2xl font-bold text-foreground">{value}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="mb-1 text-xs text-muted-foreground">{label}</p>
+          <p className="text-2xl font-bold text-foreground">{value}</p>
+          <p className="mt-2 text-xs text-muted-foreground">{hint}</p>
+        </div>
+        <div className={`rounded-2xl p-3 ring-1 ${toneClasses[tone]}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -242,6 +308,25 @@ function Panel({ title, children }) {
 
 function EmptyRow() {
   return <p className="py-2 text-xs text-muted-foreground">항목 없음</p>;
+}
+
+function StatusBadge({ status }) {
+  const label = syncStatusLabel(status);
+  const toneClasses = {
+    "대기 중": "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    "진행 중": "bg-primary/10 text-primary",
+    "완료": "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    "최신 상태": "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    "실패": "bg-destructive/10 text-destructive",
+    "중지됨": "bg-muted text-muted-foreground",
+    "미실행": "bg-muted text-muted-foreground",
+  };
+
+  return (
+    <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold ${toneClasses[label] ?? "bg-muted text-muted-foreground"}`}>
+      {label}
+    </span>
+  );
 }
 
 function formatDateTime(value) {

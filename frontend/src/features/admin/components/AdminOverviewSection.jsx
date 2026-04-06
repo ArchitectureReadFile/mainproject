@@ -115,6 +115,11 @@ export default function AdminOverviewSection({ stats }) {
           title="PREMIUM 전환률 추이"
           description="최근 7일 동안의 누적 전환 비율입니다."
         >
+          <ChartLegend
+            items={[
+              { label: "전환률", value: `${(conversion_trend?.[conversion_trend.length - 1]?.rate ?? 0)}%`, colorClassName: "bg-sky-400" },
+            ]}
+          />
           <MiniLineChart
             data={conversion_trend}
             valueKey="rate"
@@ -160,22 +165,23 @@ function OverviewHero({
 
   return (
     <section className="overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-primary/8 via-background to-accent/40 p-6 text-foreground shadow-sm">
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-        <div className="max-w-3xl space-y-3">
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+        <div className="max-w-2xl space-y-4">
           <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${toneClass}`}>
             운영 상태 {healthLabel}
           </span>
-          <div>
+          <div className="space-y-3">
             <h2 className="text-2xl font-bold tracking-tight">서비스 개요</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              활성 회원 {totalUsers.toLocaleString()}명, PREMIUM 회원 {premiumUsers.toLocaleString()}명,
-              활성 워크스페이스 {activeGroups.toLocaleString()}개 기준으로 운영 중입니다.
-              현재 AI 처리 성공률은 {aiSuccessRate}%이며 최근 일자 실패율은 {latestFailureRate}%입니다.
-            </p>
+            <div className="flex flex-wrap gap-2 text-sm">
+              <SummaryPill label="활성 회원" value={`${totalUsers.toLocaleString()}명`} />
+              <SummaryPill label="PREMIUM" value={`${premiumUsers.toLocaleString()}명`} />
+              <SummaryPill label="워크스페이스" value={`${activeGroups.toLocaleString()}개`} />
+              <SummaryPill label="최근 실패율" value={`${latestFailureRate}%`} />
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-4 xl:max-w-[640px]">
           <HeroStat label="최근 전환율" value={`${latestConversion}%`} />
           <HeroStat label="오늘 요청" value={`${latestRequests}`} />
           <HeroStat label="활성 그룹" value={`${activeGroups}`} />
@@ -188,9 +194,18 @@ function OverviewHero({
 
 function HeroStat({ label, value }) {
   return (
-    <div className="rounded-2xl border border-border bg-card/80 px-4 py-3 backdrop-blur-sm">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl font-bold text-foreground">{value}</p>
+    <div className="min-w-0 rounded-2xl border border-border bg-card/85 px-4 py-3 backdrop-blur-sm">
+      <p className="text-[11px] font-semibold tracking-[0.08em] text-muted-foreground">{label}</p>
+      <p className="mt-2 text-3xl font-bold tracking-tight text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function SummaryPill({ label, value }) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-1.5 text-sm backdrop-blur-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-semibold text-foreground">{value}</span>
     </div>
   );
 }
@@ -297,6 +312,23 @@ function ChartBlock({ title, description, children }) {
   );
 }
 
+function ChartLegend({ items }) {
+  return (
+    <div className="mb-4 flex flex-wrap gap-2">
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-xs"
+        >
+          <span className={`h-2.5 w-2.5 rounded-full ${item.colorClassName}`} />
+          <span className="text-muted-foreground">{item.label}</span>
+          <span className="font-semibold text-foreground">{item.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function MiniLineChart({ data, valueKey, labelKey, color = "#60a5fa" }) {
   const chartH = 80;
   const total = data.length;
@@ -306,6 +338,15 @@ function MiniLineChart({ data, valueKey, labelKey, color = "#60a5fa" }) {
 
   return (
     <div className="space-y-2">
+      <div className="flex">
+        {data.map((d, i) => (
+          <div key={i} className="flex flex-1 justify-center">
+            <span className="whitespace-nowrap rounded-full bg-background/95 px-2 py-0.5 text-[10px] font-semibold text-foreground shadow-sm ring-1 ring-border">
+              {d[valueKey]}%
+            </span>
+          </div>
+        ))}
+      </div>
       <div className="relative w-full" style={{ height: `${chartH}px` }}>
         <svg
           className="absolute inset-0 w-full h-full overflow-visible pointer-events-none"
@@ -353,12 +394,28 @@ function MiniBarLineChart({ data, barKey, lineKey, labelKey }) {
 
   return (
     <div className="space-y-2">
+      <div className="flex">
+        {data.map((d, i) => (
+          <div key={i} className="flex flex-1 flex-col items-center gap-1">
+            {d[barKey] > 0 ? (
+              <span className="whitespace-nowrap rounded-full bg-background/95 px-2 py-0.5 text-[10px] font-semibold text-foreground shadow-sm ring-1 ring-border">
+                요청량 {d[barKey]}건
+              </span>
+            ) : (
+              <span className="h-[22px]" />
+            )}
+            <span className="whitespace-nowrap rounded-full bg-background/95 px-2 py-0.5 text-[10px] font-semibold text-foreground shadow-sm ring-1 ring-border">
+              실패율 {d[lineKey]}%
+            </span>
+          </div>
+        ))}
+      </div>
       <div className="relative w-full" style={{ height: `${chartH}px` }}>
         <div className="absolute inset-0 flex items-end gap-1">
           {data.map((d, i) => {
             const barH = maxBar ? Math.round((d[barKey] / maxBar) * 100) : 0;
             return (
-              <div key={i} className="flex-1 flex justify-center items-end h-full">
+              <div key={i} className="relative flex h-full flex-1 justify-center items-end">
                 <div
                   className="w-1/4 bg-indigo-400 rounded-t"
                   style={{ height: `${barH}%` }}
