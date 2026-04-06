@@ -106,6 +106,14 @@ async def send_message(
     )
 
 
+@router.post("/sessions/{session_id}/stop")
+def stop_message(
+    session_id: int,
+    chat_service: ChatService = Depends(get_chat_service),
+):
+    return chat_service.stop_message(session_id)
+
+
 @router.delete("/sessions/{session_id}/reference", response_model=ChatSessionResponse)
 def delete_reference_document(
     session_id: int,

@@ -46,8 +46,25 @@ class ChatService:
         db.refresh(session)
         return session
 
+    def stop_message(self, session_id: int):
+        from celery_app import celery_app
+        from redis_client import redis_client
+
+        task_key = f"chat_task:{session_id}"
+        task_id = redis_client.get(task_key)
+
+        if task_id:
+            celery_app.control.revoke(task_id, terminate=True)
+            redis_client.delete(task_key)
+            return {"status": "success", "message": "Task stopped"}
+        return {
+            "status": "no_active_task",
+            "message": "No active task found for this session",
+        }
+
     def delete_session(self, db: Session, user_id: int, session_id: int):
         session = self._get_session_with_permission(db, user_id, session_id)
+        self.stop_message(session_id)
         db.delete(session)
         db.commit()
 
@@ -148,9 +165,13 @@ class ChatService:
                 )
             ),
         }
-        process_chat_message.delay(payload)
+        task = process_chat_message.delay(payload)
 
-        return {"status": "success", "message": "Task queued"}
+        from redis_client import redis_client
+
+        redis_client.set(f"chat_task:{session_id}", task.id, ex=3600)
+
+        return {"status": "success", "message": "Task queued", "task_id": task.id}
 
     # ── 권한 헬퍼 ─────────────────────────────────────────────────────────────
 
