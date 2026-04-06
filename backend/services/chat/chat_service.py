@@ -54,7 +54,7 @@ class ChatService:
         task_id = redis_client.get(task_key)
 
         if task_id:
-            celery_app.control.revoke(task_id, terminate=True)
+            celery_app.control.revoke(task_id, terminate=True, signal="SIGKILL")
             redis_client.delete(task_key)
             return {"status": "success", "message": "Task stopped"}
         return {
@@ -70,12 +70,18 @@ class ChatService:
 
     def get_messages(self, db: Session, user_id: int, session_id: int):
         self._get_session_with_permission(db, user_id, session_id)
-        return (
+        messages = (
             db.query(ChatMessage)
             .filter(ChatMessage.session_id == session_id)
             .order_by(ChatMessage.created_at.asc())
             .all()
         )
+
+        from redis_client import redis_client
+
+        is_processing = redis_client.exists(f"chat_task:{session_id}") > 0
+
+        return {"messages": messages, "is_processing": is_processing}
 
     def upload_reference_document(
         self,

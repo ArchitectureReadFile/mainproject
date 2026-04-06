@@ -293,6 +293,37 @@ class DocumentCommentService:
             )
 
             self.comment_repository.db.commit()
+
+            from models.model import NotificationType
+            from repositories.notification_repository import NotificationRepository
+            from services.notification_service import NotificationService
+
+            notification_service = NotificationService()
+            notification_repo = NotificationRepository(self.comment_repository.db)
+
+            for mention_data in normalized_mentions:
+                mentioned_user_id = mention_data["mentioned_user_id"]
+                if mentioned_user_id == current_user_id:
+                    continue
+
+                page_str = str(page) if page is not None else "1"
+                scope_str = scope.lower() if scope else "general"
+                target_type = f"doc_comment:{page_str}:{scope_str}"
+
+                short_content = content[:30] + "..." if len(content) > 30 else content
+
+                notification_service.create_notification_sync(
+                    repository=notification_repo,
+                    user_id=mentioned_user_id,
+                    type=NotificationType.COMMENT_MENTIONED,
+                    title="댓글 멘션 알림",
+                    body=f"문서 댓글에서 회원님을 멘션했습니다: {short_content}",
+                    actor_user_id=current_user_id,
+                    group_id=group_id,
+                    target_type=target_type,
+                    target_id=doc_id,
+                )
+
         except Exception:
             self.comment_repository.db.rollback()
             raise
