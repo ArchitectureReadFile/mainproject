@@ -657,10 +657,10 @@ class TestAdminUsers:
         assert all(i["plan"] == "PREMIUM" for i in items)
 
 
-# ── user status toggle 차단 ───────────────────────────────────────────────────
+# ── user update 차단/변경 ─────────────────────────────────────────────────────
 
 
-class TestAdminUserStatusToggle:
+class TestAdminUserUpdate:
     def test_cannot_deactivate_admin(self, admin_client, db_session):
         other_admin = _make_user(
             db_session, "admin2@example.com", "다른관리자", role="ADMIN"
@@ -691,6 +691,42 @@ class TestAdminUserStatusToggle:
         )
         assert res.status_code == 200
         assert res.json()["is_active"] is False
+        assert res.json()["plan"] == "FREE"
+
+    def test_can_change_general_user_plan_to_premium(self, admin_client, db_session):
+        user = _make_user(db_session, "plan-target@example.com", "플랜대상")
+        res = admin_client.patch(
+            f"/api/admin/users/{user.id}", json={"plan": "PREMIUM"}
+        )
+        assert res.status_code == 200
+        assert res.json()["plan"] == "PREMIUM"
+
+        sub = (
+            db_session.query(Subscription)
+            .filter(Subscription.user_id == user.id)
+            .first()
+        )
+        assert sub is not None
+        assert sub.plan == SubscriptionPlan.PREMIUM
+        assert sub.status == SubscriptionStatus.ACTIVE
+
+    def test_can_change_general_user_plan_to_free(self, admin_client, db_session):
+        user = _make_user(db_session, "free-target@example.com", "무료전환대상")
+        sub = Subscription(
+            user_id=user.id,
+            plan=SubscriptionPlan.PREMIUM,
+            status=SubscriptionStatus.ACTIVE,
+        )
+        db_session.add(sub)
+        db_session.commit()
+
+        res = admin_client.patch(f"/api/admin/users/{user.id}", json={"plan": "FREE"})
+        assert res.status_code == 200
+        assert res.json()["plan"] == "FREE"
+
+        db_session.refresh(sub)
+        assert sub.plan == SubscriptionPlan.FREE
+        assert sub.status == SubscriptionStatus.ACTIVE
 
     def test_toggle_not_found(self, admin_client):
         res = admin_client.patch("/api/admin/users/99999", json={"is_active": False})

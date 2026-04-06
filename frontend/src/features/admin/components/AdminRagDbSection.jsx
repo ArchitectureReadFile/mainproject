@@ -182,8 +182,11 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
           {summary.recent_items.length === 0 && <EmptyRow />}
           {summary.recent_items.map((item) => (
             <div key={`${item.source_type}-${item.external_id}`} className="py-2 border-b text-sm">
-              <p className="text-gray-700 truncate" title={item.display_title ?? item.external_id}>
-                {item.display_title ?? item.external_id}
+              <p
+                className="text-gray-700 truncate"
+                title={item.display_title ?? item.title ?? item.external_id}
+              >
+                {item.display_title ?? item.title ?? item.external_id}
               </p>
               <p className="text-xs text-gray-400">
                 {sourceLabel(item.source_type)} · {item.updated_at?.slice(0, 10)}

@@ -91,6 +91,65 @@ _PREC_UNSUPPORTED_PHRASES = (
 )
 
 
+def _law_extract_nested_value(node: Any, *keys: str) -> Any:
+    if not isinstance(node, dict):
+        return None
+    for key in keys:
+        value = node.get(key)
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def _canonicalize_law_detail_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """
+    법령 상세 응답을 law_mapper가 읽는 flat payload로 변환한다.
+
+    실제 law 상세는 {"법령": {"기본정보": ..., "조문": ..., "부칙": ..., "별표": ...}}
+    구조로 내려오므로 제목/조문/부칙/별표/제개정이유를 flat key로 펼쳐준다.
+    """
+    law = payload.get("법령")
+    if not isinstance(law, dict):
+        return payload
+
+    basic = law.get("기본정보") if isinstance(law.get("기본정보"), dict) else {}
+    dept = basic.get("소관부처") if isinstance(basic, dict) else None
+    agency = (
+        basic.get("소관부처명")
+        or _law_extract_nested_value(dept, "소관부처명", "부처명", "기관명")
+        or None
+    )
+
+    articles = law.get("조문")
+    if isinstance(articles, dict):
+        articles = articles.get("조문단위") or articles.get("조문내용") or []
+
+    addendum = law.get("부칙")
+    if isinstance(addendum, dict):
+        addendum = addendum.get("부칙단위") or addendum.get("부칙내용") or addendum
+
+    annex = law.get("별표")
+    if isinstance(annex, dict):
+        annex = annex.get("별표단위") or annex.get("별표내용") or annex
+
+    revision_reason = law.get("제개정이유")
+    if isinstance(revision_reason, dict):
+        revision_reason = revision_reason.get("제개정이유내용") or revision_reason
+
+    amendment_text = law.get("개정문")
+    if isinstance(amendment_text, dict):
+        amendment_text = amendment_text.get("개정문내용") or amendment_text
+
+    return {
+        **basic,
+        "소관부처명": agency,
+        "조문": articles or [],
+        "부칙내용": addendum,
+        "별표내용": annex,
+        "제개정이유내용": revision_reason or amendment_text,
+    }
+
+
 class UnsupportedDetailError(Exception):
     """
     상세 API가 unsupported detail 응답을 반환한 경우.
@@ -274,7 +333,7 @@ def canonicalize_detail_payload(
     - precedent      : {"PrecService": {...}}      -> {...}
     - interpretation : {"ExpcService": {...}}      -> {...}
     - admin_rule     : {"AdmRulService": {...}}    -> {...}
-    - law            : 대부분 이미 flat payload이므로 그대로 반환
+    - law            : {"법령": {...}} 응답을 mapper-friendly flat payload로 반환
 
     precedent unsupported detail 응답:
         {"Law": "일치하는 판례가 없습니다..."} 형태는
@@ -326,5 +385,8 @@ def canonicalize_detail_payload(
                 f"unexpected detail payload: source_type={source_type} url={url or '-'} "
                 f"keys={list(payload.keys())} message={_snippet_text(message)}"
             )
+
+    if source_type == "law":
+        return _canonicalize_law_detail_payload(payload)
 
     return payload

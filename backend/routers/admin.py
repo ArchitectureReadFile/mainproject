@@ -15,7 +15,7 @@ from schemas.admin import (
     AdminStatsResponse,
     AdminUsageResponse,
     AdminUserListResponse,
-    AdminUserStatusUpdateRequest,
+    AdminUserUpdateRequest,
 )
 from services import admin_platform_service, admin_service
 
@@ -128,13 +128,17 @@ def list_users(
 
 
 @router.patch("/users/{user_id}", status_code=status.HTTP_200_OK)
-def update_user_status(
+def update_user(
     user_id: int,
-    payload: AdminUserStatusUpdateRequest,
+    payload: AdminUserUpdateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),  # current_admin 전달
 ):
-    user = admin_service.update_admin_user_status(
-        db, user_id, payload.is_active, current_admin=current_user
+    user, effective_plan = admin_service.update_admin_user(
+        db,
+        user_id,
+        current_admin=current_user,
+        is_active=payload.is_active,
+        plan=payload.plan,
     )
-    return {"id": user.id, "is_active": user.is_active}
+    return {"id": user.id, "is_active": user.is_active, "plan": effective_plan}
