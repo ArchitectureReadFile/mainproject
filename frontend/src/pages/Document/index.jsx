@@ -27,8 +27,10 @@ import {
     Loader2,
     MapPin,
     MessageSquareText,
+    Minus,
     PanelRightClose,
     PanelRightOpen,
+    Plus,
     Reply,
     SendHorizontal,
     Trash2,
@@ -45,6 +47,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
     'pdfjs-dist/build/pdf.worker.min.mjs',
     import.meta.url
 ).toString()
+
+const PDF_OPTIONS = {
+    withCredentials: true,
+}
 
 /**
  * 댓글 시간 표시 문자열을 만든다.
@@ -213,6 +219,45 @@ function countVisibleComments(comments) {
 }
 
 
+const MIN_ZOOM = 0.6
+const MAX_ZOOM = 2
+const ZOOM_STEP = 0.1
+const PAN_THRESHOLD = 4
+
+/**
+ * PDF 줌 값을 허용 범위 안으로 보정한다.
+ */
+function clampZoom(value) {
+    return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value))
+}
+
+/**
+ * 현재 줌 값을 입력창용 퍼센트 문자열로 변환한다.
+ */
+function formatZoomInput(value) {
+    return String(Math.round(value * 100))
+}
+
+/**
+ * 퍼센트 입력값을 실제 PDF 배율로 변환한다.
+ */
+function parseZoomInput(value) {
+    if (!value) return null
+
+    const nextPercent = Number(value)
+    if (!Number.isFinite(nextPercent)) {
+        return null
+    }
+
+    const nextZoom = nextPercent / 100
+    if (nextZoom < MIN_ZOOM || nextZoom > MAX_ZOOM) {
+        return null
+    }
+
+    return Number(nextZoom.toFixed(2))
+}
+
+
 export default function DocumentPage() {
     const { user } = useAuth()
     const { group_id, doc_id } = useParams()
@@ -239,6 +284,12 @@ export default function DocumentPage() {
     const [deletingCommentId, setDeletingCommentId] = useState(null)
     const [isComposerOpen, setIsComposerOpen] = useState(false)
 
+    const [currentPage, setCurrentPage] = useState(1)
+    const [pageInput, setPageInput] = useState('1')
+    const [zoom, setZoom] = useState(1)
+    const [zoomInput, setZoomInput] = useState('100')
+    const [isPanning, setIsPanning] = useState(false)
+
     const commentScope = useMemo(() => {
         const params = new URLSearchParams(location.search)
         const rawScope = params.get('comment_scope')
@@ -259,6 +310,7 @@ export default function DocumentPage() {
         }
     }, [commentScope])
 
+
     const [mentionState, setMentionState] = useState({
         open: false,
         query: '',
@@ -272,10 +324,16 @@ export default function DocumentPage() {
     const textareaRef = useRef(null)
     const pageRefs = useRef({})
     const commentRefs = useRef({})
-
-    const pdfOptions = useMemo(() => {
-        return { withCredentials: true }
-    }, [])
+    const panStateRef = useRef({
+        active: false,
+        startX: 0,
+        startY: 0,
+        scrollLeft: 0,
+        scrollTop: 0,
+        moved: false,
+    })
+    const suppressPdfClickRef = useRef(false)
+    const pendingZoomCenterRef = useRef(null)
 
     const backToListUrl = `/workspace/${group_id}${location.search || '?tab=documents'}`
     const originalPdfUrl = getGroupDocumentOriginalUrl(group_id, doc_id)
@@ -285,6 +343,14 @@ export default function DocumentPage() {
         PROCESSING: 'AI가 문서를 분석하고 있습니다. 잠시 후 요약이 표시됩니다.',
         FAILED: '요약 생성에 실패했습니다. 다시 업로드하거나 관리자에게 문의해주세요.',
     }
+
+    /**
+     * 현재 줌 배율을 반영한 PDF 렌더링 너비를 계산한다.
+     */
+    const renderedPageWidth = useMemo(() => {
+        return Math.floor(pageWidth * zoom)
+    }, [pageWidth, zoom])
+
 
     /**
      * 댓글 목록만 다시 불러온다.
@@ -357,7 +423,7 @@ export default function DocumentPage() {
     
     /**
      * 댓글 좌표 기준으로 PDF 뷰어 내부 스크롤을 이동한다.
-     * 현재 스크롤 위치와 실제 DOM 좌표를 함께 사용해서 중앙 정렬한다.
+     * 확대 상태에서도 좌표가 보이도록 가로/세로를 함께 중앙 정렬한다.
      */
     const scrollToMarker = useCallback((anchor) => {
         const pageEl = pageRefs.current[anchor.page]
@@ -372,16 +438,41 @@ export default function DocumentPage() {
 
         const markerTopInViewer =
             pageRect.top - viewerRect.top + viewerEl.scrollTop + pageEl.clientHeight * anchor.y
-
-        const nextScrollTop = Math.max(
-            0,
-            markerTopInViewer - viewerEl.clientHeight / 2
-        )
+        const markerLeftInViewer =
+            pageRect.left - viewerRect.left + viewerEl.scrollLeft + pageEl.clientWidth * anchor.x
 
         viewerEl.scrollTo({
-            top: nextScrollTop,
+            top: Math.max(0, markerTopInViewer - viewerEl.clientHeight / 2),
+            left: Math.max(0, markerLeftInViewer - viewerEl.clientWidth / 2),
             behavior: 'smooth',
         })
+    }, [])
+
+
+    /**
+     * 특정 페이지로 PDF 뷰어 스크롤을 이동한다.
+     */
+    const scrollToPage = useCallback((pageNumber) => {
+        const pageEl = pageRefs.current[pageNumber]
+        const viewerEl = viewerRef.current
+
+        if (!pageEl || !viewerEl) {
+            return
+        }
+
+        const pageRect = pageEl.getBoundingClientRect()
+        const viewerRect = viewerEl.getBoundingClientRect()
+
+        const nextScrollTop =
+            pageRect.top - viewerRect.top + viewerEl.scrollTop - 12
+
+        viewerEl.scrollTo({
+            top: Math.max(0, nextScrollTop),
+            behavior: 'smooth',
+        })
+
+        setCurrentPage(pageNumber)
+        setPageInput(String(pageNumber))
     }, [])
 
 
@@ -395,6 +486,9 @@ export default function DocumentPage() {
         setFocusedCommentId(comment.id)
 
         if (anchor) {
+            setCurrentPage(anchor.page)
+            setPageInput(String(anchor.page))
+
             window.requestAnimationFrame(() => {
                 window.requestAnimationFrame(() => {
                     scrollToMarker(anchor)
@@ -488,6 +582,55 @@ export default function DocumentPage() {
     }, [replyParentId, draftAnchor, draftContent, mentionState.open])
 
 
+    /**
+     * 뷰어 스크롤 위치를 기준으로 현재 보고 있는 페이지를 추적한다.
+     */
+    useEffect(() => {
+        const viewerEl = viewerRef.current
+        if (!viewerEl) {
+            return
+        }
+
+        const handleScroll = () => {
+            if (!numPages) {
+                return
+            }
+
+            const viewerRect = viewerEl.getBoundingClientRect()
+            const viewerCenterY = viewerRect.top + viewerEl.clientHeight / 2
+
+            let nearestPage = 1
+            let nearestDistance = Number.POSITIVE_INFINITY
+
+            for (let pageNumber = 1; pageNumber <= numPages; pageNumber += 1) {
+                const pageEl = pageRefs.current[pageNumber]
+                if (!pageEl) {
+                    continue
+                }
+
+                const pageRect = pageEl.getBoundingClientRect()
+                const pageCenterY = pageRect.top + pageRect.height / 2
+                const distance = Math.abs(pageCenterY - viewerCenterY)
+
+                if (distance < nearestDistance) {
+                    nearestDistance = distance
+                    nearestPage = pageNumber
+                }
+            }
+
+            setCurrentPage(nearestPage)
+            setPageInput(String(nearestPage))
+        }
+
+        viewerEl.addEventListener('scroll', handleScroll, { passive: true })
+        handleScroll()
+
+        return () => {
+            viewerEl.removeEventListener('scroll', handleScroll)
+        }
+    }, [numPages])
+
+
     const s = doc
     const statusMessage = STATUS_MESSAGE[s?.status] ?? null
     const hasSummary = Boolean(s?.summary_text)
@@ -539,68 +682,209 @@ export default function DocumentPage() {
 
     const deletedDday = calcDday(doc?.delete_scheduled_at)
 
-    if (loading) {
-        return (
-            <div className="max-w-3xl mx-auto px-4 py-12 text-center text-muted-foreground">
-                불러오는 중...
-            </div>
-        )
-    }
 
-    if (error || !doc) {
-        return (
-            <div className="max-w-3xl mx-auto px-4 py-12 text-center text-destructive">
-                {error || '문서를 찾을 수 없습니다.'}
-            </div>
-        )
-    }
+    /**
+     * 줌 변경 전후에도 현재 보고 있는 중심 영역이 크게 튀지 않도록 배율을 갱신한다.
+     */
+    const applyZoom = useCallback((nextZoom) => {
+        const normalizedZoom = clampZoom(Number(nextZoom.toFixed(2)))
+        const viewerEl = viewerRef.current
 
-    const handleDownload = async () => {
-        if (!s.summary_id) return
-        try {
-            await downloadSummaryPdf(s.summary_id, s.case_number, s.case_name)
-        } catch {
-            toast.error('다운로드에 실패했습니다.')
-        }
-    }
-
-    const handleDeleteConfirm = async () => {
-        try {
-            await deleteGroupDocument(group_id, doc_id)
-            navigate(backToListUrl, { state: { deleted: true } })
-        } catch (e) {
-            toast.error(e.message || '삭제에 실패했습니다.')
-            setShowDeleteModal(false)
-        }
-    }
-
-    const handleDraftChange = (event) => {
-        const nextValue = event.target.value
-        setDraftContent(nextValue)
-        syncMentionState(nextValue, event.target.selectionStart)
-    }
-
-    const handleDraftSelection = (event) => {
-        syncMentionState(event.target.value, event.target.selectionStart)
-    }
-
-    const handleDraftKeyDown = (event) => {
-        if (mentionState.open && mentionCandidates.length > 0 && event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault()
-            insertMention(mentionCandidates[0])
+        if (!viewerEl) {
+            setZoom(normalizedZoom)
+            setZoomInput(formatZoomInput(normalizedZoom))
             return
         }
 
-        if (event.key === 'Escape') {
-            setMentionState({
-                open: false,
-                query: '',
-                start: -1,
-            })
+        const prevCenterX = viewerEl.scrollLeft + viewerEl.clientWidth / 2
+        const prevCenterY = viewerEl.scrollTop + viewerEl.clientHeight / 2
+        const prevScrollWidth = Math.max(viewerEl.scrollWidth, viewerEl.clientWidth, 1)
+        const prevScrollHeight = Math.max(viewerEl.scrollHeight, viewerEl.clientHeight, 1)
+
+        pendingZoomCenterRef.current = {
+            centerRatioX: prevCenterX / prevScrollWidth,
+            centerRatioY: prevCenterY / prevScrollHeight,
         }
+
+        setZoom(normalizedZoom)
+        setZoomInput(formatZoomInput(normalizedZoom))
+    }, [])
+
+    /**
+     * PDF 폭이 다시 계산된 뒤 뷰어 중심을 자연스럽게 복원한다.
+     */
+    useEffect(() => {
+        const viewerEl = viewerRef.current
+        const pendingCenter = pendingZoomCenterRef.current
+
+        if (!viewerEl || !pendingCenter) {
+            return
+        }
+
+        let frameA = 0
+        let frameB = 0
+
+        frameA = window.requestAnimationFrame(() => {
+            frameB = window.requestAnimationFrame(() => {
+                const nextScrollWidth = Math.max(viewerEl.scrollWidth, viewerEl.clientWidth, 1)
+                const nextScrollHeight = Math.max(viewerEl.scrollHeight, viewerEl.clientHeight, 1)
+
+                viewerEl.scrollTo({
+                    left: Math.max(0, nextScrollWidth * pendingCenter.centerRatioX - viewerEl.clientWidth / 2),
+                    top: Math.max(0, nextScrollHeight * pendingCenter.centerRatioY - viewerEl.clientHeight / 2),
+                })
+
+                pendingZoomCenterRef.current = null
+            })
+        })
+
+        return () => {
+            window.cancelAnimationFrame(frameA)
+            window.cancelAnimationFrame(frameB)
+        }
+    }, [zoom, renderedPageWidth])
+
+
+    /**
+     * 드래그 팬 종료 시 상태를 정리한다.
+     */
+    const finishViewerPan = useCallback(() => {
+        const didMove = panStateRef.current.moved
+
+        panStateRef.current = {
+            active: false,
+            startX: 0,
+            startY: 0,
+            scrollLeft: 0,
+            scrollTop: 0,
+            moved: false,
+        }
+        setIsPanning(false)
+
+        if (didMove) {
+            window.setTimeout(() => {
+                suppressPdfClickRef.current = false
+            }, 0)
+        }
+    }, [])
+
+    /**
+     * 페이지 입력값을 기준으로 해당 페이지로 이동한다.
+     */
+    const handleMoveToPage = () => {
+        const nextPage = Number(pageInput)
+
+        if (!Number.isInteger(nextPage) || nextPage < 1 || nextPage > numPages) {
+            toast.error(`1부터 ${numPages} 사이의 페이지를 입력해주세요.`)
+            setPageInput(String(currentPage))
+            return
+        }
+
+        scrollToPage(nextPage)
     }
 
+    /**
+     * 버튼 클릭 기준으로 PDF 줌 배율을 변경한다.
+     */
+    const handleZoomChange = (delta) => {
+        applyZoom(zoom + delta)
+    }
+
+    /**
+     * 줌 퍼센트 입력값을 숫자만 유지하면서 상태에 반영한다.
+     */
+    const handleZoomInputChange = (event) => {
+        setZoomInput(event.target.value.replace(/\D/g, ''))
+    }
+
+    /**
+     * 줌 퍼센트 입력값을 검증한 뒤 PDF 배율에 반영한다.
+     */
+    const handleApplyZoomInput = () => {
+        const nextZoom = parseZoomInput(zoomInput)
+
+        if (nextZoom == null) {
+            toast.error(
+                `${Math.round(MIN_ZOOM * 100)}부터 ${Math.round(MAX_ZOOM * 100)} 사이의 줌 값을 입력해주세요.`
+            )
+            setZoomInput(formatZoomInput(zoom))
+            return
+        }
+
+        applyZoom(nextZoom)
+    }
+
+    /**
+     * 확대 상태에서 마우스 드래그로 PDF 뷰어를 탐색할 수 있게 한다.
+     */
+    const handleViewerMouseDown = (event) => {
+        const viewerEl = viewerRef.current
+        const target = event.target
+        const targetEl =
+            target && typeof target.closest === 'function'
+                ? target
+                : null
+
+        if (!viewerEl || zoom <= 1 || event.button !== 0) {
+            return
+        }
+
+        if (targetEl?.closest('button')) {
+            return
+        }
+
+        panStateRef.current = {
+            active: true,
+            startX: event.clientX,
+            startY: event.clientY,
+            scrollLeft: viewerEl.scrollLeft,
+            scrollTop: viewerEl.scrollTop,
+            moved: false,
+        }
+        suppressPdfClickRef.current = false
+    }
+
+
+    /**
+     * 드래그 중인 거리만큼 스크롤 좌표를 갱신한다.
+     */
+    const handleViewerMouseMove = useCallback((event) => {
+        const viewerEl = viewerRef.current
+        const panState = panStateRef.current
+
+        if (!viewerEl || !panState.active) {
+            return
+        }
+
+        const deltaX = event.clientX - panState.startX
+        const deltaY = event.clientY - panState.startY
+
+        if (!panState.moved && (Math.abs(deltaX) > PAN_THRESHOLD || Math.abs(deltaY) > PAN_THRESHOLD)) {
+            panState.moved = true
+            suppressPdfClickRef.current = true
+            setIsPanning(true)
+        }
+
+        if (!panState.moved) {
+            return
+        }
+
+        event.preventDefault()
+        viewerEl.scrollTo({
+            left: panState.scrollLeft - deltaX,
+            top: panState.scrollTop - deltaY,
+        })
+    }, [])
+
+    /**
+     * PDF 페이지 클릭 좌표를 댓글 앵커로 저장한다.
+     * 드래그 팬 직후 발생한 클릭은 무시한다.
+     */
     const handlePdfPageClick = (pageNumber, event) => {
+        if (suppressPdfClickRef.current) {
+            return
+        }
+
         const rect = event.currentTarget.getBoundingClientRect()
         const x = Number(((event.clientX - rect.left) / rect.width).toFixed(4))
         const y = Number(((event.clientY - rect.top) / rect.height).toFixed(4))
@@ -613,6 +897,28 @@ export default function DocumentPage() {
             textareaRef.current?.focus()
         })
     }
+
+    /**
+     * 뷰어 바깥에서 마우스를 놓아도 드래그 팬이 정상 종료되도록 전역 이벤트를 연결한다.
+     */
+    useEffect(() => {
+        const handleWindowMouseMove = (event) => {
+            handleViewerMouseMove(event)
+        }
+
+        const handleWindowMouseUp = () => {
+            finishViewerPan()
+        }
+
+        window.addEventListener('mousemove', handleWindowMouseMove)
+        window.addEventListener('mouseup', handleWindowMouseUp)
+
+        return () => {
+            window.removeEventListener('mousemove', handleWindowMouseMove)
+            window.removeEventListener('mouseup', handleWindowMouseUp)
+        }
+    }, [finishViewerPan, handleViewerMouseMove])
+
 
     const handleStartReply = (comment) => {
         setReplyParentId(comment.id)
@@ -708,6 +1014,67 @@ export default function DocumentPage() {
         } finally {
             setDeletingCommentId(null)
         }
+    }
+
+    const handleDownload = async () => {
+        if (!s.summary_id) return
+        try {
+            await downloadSummaryPdf(s.summary_id, s.case_number, s.case_name)
+        } catch {
+            toast.error('다운로드에 실패했습니다.')
+        }
+    }
+
+    const handleDeleteConfirm = async () => {
+        try {
+            await deleteGroupDocument(group_id, doc_id)
+            navigate(backToListUrl, { state: { deleted: true } })
+        } catch (e) {
+            toast.error(e.message || '삭제에 실패했습니다.')
+            setShowDeleteModal(false)
+        }
+    }
+
+    const handleDraftChange = (event) => {
+        const nextValue = event.target.value
+        setDraftContent(nextValue)
+        syncMentionState(nextValue, event.target.selectionStart)
+    }
+
+    const handleDraftSelection = (event) => {
+        syncMentionState(event.target.value, event.target.selectionStart)
+    }
+
+    const handleDraftKeyDown = (event) => {
+        if (mentionState.open && mentionCandidates.length > 0 && event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault()
+            insertMention(mentionCandidates[0])
+            return
+        }
+
+        if (event.key === 'Escape') {
+            setMentionState({
+                open: false,
+                query: '',
+                start: -1,
+            })
+        }
+    }
+
+    if (loading) {
+        return (
+            <div className="max-w-3xl mx-auto px-4 py-12 text-center text-muted-foreground">
+                불러오는 중...
+            </div>
+        )
+    }
+
+    if (error || !doc) {
+        return (
+            <div className="max-w-3xl mx-auto px-4 py-12 text-center text-destructive">
+                {error || '문서를 찾을 수 없습니다.'}
+            </div>
+        )
     }
 
     const renderThread = (comment) => {
@@ -1122,7 +1489,6 @@ export default function DocumentPage() {
                     <p className="text-sm font-medium">-</p>
                 )}
             </Card>
-
             <div
                 className={cn(
                     'grid items-stretch gap-4',
@@ -1138,7 +1504,102 @@ export default function DocumentPage() {
                             </p>
                         </div>
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-1 rounded-lg border bg-background px-2 py-1">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8"
+                                    disabled={currentPage <= 1}
+                                    onClick={() => scrollToPage(currentPage - 1)}
+                                    aria-label="이전 페이지"
+                                >
+                                    <ArrowLeft size={14} />
+                                </Button>
+
+                                <input
+                                    value={pageInput}
+                                    onChange={(event) => setPageInput(event.target.value.replace(/\D/g, ''))}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter') {
+                                            handleMoveToPage()
+                                        }
+                                    }}
+                                    className="h-8 w-14 rounded-md border px-2 text-center text-sm outline-none"
+                                    aria-label="페이지 번호 입력"
+                                />
+
+                                <span className="text-xs text-muted-foreground">/ {numPages || 1}</span>
+
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 px-2 text-xs"
+                                    onClick={handleMoveToPage}
+                                >
+                                    이동
+                                </Button>
+
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8"
+                                    disabled={!numPages || currentPage >= numPages}
+                                    onClick={() => scrollToPage(currentPage + 1)}
+                                    aria-label="다음 페이지"
+                                >
+                                    <ArrowLeft size={14} className="rotate-180" />
+                                </Button>
+                            </div>
+
+                            <div className="flex items-center gap-1 rounded-lg border bg-background px-2 py-1">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8"
+                                    onClick={() => handleZoomChange(-ZOOM_STEP)}
+                                    aria-label="축소"
+                                >
+                                    <Minus size={14} />
+                                </Button>
+
+                                <input
+                                    value={zoomInput}
+                                    onChange={handleZoomInputChange}
+                                    onBlur={handleApplyZoomInput}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter') {
+                                            handleApplyZoomInput()
+                                            event.currentTarget.blur()
+                                        }
+
+                                        if (event.key === 'Escape') {
+                                            setZoomInput(formatZoomInput(zoom))
+                                            event.currentTarget.blur()
+                                        }
+                                    }}
+                                    className="h-8 w-16 rounded-md border px-2 text-center text-sm outline-none"
+                                    aria-label="줌 비율 입력"
+                                />
+
+                                <span className="text-xs text-muted-foreground">%</span>
+
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8"
+                                    onClick={() => handleZoomChange(ZOOM_STEP)}
+                                    aria-label="확대"
+                                >
+                                    <Plus size={14} />
+                                </Button>
+                            </div>
+
                             <Button
                                 variant={isCommentPanelOpen ? 'secondary' : 'default'}
                                 size="sm"
@@ -1154,16 +1615,23 @@ export default function DocumentPage() {
                         </div>
                     </div>
 
-                    <div ref={viewerRef} className="min-h-0 flex-1 overflow-auto bg-muted/20">
+                    <div
+                        ref={viewerRef}
+                        className={cn(
+                            'min-h-0 flex-1 overflow-auto bg-muted/20',
+                            zoom > 1 && 'select-none'
+                        )}
+                        onMouseDown={handleViewerMouseDown}
+                    >
                         {pdfError ? (
                             <div className="flex h-full items-center justify-center p-8 text-sm text-destructive">
                                 {pdfError}
                             </div>
                         ) : (
-                            <div className="mx-auto flex max-w-[980px] flex-col gap-4 p-4">
+                            <div className="mx-auto flex w-fit min-w-full flex-col items-center gap-4 p-4">
                                 <PdfDocument
                                     file={originalPdfUrl}
-                                    options={pdfOptions}
+                                    options={PDF_OPTIONS}
                                     loading={
                                         <div className="flex items-center justify-center py-20 text-muted-foreground">
                                             <Loader2 className="h-5 w-5 animate-spin" />
@@ -1171,6 +1639,8 @@ export default function DocumentPage() {
                                     }
                                     onLoadSuccess={({ numPages: nextNumPages }) => {
                                         setNumPages(nextNumPages)
+                                        setCurrentPage(1)
+                                        setPageInput('1')
                                         setPdfError(null)
                                     }}
                                     onLoadError={(loadError) => {
@@ -1186,7 +1656,8 @@ export default function DocumentPage() {
                                         return (
                                             <div
                                                 key={pageNumber}
-                                                className="overflow-hidden rounded-xl border bg-white shadow-sm"
+                                                className="rounded-xl border bg-white shadow-sm"
+                                                style={{ width: renderedPageWidth }}
                                             >
                                                 <div className="flex items-center justify-between border-b px-4 py-2 text-xs text-muted-foreground">
                                                     <span>페이지 {pageNumber}</span>
@@ -1195,19 +1666,22 @@ export default function DocumentPage() {
                                                         <Badge variant="secondary">선택한 위치</Badge>
                                                     )}
                                                 </div>
+
                                                 <div
                                                     ref={(node) => {
                                                         if (node) {
                                                             pageRefs.current[pageNumber] = node
                                                         }
                                                     }}
-                                                    className="relative cursor-crosshair"
+                                                    className={cn(
+                                                        'relative',
+                                                        zoom > 1 ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-crosshair'
+                                                    )}
                                                     onClick={(event) => handlePdfPageClick(pageNumber, event)}
                                                 >
-
                                                     <Page
                                                         pageNumber={pageNumber}
-                                                        width={pageWidth}
+                                                        width={renderedPageWidth}
                                                         renderAnnotationLayer={false}
                                                         renderTextLayer={false}
                                                     />
