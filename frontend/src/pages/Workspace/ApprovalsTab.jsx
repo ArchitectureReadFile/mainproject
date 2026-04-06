@@ -468,6 +468,7 @@ export default function ApprovalsTab({ group }) {
                                                     {item.document_type || '유형 없음'}
                                                 </span>
                                                 <span>업로더 {item.uploader || '-'}</span>
+                                                <span>검토 댓글 {item.comment_count ?? 0}개</span>
                                                 <span>업로드 {formatDateTime(item.created_at)}</span>
                                                 <span>담당자 {item.assignee_username || '미지정'}</span>
                                                 <span className={processingMeta.className}>
@@ -530,6 +531,7 @@ export default function ApprovalsTab({ group }) {
                                                 {item.document_type || '유형 없음'}
                                             </span>
                                             <span>업로더 {item.uploader || '-'}</span>
+                                            <span>검토 댓글 {item.comment_count ?? 0}개</span>
                                             <span>승인일 {formatDateTime(item.reviewed_at)}</span>
                                             <span>담당자 {item.assignee_username || '미지정'}</span>
                                             <span className={processingMeta.className}>
@@ -568,6 +570,7 @@ export default function ApprovalsTab({ group }) {
                                                 {item.document_type || '유형 없음'}
                                             </span>
                                             <span>업로더 {item.uploader || '-'}</span>
+                                            <span>검토 댓글 {item.comment_count ?? 0}개</span>
                                             <span>반려일 {formatDateTime(item.reviewed_at)}</span>
                                             <span className={processingMeta.className}>
                                                 요약 {processingMeta.label}

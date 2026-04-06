@@ -54,7 +54,7 @@ class DocumentReviewService:
 
         results: list[PendingDocumentListItemResponse] = []
 
-        for doc in documents:
+        for doc, comment_count in documents:
             summary = getattr(doc, "summary", None)
             approval = getattr(doc, "approval", None)
             assignee = getattr(approval, "assignee", None) if approval else None
@@ -74,6 +74,7 @@ class DocumentReviewService:
                     uploader=doc.owner.username if doc.owner else None,
                     assignee_user_id=approval.assignee_user_id if approval else None,
                     assignee_username=assignee.username if assignee else None,
+                    comment_count=comment_count,
                 )
             )
 
@@ -162,7 +163,7 @@ class DocumentReviewService:
 
         results: list[ReviewedDocumentListItemResponse] = []
 
-        for doc in documents:
+        for doc, comment_count in documents:
             summary = getattr(doc, "summary", None)
             approval = getattr(doc, "approval", None)
             assignee = getattr(approval, "assignee", None) if approval else None
@@ -186,6 +187,7 @@ class DocumentReviewService:
                     reviewed_at=approval.reviewed_at if approval else None,
                     reviewer_username=reviewer.username if reviewer else None,
                     feedback=approval.feedback if approval else None,
+                    comment_count=comment_count,
                 )
             )
 
@@ -216,7 +218,7 @@ class DocumentReviewService:
 
         results: list[ReviewedDocumentListItemResponse] = []
 
-        for doc in documents:
+        for doc, comment_count in documents:
             summary = getattr(doc, "summary", None)
             approval = getattr(doc, "approval", None)
             assignee = getattr(approval, "assignee", None) if approval else None
@@ -240,6 +242,7 @@ class DocumentReviewService:
                     reviewed_at=approval.reviewed_at if approval else None,
                     reviewer_username=reviewer.username if reviewer else None,
                     feedback=approval.feedback if approval else None,
+                    comment_count=comment_count,
                 )
             )
 

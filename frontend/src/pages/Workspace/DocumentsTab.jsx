@@ -282,6 +282,7 @@ export default function DocumentsTab({ group }) {
 
 
                                         <span>업로더 {doc.uploader}</span>
+                                        <span>댓글 {doc.comment_count ?? 0}개</span>
                                         <span>업로드 {new Date(doc.created_at).toLocaleDateString('ko-KR')}</span>
                                     </div>
 

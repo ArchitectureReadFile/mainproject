@@ -1,10 +1,13 @@
 from typing import Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from models.model import (
     Document,
     DocumentApproval,
+    DocumentComment,
+    DocumentCommentScope,
     DocumentLifecycleStatus,
     ReviewStatus,
     User,
@@ -15,6 +18,24 @@ class DocumentReviewRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    def _get_review_comment_count_subquery(self):
+        """
+        승인 목록 카드에서 사용할 검토 댓글 수를 문서별로 집계합니다.
+        삭제된 댓글은 제외합니다.
+        """
+        return (
+            self.db.query(
+                DocumentComment.document_id.label("document_id"),
+                func.count(DocumentComment.id).label("comment_count"),
+            )
+            .filter(
+                DocumentComment.comment_scope == DocumentCommentScope.REVIEW.value,
+                DocumentComment.deleted_at.is_(None),
+            )
+            .group_by(DocumentComment.document_id)
+            .subquery()
+        )
+
     def get_pending_list(
         self,
         skip: int,
@@ -24,15 +45,26 @@ class DocumentReviewRepository:
         uploader: str = "",
         assignee_type: str = "all",
         current_user_id: int | None = None,
-    ) -> tuple[list[Document], int]:
+    ) -> tuple[list[tuple[Document, int]], int]:
         """그룹 내 승인 대기 문서 전체 조회(목록용)"""
+        comment_count_subquery = self._get_review_comment_count_subquery()
+
         query = (
-            self.db.query(Document)
+            self.db.query(
+                Document,
+                func.coalesce(comment_count_subquery.c.comment_count, 0).label(
+                    "comment_count"
+                ),
+            )
             .join(Document.approval)
             .options(
                 joinedload(Document.owner),
                 joinedload(Document.summary),
                 joinedload(Document.approval).joinedload(DocumentApproval.assignee),
+            )
+            .outerjoin(
+                comment_count_subquery,
+                comment_count_subquery.c.document_id == Document.id,
             )
             .filter(
                 Document.group_id == group_id,
@@ -123,16 +155,27 @@ class DocumentReviewRepository:
         group_id: int,
         reviewer_user_id: int,
         uploader: str = "",
-    ) -> tuple[list[Document], int]:
+    ) -> tuple[list[tuple[Document, int]], int]:
         """그룹 내 내가 승인한 문서 조회(목록용)"""
+        comment_count_subquery = self._get_review_comment_count_subquery()
+
         query = (
-            self.db.query(Document)
+            self.db.query(
+                Document,
+                func.coalesce(comment_count_subquery.c.comment_count, 0).label(
+                    "comment_count"
+                ),
+            )
             .join(Document.approval)
             .options(
                 joinedload(Document.owner),
                 joinedload(Document.summary),
                 joinedload(Document.approval).joinedload(DocumentApproval.assignee),
                 joinedload(Document.approval).joinedload(DocumentApproval.reviewer),
+            )
+            .outerjoin(
+                comment_count_subquery,
+                comment_count_subquery.c.document_id == Document.id,
             )
             .filter(
                 Document.group_id == group_id,
@@ -190,16 +233,27 @@ class DocumentReviewRepository:
         group_id: int,
         reviewer_user_id: int,
         uploader: str = "",
-    ) -> tuple[list[Document], int]:
+    ) -> tuple[list[tuple[Document, int]], int]:
         """그룹 내 내가 반려한 문서 조회(목록용)"""
+        comment_count_subquery = self._get_review_comment_count_subquery()
+
         query = (
-            self.db.query(Document)
+            self.db.query(
+                Document,
+                func.coalesce(comment_count_subquery.c.comment_count, 0).label(
+                    "comment_count"
+                ),
+            )
             .join(Document.approval)
             .options(
                 joinedload(Document.owner),
                 joinedload(Document.summary),
                 joinedload(Document.approval).joinedload(DocumentApproval.assignee),
                 joinedload(Document.approval).joinedload(DocumentApproval.reviewer),
+            )
+            .outerjoin(
+                comment_count_subquery,
+                comment_count_subquery.c.document_id == Document.id,
             )
             .filter(
                 Document.group_id == group_id,

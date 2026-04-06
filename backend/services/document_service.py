@@ -49,6 +49,10 @@ class DocumentService:
         category="전체",
         group_id=None,
     ):
+        """
+        문서 목록 응답
+        목록 카드에서 바로 사용할 수 있도록 댓글 수를 함께 전달
+        """
         limit = min(limit, 50)
         documents, total = self.repository.get_list(
             skip,
@@ -63,7 +67,7 @@ class DocumentService:
 
         results: list[DocumentListItemResponse] = []
 
-        for doc in documents:
+        for doc, comment_count in documents:
             summary = getattr(doc, "summary", None)
             approval = getattr(doc, "approval", None)
             title = self._build_document_title(doc, summary)
@@ -82,6 +86,7 @@ class DocumentService:
                     else None,
                     created_at=doc.created_at,
                     uploader=doc.owner.username if doc.owner else None,
+                    comment_count=comment_count,
                     delete_requested_at=None,
                     delete_scheduled_at=None,
                     deleted_by=None,
