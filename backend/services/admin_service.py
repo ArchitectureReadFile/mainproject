@@ -3,7 +3,7 @@ services/admin_service.py
 
 어드민 관련 비즈니스 로직.
 - 통계/사용량 조회
-- 회원 상태 변경
+- 회원 상태/플랜 변경
 
 집계/표시 기준:
   total_users    : GENERAL + is_active=True
@@ -25,6 +25,7 @@ from models.model import (
     DocumentStatus,
     Group,
     GroupMember,
+    GroupPendingReason,
     GroupStatus,
     Precedent,
     Subscription,
@@ -32,6 +33,7 @@ from models.model import (
     SubscriptionStatus,
     User,
     UserRole,
+    utc_now_naive,
 )
 from schemas.admin import (
     AdminStatsResponse,
@@ -215,9 +217,7 @@ def get_admin_users(
     return AdminUserListResponse(items=items, total=total)
 
 
-def update_admin_user_status(
-    db: Session, user_id: int, is_active: bool, current_admin: User
-) -> User:
+def _get_admin_user_or_raise(db: Session, user_id: int, current_admin: User) -> User:
     if user_id == current_admin.id:
         raise AppException(ErrorCode.AUTH_FORBIDDEN)
 
@@ -228,7 +228,99 @@ def update_admin_user_status(
     if user.role == UserRole.ADMIN:
         raise AppException(ErrorCode.AUTH_FORBIDDEN)
 
-    user.is_active = is_active
+    return user
+
+
+def _get_admin_user_effective_plan(user: User) -> str:
+    sub = user.subscription
+    is_active_premium = (
+        sub is not None
+        and sub.plan == SubscriptionPlan.PREMIUM
+        and sub.status == SubscriptionStatus.ACTIVE
+    )
+    return (
+        SubscriptionPlan.PREMIUM.value
+        if is_active_premium
+        else SubscriptionPlan.FREE.value
+    )
+
+
+def _set_admin_user_plan(
+    db: Session,
+    *,
+    user: User,
+    plan: SubscriptionPlan,
+) -> str:
+    subscription = user.subscription
+    if subscription is None:
+        subscription = Subscription(
+            user_id=user.id,
+            plan=SubscriptionPlan.FREE,
+            status=SubscriptionStatus.ACTIVE,
+            auto_renew=False,
+        )
+        db.add(subscription)
+        db.flush()
+
+    now = utc_now_naive()
+
+    if plan == SubscriptionPlan.FREE:
+        subscription.plan = SubscriptionPlan.FREE
+        subscription.status = SubscriptionStatus.ACTIVE
+        subscription.auto_renew = False
+        subscription.ended_at = None
+    else:
+        subscription.plan = SubscriptionPlan.PREMIUM
+        subscription.status = SubscriptionStatus.ACTIVE
+        subscription.auto_renew = False
+        subscription.started_at = now
+        subscription.ended_at = now + timedelta(days=30)
+
+        pending_groups = (
+            db.query(Group)
+            .filter(
+                Group.owner_user_id == user.id,
+                Group.status.in_(
+                    [
+                        GroupStatus.DELETE_PENDING,
+                        GroupStatus.BLOCKED,
+                    ]
+                ),
+                Group.pending_reason == GroupPendingReason.SUBSCRIPTION_EXPIRED,
+            )
+            .all()
+        )
+
+        for group in pending_groups:
+            group.status = GroupStatus.ACTIVE
+            group.pending_reason = None
+            group.delete_requested_at = None
+            group.delete_scheduled_at = None
+
+    return subscription.plan.value
+
+
+def update_admin_user(
+    db: Session,
+    user_id: int,
+    *,
+    current_admin: User,
+    is_active: bool | None = None,
+    plan: str | None = None,
+) -> tuple[User, str]:
+    user = _get_admin_user_or_raise(db, user_id, current_admin=current_admin)
+
+    if is_active is not None:
+        user.is_active = is_active
+
+    effective_plan = _get_admin_user_effective_plan(user)
+    if plan is not None:
+        effective_plan = _set_admin_user_plan(
+            db,
+            user=user,
+            plan=SubscriptionPlan[plan],
+        )
+
     db.commit()
     db.refresh(user)
-    return user
+    return user, effective_plan

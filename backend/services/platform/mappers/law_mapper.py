@@ -78,14 +78,22 @@ def _to_text(value: Any) -> str:
 def _build_article_text(article: dict) -> str:
     """조문 하나를 텍스트로 직렬화."""
     lines: list[str] = []
-    no = article.get("조문번호") or ""
-    title = article.get("조문제목") or ""
-    if no or title:
-        lines.append(f"제{no}조 {title}".strip())
+    no = str(article.get("조문번호") or "").strip()
+    title = _to_text(article.get("조문제목"))
+    header = f"제{no}조 {title}".strip() if (no or title) else ""
     content = _to_text(article.get("조문내용"))
+
     if content:
-        lines.append(content)
-    for key in ("항내용", "호내용", "목내용"):
+        if no and content.lstrip().startswith(f"제{no}조"):
+            lines.append(content)
+        else:
+            if header:
+                lines.append(header)
+            lines.append(content)
+    elif header:
+        lines.append(header)
+
+    for key in ("항내용", "호내용", "목내용", "항", "호", "목"):
         val = _to_text(article.get(key))
         if val:
             lines.append(val)

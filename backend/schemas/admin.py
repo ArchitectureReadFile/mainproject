@@ -89,6 +89,7 @@ class AdminPlatformSourceSummary(BaseModel):
 class AdminPlatformRecentItem(BaseModel):
     id: int
     source_type: AdminPlatformSourceType
+    title: Optional[str] = None
     display_title: Optional[str]
     external_id: str
     issued_at: Optional[datetime]
@@ -179,5 +180,6 @@ class AdminUserListResponse(BaseModel):
     total: int
 
 
-class AdminUserStatusUpdateRequest(BaseModel):
-    is_active: bool
+class AdminUserUpdateRequest(BaseModel):
+    is_active: bool | None = None
+    plan: Literal["FREE", "PREMIUM"] | None = None
