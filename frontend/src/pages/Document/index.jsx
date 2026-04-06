@@ -354,6 +354,37 @@ export default function DocumentPage() {
         })
     }, [])
 
+    
+    /**
+     * 댓글 좌표 기준으로 PDF 뷰어 내부 스크롤을 이동한다.
+     * 현재 스크롤 위치와 실제 DOM 좌표를 함께 사용해서 중앙 정렬한다.
+     */
+    const scrollToMarker = useCallback((anchor) => {
+        const pageEl = pageRefs.current[anchor.page]
+        const viewerEl = viewerRef.current
+
+        if (!pageEl || !viewerEl) {
+            return
+        }
+
+        const pageRect = pageEl.getBoundingClientRect()
+        const viewerRect = viewerEl.getBoundingClientRect()
+
+        const markerTopInViewer =
+            pageRect.top - viewerRect.top + viewerEl.scrollTop + pageEl.clientHeight * anchor.y
+
+        const nextScrollTop = Math.max(
+            0,
+            markerTopInViewer - viewerEl.clientHeight / 2
+        )
+
+        viewerEl.scrollTo({
+            top: nextScrollTop,
+            behavior: 'smooth',
+        })
+    }, [])
+
+
     /**
      * 특정 댓글 스레드를 패널과 PDF 양쪽에서 동시에 포커싱한다.
      */
@@ -364,9 +395,10 @@ export default function DocumentPage() {
         setFocusedCommentId(comment.id)
 
         if (anchor) {
-            pageRefs.current[anchor.page]?.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center',
+            window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(() => {
+                    scrollToMarker(anchor)
+                })
             })
         }
 
@@ -375,8 +407,9 @@ export default function DocumentPage() {
                 behavior: 'smooth',
                 block: 'nearest',
             })
-        }, 120)
-    }, [])
+        }, 180)
+    }, [scrollToMarker])
+
 
     /**
      * 멘션 후보를 본문에 삽입한다.
@@ -1153,11 +1186,6 @@ export default function DocumentPage() {
                                         return (
                                             <div
                                                 key={pageNumber}
-                                                ref={(node) => {
-                                                    if (node) {
-                                                        pageRefs.current[pageNumber] = node
-                                                    }
-                                                }}
                                                 className="overflow-hidden rounded-xl border bg-white shadow-sm"
                                             >
                                                 <div className="flex items-center justify-between border-b px-4 py-2 text-xs text-muted-foreground">
@@ -1167,11 +1195,16 @@ export default function DocumentPage() {
                                                         <Badge variant="secondary">선택한 위치</Badge>
                                                     )}
                                                 </div>
-
                                                 <div
+                                                    ref={(node) => {
+                                                        if (node) {
+                                                            pageRefs.current[pageNumber] = node
+                                                        }
+                                                    }}
                                                     className="relative cursor-crosshair"
                                                     onClick={(event) => handlePdfPageClick(pageNumber, event)}
                                                 >
+
                                                     <Page
                                                         pageNumber={pageNumber}
                                                         width={pageWidth}
