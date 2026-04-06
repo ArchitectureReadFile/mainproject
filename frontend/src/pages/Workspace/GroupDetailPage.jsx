@@ -1,6 +1,6 @@
 import {
     getGroupDetail, requestDeleteGroup, cancelDeleteGroup, getMembers, inviteMember,
-    removeMember, changeMemberRole, transferOwner,
+    removeMember, changeMemberRole, transferOwner, leaveGroup,
 } from '@/api/groups'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import {
@@ -153,6 +153,7 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
     const [inviteLoading, setInviteLoading] = useState(false)
     const [inviteError, setInviteError] = useState('')
     const [confirmRemove, setConfirmRemove] = useState(null)
+    const [confirmCancelInvite, setConfirmCancelInvite] = useState(null)
     const [actionLoading, setActionLoading] = useState(null)
     const [confirmInvite, setConfirmInvite] = useState(false)
     const [confirmTransfer, setConfirmTransfer] = useState(null)
@@ -296,6 +297,27 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
     const handleTransferOwner = (targetId) => {
         setConfirmTransfer(targetId)
     }
+
+    /**
+     * 초대 대기 중인 멤버의 초대를 취소한다.
+     */
+    const handleCancelInvite = async (targetId) => {
+        setActionLoading(targetId)
+        try {
+            await removeMember(group.id, targetId)
+            setData((prev) => ({
+                ...prev,
+                invited: prev.invited.filter((m) => m.user_id !== targetId),
+            }))
+            toast.success('초대를 취소했습니다.')
+        } catch (e) {
+            toast.error(e.message || '초대 취소에 실패했습니다.')
+        } finally {
+            setActionLoading(null)
+            setConfirmCancelInvite(null)
+        }
+    }
+
 
     const executeTransferOwner = async (targetId) => {
         setActionLoading(targetId)
@@ -523,7 +545,18 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
                                             초대일: {new Date(m.invited_at).toLocaleDateString('ko-KR')}
                                         </p>
                                     </div>
-                                    <RoleBadge role={m.role} />
+                                    <div className="flex items-center gap-2">
+                                        <RoleBadge role={m.role} />
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setConfirmCancelInvite(m.user_id)}
+                                            disabled={actionLoading === m.user_id}
+                                            className="h-8 px-2 text-xs"
+                                        >
+                                            초대 취소 
+                                        </Button>
+                                    </div>                
                                 </li>
                             ))}
                         </ul>
@@ -551,6 +584,14 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
             />
 
             <ConfirmModal
+                open={confirmCancelInvite !== null}
+                message="해당 초대를 취소하시겠습니까?"
+                confirmLabel={actionLoading ? '처리 중...' : '초대 취소'}
+                onConfirm={() => handleCancelInvite(confirmCancelInvite)}
+                onCancel={() => setConfirmCancelInvite(null)}
+            />
+
+            <ConfirmModal
                 open={confirmTransfer !== null}
                 message="해당 멤버에게 오너 권한을 양도하시겠습니까?"
                 confirmLabel={actionLoading ? '처리 중...' : '양도'}
@@ -562,6 +603,7 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
 }
 
 function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
+    const navigate = useNavigate()
     const isOwner = group.my_role === 'OWNER'
     const isPending = group.status === 'DELETE_PENDING'
     const isOwnerDeletePending =
@@ -569,6 +611,9 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
 
     const canDelete = isOwner && group.status === 'ACTIVE'
     const canCancelDelete = isOwner && isOwnerDeletePending
+    const canLeave =
+        group.my_role !== 'OWNER' &&
+        (group.status === 'ACTIVE' || group.status === 'DELETE_PENDING')
 
     const [confirmType, setConfirmType] = useState(null)
     const [loading, setLoading] = useState(false)
@@ -576,11 +621,19 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
     const handleConfirm = async () => {
         setLoading(true)
         try {
-            const updated = confirmType === 'delete'
-                ? await requestDeleteGroup(group.id)
-                : await cancelDeleteGroup(group.id)
-            onUpdated(updated)
-            toast.success(confirmType === 'delete' ? '삭제 요청이 완료됐습니다.' : '삭제가 취소됐습니다.')
+            if (confirmType === 'delete') {
+                const updated = await requestDeleteGroup(group.id)
+                onUpdated(updated)
+                toast.success('삭제 요청이 완료됐습니다.')
+            } else if (confirmType === 'cancel') {
+                const updated = await cancelDeleteGroup(group.id)
+                onUpdated(updated)
+                toast.success('삭제가 취소됐습니다.')
+            } else if (confirmType === 'leave') {
+                await leaveGroup(group.id)
+                toast.success('워크스페이스에서 탈퇴했습니다.')
+                navigate('/workspace')
+            }
         } catch (e) {
             toast.error(e.message || '처리에 실패했습니다.')
         } finally {
@@ -676,6 +729,22 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
                 </div>
             )}
 
+            {canLeave && (
+                <div className="rounded-lg border border-destructive/30 p-5 space-y-3">
+                    <h3 className="text-base font-semibold text-destructive">워크스페이스 탈퇴</h3>
+                    <p className="text-base text-muted-foreground">
+                        탈퇴하면 이 워크스페이스의 문서와 대화에 더 이상 접근할 수 없습니다.
+                    </p>
+                    <Button
+                        variant="outline"
+                        onClick={() => setConfirmType('leave')}
+                        className="flex items-center gap-2 rounded-md border border-destructive px-3 py-1.5 text-sm text-destructive hover:bg-destructive/5 transition-colors"
+                    >
+                        워크스페이스 탈퇴
+                    </Button>
+                </div>
+            )}
+
             <ConfirmModal
                 open={confirmType === 'delete'}
                 message="워크스페이스를 삭제 요청합니다. 30일 후 영구 삭제되며, 그 전까지 취소할 수 있습니다."
@@ -683,10 +752,19 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
                 onConfirm={handleConfirm}
                 onCancel={() => setConfirmType(null)}
             />
+
             <ConfirmModal
                 open={confirmType === 'cancel'}
                 message="삭제 요청을 취소하고 워크스페이스를 복구합니다."
                 confirmLabel={loading ? '처리 중...' : '삭제 취소'}
+                onConfirm={handleConfirm}
+                onCancel={() => setConfirmType(null)}
+            />
+
+            <ConfirmModal
+                open={confirmType === 'leave'}
+                message="정말 이 워크스페이스에서 탈퇴하시겠습니까? 탈퇴 후에는 다시 초대받아야 접근할 수 있습니다."
+                confirmLabel={loading ? '처리 중...' : '탈퇴'}
                 onConfirm={handleConfirm}
                 onCancel={() => setConfirmType(null)}
             />

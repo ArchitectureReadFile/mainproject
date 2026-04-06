@@ -1,3 +1,5 @@
+import os
+
 from errors import AppException, ErrorCode
 from models.model import (
     DocumentLifecycleStatus,
@@ -88,13 +90,14 @@ class DocumentService:
 
         return results, total
 
-    def get_detail_in_group(
+    def get_document_in_group_with_permission(
         self,
         doc_id: int,
         group_id: int,
         current_user_id: int,
         current_user_role: MembershipRole | None,
-    ) -> DocumentDetailResponse:
+    ):
+        """그룹 문서를 조회하고 상세/원문 열람 권한을 함께 검증"""
         doc = self.repository.get_detail(doc_id)
 
         if not doc:
@@ -105,7 +108,6 @@ class DocumentService:
 
         approval = getattr(doc, "approval", None)
         approval_status = approval.status if approval else None
-        assignee = getattr(approval, "assignee", None) if approval else None
 
         is_uploader = doc.uploader_user_id == current_user_id
         is_owner_or_admin = current_user_role in (
@@ -121,6 +123,31 @@ class DocumentService:
         elif approval_status != ReviewStatus.APPROVED:
             if not (is_uploader or is_owner_or_admin):
                 raise AppException(ErrorCode.AUTH_FORBIDDEN)
+
+        return doc
+
+    def get_detail_in_group(
+        self,
+        doc_id: int,
+        group_id: int,
+        current_user_id: int,
+        current_user_role: MembershipRole | None,
+    ) -> DocumentDetailResponse:
+        """그룹 문서 상세 정보를 반환"""
+        doc = self.get_document_in_group_with_permission(
+            doc_id=doc_id,
+            group_id=group_id,
+            current_user_id=current_user_id,
+            current_user_role=current_user_role,
+        )
+
+        approval = getattr(doc, "approval", None)
+        assignee = getattr(approval, "assignee", None) if approval else None
+        is_uploader = doc.uploader_user_id == current_user_id
+        is_owner_or_admin = current_user_role in (
+            MembershipRole.OWNER,
+            MembershipRole.ADMIN,
+        )
 
         summary = getattr(doc, "summary", None)
         title = self._build_document_title(doc, summary)
@@ -155,6 +182,26 @@ class DocumentService:
                 response_data[field] = get_summary_field(summary, field)
 
         return DocumentDetailResponse(**response_data)
+
+    def get_original_file_in_group(
+        self,
+        doc_id: int,
+        group_id: int,
+        current_user_id: int,
+        current_user_role: MembershipRole | None,
+    ) -> tuple[str, str]:
+        """그룹 문서의 원본 PDF 경로와 파일명을 반환"""
+        doc = self.get_document_in_group_with_permission(
+            doc_id=doc_id,
+            group_id=group_id,
+            current_user_id=current_user_id,
+            current_user_role=current_user_role,
+        )
+
+        if not doc.stored_path or not os.path.exists(doc.stored_path):
+            raise AppException(ErrorCode.FILE_NOT_FOUND)
+
+        return doc.stored_path, doc.original_filename
 
     def delete_document(self, doc_id: int, user_id: int, group_id: int) -> None:
         doc = self.repository.get_detail(doc_id)

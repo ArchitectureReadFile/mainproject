@@ -6,6 +6,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -94,6 +95,11 @@ class NotificationType(enum.Enum):
 class SubscriptionPlan(enum.Enum):
     FREE = "FREE"
     PREMIUM = "PREMIUM"
+
+
+class DocumentCommentScope(enum.Enum):
+    GENERAL = "GENERAL"
+    REVIEW = "REVIEW"
 
 
 document_categories = Table(
@@ -194,6 +200,18 @@ class User(Base):
     deleted_documents = relationship(
         "Document",
         foreign_keys="Document.deleted_by_user_id",
+        back_populates="deleted_by",
+    )
+
+    authored_comments = relationship(
+        "DocumentComment",
+        foreign_keys="DocumentComment.author_user_id",
+        back_populates="author",
+    )
+
+    deleted_comments = relationship(
+        "DocumentComment",
+        foreign_keys="DocumentComment.deleted_by_user_id",
         back_populates="deleted_by",
     )
 
@@ -392,6 +410,12 @@ class Document(Base):
         back_populates="deleted_documents",
     )
 
+    comments = relationship(
+        "DocumentComment",
+        back_populates="document",
+        cascade="all, delete-orphan",
+    )
+
 
 class DocumentApproval(Base):
     __tablename__ = "document_approvals"
@@ -466,6 +490,131 @@ class Summary(Base):
     )
 
     document = relationship("Document", back_populates="summary")
+
+
+class DocumentComment(Base):
+    __tablename__ = "document_comments"
+
+    id = Column(Integer, primary_key=True)
+
+    document_id = Column(
+        Integer,
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    author_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    parent_id = Column(
+        Integer,
+        ForeignKey("document_comments.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
+    content = Column(Text, nullable=False)
+
+    comment_scope = Column(
+        String(20),
+        nullable=False,
+        default=DocumentCommentScope.GENERAL.value,
+        server_default=DocumentCommentScope.GENERAL.value,
+        index=True,
+    )
+
+    page = Column(Integer, nullable=True)
+    x = Column(Float, nullable=True)
+    y = Column(Float, nullable=True)
+
+    deleted_by_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    deleted_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
+
+    document = relationship("Document", back_populates="comments")
+    author = relationship(
+        "User",
+        foreign_keys=[author_user_id],
+        back_populates="authored_comments",
+    )
+    deleted_by = relationship(
+        "User",
+        foreign_keys=[deleted_by_user_id],
+        back_populates="deleted_comments",
+    )
+    parent = relationship(
+        "DocumentComment",
+        remote_side=[id],
+        back_populates="replies",
+    )
+    replies = relationship(
+        "DocumentComment",
+        back_populates="parent",
+    )
+    mentions = relationship(
+        "DocumentCommentMention",
+        back_populates="comment",
+        cascade="all, delete-orphan",
+        order_by="DocumentCommentMention.start_index.asc()",
+    )
+
+
+class DocumentCommentMention(Base):
+    """
+    댓글 본문 내 멘션 구간을 저장합니다.
+    mentioned_user_id는 식별용,
+    snapshot_username은 저장 시점 본문 검증용 스냅샷입니다.
+    """
+
+    __tablename__ = "document_comment_mentions"
+
+    id = Column(Integer, primary_key=True)
+
+    comment_id = Column(
+        Integer,
+        ForeignKey("document_comments.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # 식별용
+    mentioned_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # snapshot_username: 저장 시점 본문 검증용 스냅샷
+    snapshot_username = Column(String(20), nullable=False)
+    start_index = Column(Integer, nullable=False)
+    end_index = Column(Integer, nullable=False)
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "comment_id",
+            "start_index",
+            "end_index",
+            name="uq_comment_mention_span",
+        ),
+    )
+
+    comment = relationship("DocumentComment", back_populates="mentions")
+    mentioned_user = relationship("User", foreign_keys=[mentioned_user_id])
 
 
 class ChatSession(Base):

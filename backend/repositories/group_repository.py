@@ -189,6 +189,31 @@ class GroupRepository:
             .first()
         )
 
+    def get_active_users_by_ids(
+        self,
+        *,
+        group_id: int,
+        user_ids: list[int],
+    ) -> list[User]:
+        """
+        워크스페이스의 활성 멤버 중 지정한 사용자 목록을 조회
+        멘션 가능 대상 검증에 사용
+        """
+        if not user_ids:
+            return []
+
+        return (
+            self.db.query(User)
+            .join(GroupMember, GroupMember.user_id == User.id)
+            .filter(
+                GroupMember.group_id == group_id,
+                GroupMember.status == MembershipStatus.ACTIVE,
+                User.id.in_(user_ids),
+                User.is_active.is_(True),
+            )
+            .all()
+        )
+
     def get_invited_members(self, group_id: int) -> list[tuple[GroupMember, User]]:
         """INVITED 멤버 목록 조회(유저 정보 포함)"""
         return (

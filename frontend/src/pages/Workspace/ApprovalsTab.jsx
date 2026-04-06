@@ -299,6 +299,12 @@ export default function ApprovalsTab({ group }) {
         }
     }
 
+    const buildApprovalDetailSearch = useCallback(() => {
+        const nextParams = new URLSearchParams(searchParams)
+        nextParams.set('comment_scope', 'review')
+        return nextParams.toString()
+    }, [searchParams])
+
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
             {isWriteRestricted && (
@@ -446,7 +452,7 @@ export default function ApprovalsTab({ group }) {
                                         <div
                                             className="min-w-0 flex-1 cursor-pointer"
                                             onClick={() =>
-                                                navigate(`/workspace/${group.id}/documents/${item.id}?${searchParams.toString()}`)
+                                                navigate(`/workspace/${group.id}/documents/${item.id}?${buildApprovalDetailSearch()}`)
                                             }
                                         >
                                             <p className="text-sm font-medium truncate">{item.title}</p>
@@ -508,7 +514,7 @@ export default function ApprovalsTab({ group }) {
                                         key={item.id}
                                         className="px-5 py-4 cursor-pointer transition-colors hover:bg-muted/50"
                                         onClick={() =>
-                                            navigate(`/workspace/${group.id}/documents/${item.id}?${searchParams.toString()}`)
+                                            navigate(`/workspace/${group.id}/documents/${item.id}?${buildApprovalDetailSearch()}`)
                                         }
                                     >
                                         <p className="text-sm font-medium truncate">{item.title}</p>
@@ -546,7 +552,7 @@ export default function ApprovalsTab({ group }) {
                                         key={item.id}
                                         className="px-5 py-4 cursor-pointer transition-colors hover:bg-muted/50"
                                         onClick={() =>
-                                            navigate(`/workspace/${group.id}/documents/${item.id}?${searchParams.toString()}`)
+                                            navigate(`/workspace/${group.id}/documents/${item.id}?${buildApprovalDetailSearch()}`)
                                         }
                                     >
                                         <p className="text-sm font-medium truncate">{item.title}</p>

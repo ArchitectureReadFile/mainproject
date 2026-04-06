@@ -154,3 +154,12 @@ def transfer_owner(
     service: GroupService = Depends(get_group_service),
 ):
     service.transfer_owner(current_user.id, group_id, target_id)
+
+
+@router.post("/{group_id}/leave", status_code=status.HTTP_204_NO_CONTENT)
+def leave_group(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    service.leave_group(current_user.id, group_id)

@@ -82,7 +82,7 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
         group, role = result
-        self._assert_group_writable(group)
+        self.assert_group_writable(group)
 
         if group.status != GroupStatus.ACTIVE:
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
@@ -227,7 +227,7 @@ class GroupService:
         if not group:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
-        self._assert_group_writable(group)
+        self.assert_group_writable(group)
         return self._assert_owner_or_admin_member(user_id, group_id)
 
     def _to_group_summary_response(
@@ -287,7 +287,7 @@ class GroupService:
         ):
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
 
-    def _assert_group_writable(self, group: Group) -> None:
+    def assert_group_writable(self, group: Group) -> None:
         """그룹 쓰기 가능 여부를 현재 시각 기준 상태로 검사"""
         status, _, _ = self._get_effective_group_state(group)
         if status != GroupStatus.ACTIVE:
@@ -504,7 +504,7 @@ class GroupService:
         if not group:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
-        self._assert_group_writable(group)
+        self.assert_group_writable(group)
 
         if group.status != GroupStatus.ACTIVE:
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
@@ -581,19 +581,25 @@ class GroupService:
         self.db.commit()
 
     def remove_member(self, target_id: int, group_id: int, remover_id: int) -> None:
-        """멤버 삭제"""
+        """활성 멤버를 추방하거나 초대 대기 멤버의 초대를 취소"""
         remover = self._check_owner_or_admin(remover_id, group_id)
 
         group = self.repository.get_group_by_id(group_id)
         if not group:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
-        self._assert_group_writable(group)
+        self.assert_group_writable(group)
 
         if remover_id == target_id:
             raise AppException(ErrorCode.GROUP_CANNOT_REMOVE_SELF)
 
+        is_invited_member = False
         target_membership = self.repository.get_active_member(target_id, group_id)
+
+        if not target_membership:
+            target_membership = self.repository.get_invited_member(target_id, group_id)
+            is_invited_member = target_membership is not None
+
         if not target_membership:
             raise AppException(ErrorCode.GROUP_MEMBER_NOT_FOUND)
 
@@ -604,6 +610,11 @@ class GroupService:
             and remover.role == MembershipRole.ADMIN
         ):
             raise AppException(ErrorCode.GROUP_NOT_OWNER)
+
+        if is_invited_member:
+            self.repository.decline_invite(target_membership)
+            self.db.commit()
+            return
 
         self.repository.remove_member(target_membership)
 
@@ -632,7 +643,7 @@ class GroupService:
         if not group:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
-        self._assert_group_writable(group)
+        self.assert_group_writable(group)
 
         target_membership = self.repository.get_active_member(target_id, group_id)
         if not target_membership:
@@ -678,4 +689,23 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_PREMIUM)
 
         self.repository.transfer_owner(group, user_id, target_id)
+        self.db.commit()
+
+    def leave_group(self, user_id: int, group_id: int) -> None:
+        """현재 사용자가 OWNER가 아닌 경우 워크스페이스를 탈퇴"""
+        result = self.repository.get_group_with_role(user_id, group_id)
+        if not result:
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+
+        group, role = result
+        self._assert_group_readable(group)
+
+        if role == MembershipRole.OWNER:
+            raise AppException(ErrorCode.GROUP_OWNER_CANNOT_LEAVE)
+
+        membership = self.repository.get_active_member(user_id, group_id)
+        if not membership:
+            raise AppException(ErrorCode.GROUP_MEMBER_NOT_FOUND)
+
+        self.repository.remove_member(membership)
         self.db.commit()

@@ -154,9 +154,26 @@ class DocumentRepository:
             query = query.filter(Document.processing_status == status)
 
         total = query.count()
-        documents = (
-            query.order_by(Document.created_at.desc()).offset(skip).limit(limit).all()
-        )
+
+        if view_type == "my":
+            documents = (
+                query.order_by(Document.created_at.desc(), Document.id.desc())
+                .offset(skip)
+                .limit(limit)
+                .all()
+            )
+        else:
+            documents = (
+                query.order_by(
+                    DocumentApproval.reviewed_at.desc(),
+                    Document.created_at.desc(),
+                    Document.id.desc(),
+                )
+                .offset(skip)
+                .limit(limit)
+                .all()
+            )
+
         return documents, total
 
     def get_detail(self, doc_id: int):

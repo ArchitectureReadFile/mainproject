@@ -1,16 +1,26 @@
 from typing import Optional
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
 from errors import AppException, ErrorCode
 from models.model import User
+from repositories.document_comment_repository import DocumentCommentRepository
 from repositories.document_repository import DocumentRepository
 from repositories.document_review_repository import DocumentReviewRepository
+from repositories.group_repository import GroupRepository
 from routers.auth import get_current_user
 from routers.group import get_group_service
+from schemas.comment import (
+    DocumentCommentCreateRequest,
+    DocumentCommentListResponse,
+    DocumentCommentResponse,
+)
 from schemas.document import DocumentDetailResponse, DocumentRejectRequest
+from services.document_comment_service import DocumentCommentService
 from services.document_review_service import DocumentReviewService
 from services.document_service import DocumentService
 from services.group_service import GroupService
@@ -31,6 +41,18 @@ def get_document_review_service(
     db: Session = Depends(get_db),
 ) -> DocumentReviewService:
     return DocumentReviewService(DocumentReviewRepository(db))
+
+
+def get_document_comment_service(
+    db: Session = Depends(get_db),
+) -> DocumentCommentService:
+    document_repository = DocumentRepository(db)
+
+    return DocumentCommentService(
+        comment_repository=DocumentCommentRepository(db),
+        document_service=DocumentService(document_repository),
+        group_repository=GroupRepository(db),
+    )
 
 
 @router.post("/{group_id}/documents/upload")
@@ -244,6 +266,32 @@ def get_detail_document(
     )
 
 
+@router.get("/{group_id}/documents/{doc_id}/original")
+def view_original_document(
+    group_id: int,
+    doc_id: int,
+    group_service: GroupService = Depends(get_group_service),
+    document_service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
+):
+    """권한이 있는 사용자가 원본 PDF를 브라우저에서 바로 볼 수 있게 반환"""
+    _, role = group_service.assert_view_permission(current_user.id, group_id)
+    file_path, original_filename = document_service.get_original_file_in_group(
+        doc_id=doc_id,
+        group_id=group_id,
+        current_user_id=current_user.id,
+        current_user_role=role,
+    )
+
+    encoded_filename = quote(original_filename)
+
+    return FileResponse(
+        path=file_path,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{encoded_filename}"},
+    )
+
+
 @router.delete("/{group_id}/documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document(
     group_id: int,
@@ -253,8 +301,84 @@ def delete_document(
     current_user: User = Depends(get_current_user),
 ):
     group, _ = group_service.assert_view_permission(current_user.id, group_id)
-    group_service._assert_group_writable(group)
+    group_service.assert_group_writable(group)
     service.delete_document(doc_id, current_user.id, group_id)
+
+
+@router.get(
+    "/{group_id}/documents/{doc_id}/comments",
+    response_model=DocumentCommentListResponse,
+)
+def list_document_comments(
+    group_id: int,
+    doc_id: int,
+    scope: str = Query("GENERAL", pattern="^(GENERAL|REVIEW)$"),
+    service: DocumentCommentService = Depends(get_document_comment_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    _, role = group_service.assert_view_permission(current_user.id, group_id)
+
+    return service.list_comments(
+        doc_id=doc_id,
+        group_id=group_id,
+        current_user_id=current_user.id,
+        current_user_role=role,
+        scope=scope,
+    )
+
+
+@router.post(
+    "/{group_id}/documents/{doc_id}/comments",
+    response_model=DocumentCommentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_document_comment(
+    group_id: int,
+    doc_id: int,
+    payload: DocumentCommentCreateRequest,
+    service: DocumentCommentService = Depends(get_document_comment_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group, role = group_service.assert_view_permission(current_user.id, group_id)
+    group_service.assert_group_writable(group)
+
+    return service.create_comment(
+        doc_id=doc_id,
+        group_id=group_id,
+        current_user_id=current_user.id,
+        current_user_role=role,
+        content=payload.content,
+        parent_id=payload.parent_id,
+        page=payload.page,
+        x=payload.x,
+        y=payload.y,
+        scope=payload.scope,
+        mentions=payload.mentions,
+    )
+
+
+@router.delete(
+    "/{group_id}/comments/{comment_id}",
+    response_model=DocumentCommentResponse,
+)
+def delete_document_comment(
+    group_id: int,
+    comment_id: int,
+    service: DocumentCommentService = Depends(get_document_comment_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    group, role = group_service.assert_view_permission(current_user.id, group_id)
+    group_service.assert_group_writable(group)
+
+    return service.delete_comment(
+        comment_id=comment_id,
+        group_id=group_id,
+        current_user_id=current_user.id,
+        current_user_role=role,
+    )
 
 
 @router.post(
