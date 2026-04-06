@@ -46,7 +46,7 @@ export async function fetchAdminUsers({ search = "", plan = "", skip = 0, limit 
   return res.data;
 }
 
-export async function updateAdminUserStatus(user_id, is_active) {
-  const res = await client.patch(`/admin/users/${user_id}`, { is_active });
+export async function updateAdminUser(user_id, payload) {
+  const res = await client.patch(`/admin/users/${user_id}`, payload);
   return res.data;
 }

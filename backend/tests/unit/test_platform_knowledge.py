@@ -303,6 +303,43 @@ class TestPlatformDetailPayloadCanonicalization:
         assert "행정규칙기본정보" in result
         assert result["조문내용"] == ["제1조 내용"]
 
+    def test_law_detail_nested_payload_is_flattened(self):
+        from services.platform.korea_law_open_api_client import (
+            canonicalize_detail_payload,
+        )
+
+        payload = {
+            "법령": {
+                "기본정보": {
+                    "법령ID": "LAW-001",
+                    "법령명_한글": "테스트법",
+                    "법령명약칭": "테스트",
+                    "공포일자": "20240101",
+                    "시행일자": "20240201",
+                    "소관부처": {"소관부처명": "법제처"},
+                },
+                "조문": {
+                    "조문단위": [{"조문번호": "1", "조문내용": "제1조(목적) ..."}]
+                },
+                "부칙": {
+                    "부칙단위": [{"부칙내용": "이 규칙은 공포한 날부터 시행한다."}]
+                },
+                "별표": {
+                    "별표단위": [{"별표제목": "별표 1", "별표내용": [["표 내용"]]}]
+                },
+                "제개정이유": {"제개정이유내용": ["제정이유"]},
+            }
+        }
+
+        result = canonicalize_detail_payload("law", payload)
+        assert result["법령ID"] == "LAW-001"
+        assert result["법령명_한글"] == "테스트법"
+        assert result["소관부처명"] == "법제처"
+        assert isinstance(result["조문"], list)
+        assert isinstance(result["부칙내용"], list)
+        assert isinstance(result["별표내용"], list)
+        assert result["제개정이유내용"] == ["제정이유"]
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 2-2. normalize service — wrapped detail payload 지원
@@ -838,6 +875,33 @@ class TestLawExternalIdCanonical:
         chunks_arg = call_args[0][2]
         for chunk in chunks_arg:
             assert chunk.external_id == canonical_id
+
+    def test_law_mapper_uses_flattened_basic_info_for_titles(self):
+        from services.platform.korea_law_open_api_client import (
+            canonicalize_detail_payload,
+        )
+        from services.platform.mappers.law_mapper import normalize
+
+        payload = {
+            "법령": {
+                "기본정보": {
+                    "법령ID": "LAW-DETAIL-001",
+                    "법령명_한글": "테스트법",
+                    "법령명약칭": "테스트",
+                    "시행일자": "20240101",
+                    "소관부처": {"소관부처명": "법제처"},
+                },
+                "조문": {
+                    "조문단위": [{"조문번호": "1", "조문내용": "제1조(목적) 테스트"}]
+                },
+            }
+        }
+
+        canonical = canonicalize_detail_payload("law", payload)
+        doc = normalize(canonical)
+        assert doc.title == "테스트법"
+        assert doc.display_title == "테스트법(테스트)"
+        assert doc.agency == "법제처"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
