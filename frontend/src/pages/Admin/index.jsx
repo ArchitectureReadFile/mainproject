@@ -66,29 +66,33 @@ export default function AdminPage() {
   // 권한 없는 경우 전체 페이지 차단
   if (forbidden) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="mx-auto max-w-7xl px-6 py-8">
         <div className="mt-20 text-center">
-          <p className="text-2xl font-bold text-gray-700 mb-2">접근 권한이 없습니다</p>
-          <p className="text-sm text-gray-400">관리자 계정으로 로그인해주세요.</p>
+          <p className="mb-2 text-2xl font-bold text-foreground">접근 권한이 없습니다</p>
+          <p className="text-sm text-muted-foreground">관리자 계정으로 로그인해주세요.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">관리자 대시보드</h1>
+    <div className="mx-auto max-w-7xl px-6 py-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">관리자 대시보드</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          사용자, 문서 처리, 플랫폼 데이터를 한 곳에서 확인하고 운영합니다.
+        </p>
+      </div>
 
-      {/* 탭 */}
-      <div className="flex gap-2 border-b mb-6">
+      <div className="mb-6 flex flex-wrap gap-2 border-b border-border pb-2">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.key
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             }`}
           >
             {tab.label}
@@ -96,10 +100,10 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {loading && <p className="text-gray-400 text-sm">불러오는 중...</p>}
+      {loading && <p className="text-sm text-muted-foreground">불러오는 중...</p>}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-          <p className="text-sm text-red-600">{error}</p>
+        <div className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3">
+          <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 

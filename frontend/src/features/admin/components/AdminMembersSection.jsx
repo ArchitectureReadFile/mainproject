@@ -121,12 +121,12 @@ export default function AdminMembersSection({ users: initialUsers, total }) {
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="이름 또는 이메일 검색"
-          className="flex-1 border rounded-lg px-3 py-2 text-sm"
+          className="flex-1 rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
         />
         <select
           value={planFilter}
           onChange={(event) => setPlanFilter(event.target.value)}
-          className="border rounded-lg px-3 py-2 text-sm"
+          className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground"
         >
           <option value="">전체 플랜</option>
           <option value="FREE">FREE</option>
@@ -135,18 +135,18 @@ export default function AdminMembersSection({ users: initialUsers, total }) {
       </div>
 
       {actionError && !dialogOpen && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2">
-          <p className="text-sm text-red-600">{actionError}</p>
+        <div className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-2">
+          <p className="text-sm text-destructive">{actionError}</p>
         </div>
       )}
 
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-muted-foreground">
         전체 {total.toLocaleString()}명 / 필터 결과 {filtered.length}명
       </p>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm border rounded-xl overflow-hidden">
-          <thead className="bg-gray-50 text-gray-500 text-xs">
+      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
+        <table className="min-w-full text-sm">
+          <thead className="bg-muted/60 text-xs text-muted-foreground">
             <tr>
               <th className="px-4 py-3 text-left">이름</th>
               <th className="px-4 py-3 text-left">이메일</th>
@@ -157,19 +157,19 @@ export default function AdminMembersSection({ users: initialUsers, total }) {
               <th className="px-4 py-3 text-left">액션</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-border">
             {filtered.map((user) => (
-              <tr key={user.id} className="bg-white hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-800">
+              <tr key={user.id} className="bg-card transition-colors hover:bg-accent/40">
+                <td className="px-4 py-3 font-medium text-foreground">
                   {user.username}
                 </td>
-                <td className="px-4 py-3 text-gray-500">{user.email}</td>
+                <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
                 <td className="px-4 py-3">
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                       user.plan === "PREMIUM"
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-gray-100 text-gray-500"
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-muted-foreground"
                     }`}
                   >
                     {user.plan}
@@ -177,23 +177,23 @@ export default function AdminMembersSection({ users: initialUsers, total }) {
                 </td>
                 <td className="px-4 py-3">
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                       user.is_active
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-500"
+                        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                        : "bg-destructive/10 text-destructive"
                     }`}
                   >
                     {user.is_active ? "활성" : "비활성"}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-center">{user.active_group_count}</td>
-                <td className="px-4 py-3 text-gray-400">
+                <td className="px-4 py-3 text-center text-foreground">{user.active_group_count}</td>
+                <td className="px-4 py-3 text-muted-foreground">
                   {user.created_at?.slice(0, 10)}
                 </td>
                 <td className="px-4 py-3">
                   <button
                     onClick={() => openActionDialog(user)}
-                    className="text-xs px-3 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    className="rounded-lg bg-secondary px-3 py-1 text-xs text-secondary-foreground transition-colors hover:bg-secondary/80"
                   >
                     변경
                   </button>
@@ -217,13 +217,13 @@ export default function AdminMembersSection({ users: initialUsers, total }) {
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
+              <label className="text-sm font-medium text-foreground">
                 변경 항목
               </label>
               <select
                 value={changeType}
                 onChange={(event) => setChangeType(event.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground"
               >
                 <option value="status">상태</option>
                 <option value="plan">플랜</option>
@@ -231,13 +231,13 @@ export default function AdminMembersSection({ users: initialUsers, total }) {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
+              <label className="text-sm font-medium text-foreground">
                 변경 값
               </label>
               <select
                 value={nextValue}
                 onChange={(event) => setNextValue(event.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground"
               >
                 {changeType === "status" ? (
                   <>
@@ -254,8 +254,8 @@ export default function AdminMembersSection({ users: initialUsers, total }) {
             </div>
 
             {actionError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2">
-                <p className="text-sm text-red-600">{actionError}</p>
+              <div className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-2">
+                <p className="text-sm text-destructive">{actionError}</p>
               </div>
             )}
           </div>
@@ -265,7 +265,7 @@ export default function AdminMembersSection({ users: initialUsers, total }) {
               type="button"
               onClick={closeDialog}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent disabled:opacity-50"
             >
               취소
             </button>
@@ -273,7 +273,7 @@ export default function AdminMembersSection({ users: initialUsers, total }) {
               type="button"
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
               {isSubmitting ? "저장 중..." : "저장"}
             </button>

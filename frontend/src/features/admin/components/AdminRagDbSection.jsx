@@ -78,10 +78,10 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
         ))}
       </div>
 
-      <div className="bg-white border rounded-xl p-4 shadow-sm space-y-4">
+      <div className="space-y-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
         <div>
-          <p className="text-sm font-semibold text-gray-700">공공 데이터 전체 최신화</p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-sm font-semibold text-card-foreground">공공 데이터 전체 최신화</p>
+          <p className="mt-1 text-xs text-muted-foreground">
             source별 전체 목록을 서버가 자동으로 순회해 신규 문서를 적재합니다. 작업 상태는 새로고침 시 반영됩니다.
           </p>
         </div>
@@ -93,14 +93,14 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
             const isThisLoading = actionLoading && activeSourceType === option.value;
 
             return (
-              <div key={option.value} className="border rounded-lg p-4 flex flex-col gap-3">
+              <div key={option.value} className="flex flex-col gap-3 rounded-xl border border-border bg-muted/30 p-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-800">{option.label}</p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-sm font-medium text-foreground">{option.label}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
                     현재 문서 {source?.document_count ?? 0} / 청크{" "}
                     {source?.chunk_count ?? 0}
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {describeSourceState(source)}
                   </p>
                 </div>
@@ -108,7 +108,7 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
                   <button
                     onClick={() => handleStop(option.value)}
                     disabled={isThisLoading}
-                    className="px-4 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 disabled:opacity-50"
+                    className="rounded-lg bg-destructive px-4 py-2 text-sm text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-50"
                   >
                     {isThisLoading ? "처리 중..." : "정지"}
                   </button>
@@ -116,7 +116,7 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
                   <button
                     onClick={() => handleSync(option.value)}
                     disabled={actionLoading}
-                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                   >
                     {isThisLoading ? "최신화 중..." : "전체 최신화"}
                   </button>
@@ -127,23 +127,23 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
         </div>
 
         {actionError && (
-          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2">
-            <p className="text-sm text-red-600">{actionError}</p>
+          <div className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-2">
+            <p className="text-sm text-destructive">{actionError}</p>
           </div>
         )}
 
         {lastSync && (
-          <div className="bg-gray-50 border rounded-lg px-4 py-3 space-y-2">
+          <div className="space-y-2 rounded-xl border border-border bg-muted/40 px-4 py-3">
             <div className="flex flex-wrap gap-4 text-sm">
-              <span>상태 {syncStatusLabel(lastSync.status)}</span>
+              <span className="text-foreground">상태 {syncStatusLabel(lastSync.status)}</span>
               {"fetched" in lastSync && <span>조회 {lastSync.fetched}건</span>}
-              {"created" in lastSync && <span className="text-green-700">생성 {lastSync.created}건</span>}
-              {"skipped" in lastSync && <span className="text-gray-600">스킵 {lastSync.skipped}건</span>}
-              {"failed" in lastSync && <span className="text-red-600">실패 {lastSync.failed}건</span>}
+              {"created" in lastSync && <span className="text-emerald-700 dark:text-emerald-300">생성 {lastSync.created}건</span>}
+              {"skipped" in lastSync && <span className="text-muted-foreground">스킵 {lastSync.skipped}건</span>}
+              {"failed" in lastSync && <span className="text-destructive">실패 {lastSync.failed}건</span>}
             </div>
-            <div className="text-xs text-gray-500">{lastSync.message}</div>
+            <div className="text-xs text-muted-foreground">{lastSync.message}</div>
             {lastSync.status !== "cancelled" && (
-              <div className="text-xs text-gray-400">
+              <div className="text-xs text-muted-foreground">
                 작업이 백그라운드에서 계속 진행됩니다. 새로고침하면 현재 페이지와 마지막 처리 문서를 확인할 수 있습니다.
               </div>
             )}
@@ -154,25 +154,25 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Panel title="source별 현황">
           {summary.sources.map((item) => (
-            <div key={item.source_type} className="flex justify-between items-center py-2 border-b text-sm">
+            <div key={item.source_type} className="flex items-center justify-between border-b border-border py-2 text-sm last:border-b-0">
               <div>
-                <p className="text-gray-700">{item.label}</p>
-                <p className="text-xs text-gray-400">문서 {item.document_count} / 청크 {item.chunk_count}</p>
-                <p className="text-xs text-gray-400">
+                <p className="text-foreground">{item.label}</p>
+                <p className="text-xs text-muted-foreground">문서 {item.document_count} / 청크 {item.chunk_count}</p>
+                <p className="text-xs text-muted-foreground">
                   {formatLastRunLabel(item)}
                 </p>
                 {item.last_sync_status && (
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-muted-foreground">
                     현재 상태 {syncStatusLabel(item.last_sync_status)}
                     {formatProgressSummary(item)}
                   </p>
                 )}
                 {(item.last_display_title || item.last_external_id) && (
-                  <p className="text-xs text-gray-400 truncate" title={item.last_display_title ?? item.last_external_id}>
+                  <p className="truncate text-xs text-muted-foreground" title={item.last_display_title ?? item.last_external_id}>
                     마지막 확인 {item.last_display_title ?? item.last_external_id}
                   </p>
                 )}
-                {item.last_sync_message && <p className="text-xs text-gray-500">{item.last_sync_message}</p>}
+                {item.last_sync_message && <p className="text-xs text-muted-foreground">{item.last_sync_message}</p>}
               </div>
             </div>
           ))}
@@ -181,14 +181,14 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
         <Panel title="최근 적재 문서">
           {summary.recent_items.length === 0 && <EmptyRow />}
           {summary.recent_items.map((item) => (
-            <div key={`${item.source_type}-${item.external_id}`} className="py-2 border-b text-sm">
+            <div key={`${item.source_type}-${item.external_id}`} className="border-b border-border py-2 text-sm last:border-b-0">
               <p
-                className="text-gray-700 truncate"
+                className="truncate text-foreground"
                 title={item.display_title ?? item.title ?? item.external_id}
               >
                 {item.display_title ?? item.title ?? item.external_id}
               </p>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 {sourceLabel(item.source_type)} · {item.updated_at?.slice(0, 10)}
               </p>
             </div>
@@ -197,24 +197,24 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
       </div>
 
       <Panel title="최근 실패 목록">
-        {failuresLoading && <p className="text-xs text-gray-400 py-2">불러오는 중...</p>}
+        {failuresLoading && <p className="py-2 text-xs text-muted-foreground">불러오는 중...</p>}
         {!failuresLoading && failures.length === 0 && <EmptyRow />}
         {!failuresLoading && failures.map((f) => (
-          <div key={f.id} className="py-2 border-b text-sm">
+          <div key={f.id} className="border-b border-border py-2 text-sm last:border-b-0">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">{sourceLabel(f.source_type)}</span>
-              {f.page != null && <span className="text-xs text-gray-400">{f.page}페이지</span>}
-              <span className="text-xs text-red-500">{f.error_type}</span>
+              <span className="text-xs text-muted-foreground">{sourceLabel(f.source_type)}</span>
+              {f.page != null && <span className="text-xs text-muted-foreground">{f.page}페이지</span>}
+              <span className="text-xs text-destructive">{f.error_type}</span>
             </div>
-            <p className="text-gray-700 truncate" title={f.display_title ?? f.external_id ?? ""}>
+            <p className="truncate text-foreground" title={f.display_title ?? f.external_id ?? ""}>
               {f.display_title ?? f.external_id ?? "(문서명 없음)"}
             </p>
             {f.error_message && (
-              <p className="text-xs text-gray-400 truncate" title={f.error_message}>
+              <p className="truncate text-xs text-muted-foreground" title={f.error_message}>
                 {f.error_message}
               </p>
             )}
-            <p className="text-xs text-gray-300">{formatDateTime(f.created_at)}</p>
+            <p className="text-xs text-muted-foreground/70">{formatDateTime(f.created_at)}</p>
           </div>
         ))}
       </Panel>
@@ -224,24 +224,24 @@ export default function AdminRagDbSection({ summary, onRefetch }) {
 
 function SummaryCard({ label, value }) {
   return (
-    <div className="bg-white border rounded-xl p-4 shadow-sm">
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
-      <p className="text-2xl font-bold text-gray-800">{value}</p>
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <p className="mb-1 text-xs text-muted-foreground">{label}</p>
+      <p className="text-2xl font-bold text-foreground">{value}</p>
     </div>
   );
 }
 
 function Panel({ title, children }) {
   return (
-    <div className="bg-white border rounded-xl p-4 shadow-sm">
-      <p className="text-sm font-semibold text-gray-700 mb-3">{title}</p>
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <p className="mb-3 text-sm font-semibold text-card-foreground">{title}</p>
       {children}
     </div>
   );
 }
 
 function EmptyRow() {
-  return <p className="text-xs text-gray-400 py-2">항목 없음</p>;
+  return <p className="py-2 text-xs text-muted-foreground">항목 없음</p>;
 }
 
 function formatDateTime(value) {
