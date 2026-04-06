@@ -1,13 +1,13 @@
 import {
     getGroupDetail, requestDeleteGroup, cancelDeleteGroup, getMembers, inviteMember,
-    removeMember, changeMemberRole, transferOwner, leaveGroup,
+    removeMember, changeMemberRole, transferOwner, leaveGroup, getGroupDocuments,
 } from '@/api/groups'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import {
     AlertTriangle, FileText, Home, Loader2,
     Trash2, Undo2, Users, ArrowLeft, Lock,
 } from 'lucide-react'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import UploadPage from '@/pages/Upload/index'
 import DocumentsTab from '@/pages/Workspace/DocumentsTab'
@@ -32,6 +32,18 @@ const TABS = [
 ]
 
 const GROUP_POLLING_INTERVAL = 5000
+
+/**
+ * 승인된 문서 수를 조회한다.
+ */
+async function getApprovedDocumentCount(groupId) {
+    const response = await getGroupDocuments(groupId, {
+        skip: 0,
+        limit: 1,
+        viewType: 'all',
+    })
+    return response.total ?? 0
+}
 
 /**
  * D-Day를 계산한다.
@@ -775,6 +787,7 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
 export default function GroupDetailPage() {
     const { group_id } = useParams()
     const [group, setGroup] = useState(null)
+    const [approvedDocumentCount, setApprovedDocumentCount] = useState(0)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [activeTab, setActiveTab] = useState('documents')
@@ -782,18 +795,34 @@ export default function GroupDetailPage() {
     const [searchParams, setSearchParams] = useSearchParams()
     const tabFromUrl = searchParams.get('tab')
 
+
+    /**
+     * 그룹 상세와 헤더용 승인 문서 수를 불러온다.
+     */
+    const loadGroupDetailPage = useCallback(async () => {
+        const groupDetail = await getGroupDetail(group_id)
+        setGroup(groupDetail)
+
+        try {
+            const nextApprovedDocumentCount = await getApprovedDocumentCount(group_id)
+            setApprovedDocumentCount(nextApprovedDocumentCount)
+        } catch (e) {
+            console.error('승인 문서 수 조회 실패:', e)
+            setApprovedDocumentCount(0)
+        }
+    }, [group_id])
+
     useEffect(() => {
         const timerId = window.setInterval(async () => {
             try {
-                const updated = await getGroupDetail(group_id)
-                setGroup(updated)
+                await loadGroupDetailPage()
             } catch (e) {
                 console.error('그룹 상세 polling 실패:', e)
             }
         }, GROUP_POLLING_INTERVAL)
 
         return () => window.clearInterval(timerId)
-    }, [group_id])
+    }, [loadGroupDetailPage])
 
     useEffect(() => {
         setActiveTab(tabFromUrl || 'documents')
@@ -809,11 +838,11 @@ export default function GroupDetailPage() {
 
     useEffect(() => {
         setLoading(true)
-        getGroupDetail(group_id)
-            .then(setGroup)
+        loadGroupDetailPage()
             .catch((e) => setError(e.message ?? '불러오기에 실패했습니다.'))
             .finally(() => setLoading(false))
-    }, [group_id])
+    }, [loadGroupDetailPage])
+
 
     const viewState = group ? getGroupViewState(group) : null
     const isWriteRestricted = viewState?.isWriteRestricted ?? false
@@ -886,19 +915,19 @@ export default function GroupDetailPage() {
                             {group.my_role}
                         </Badge>
                     </div>
-                    <div className="flex items-center gap-4 mt-3 text-sm">
-                        <div className="flex items-center gap-1">
-                            <Users className="h-4 w-4" />
-                            <span>멤버 {group.member_count}명</span>
-                        </div>
+                        <div className="flex items-center gap-4 mt-3 text-sm">
+                            <div className="flex items-center gap-1">
+                                <Users className="h-4 w-4" />
+                                <span>멤버 {group.member_count}명</span>
+                            </div>
 
-                        <div className="h-3 w-px bg-border" />
+                            <div className="h-3 w-px bg-border" />
 
-                        <div className="flex items-center gap-1">
-                            <FileText className="h-4 w-4" />
-                            <span>문서 {group.document_count}개</span>
+                            <div className="flex items-center gap-1">
+                                <FileText className="h-4 w-4" />
+                                <span>승인된 문서 {approvedDocumentCount}개</span>
+                            </div>
                         </div>
-                    </div>
                 </div>
 
                 <div className="flex gap-2 border-b mb-6">

@@ -148,6 +148,8 @@ export default function DocumentsTab({ group }) {
         })
     }
 
+    const startItem = total === 0 ? 0 : skip + 1
+    const endItem = Math.min(skip + items.length, total)
 
     const totalPages = Math.ceil(total / LIMIT)
     const currentPage = Math.floor(skip / LIMIT) + 1
@@ -179,7 +181,7 @@ export default function DocumentsTab({ group }) {
                                     : 'text-muted-foreground hover:bg-muted'
                             }`}
                         >
-                            전체 문서
+                            승인된 문서
                         </button>
                         <button
                             onClick={() => handleViewTypeChange('my')}
@@ -227,6 +229,12 @@ export default function DocumentsTab({ group }) {
                     {viewType === 'all'
                         ? '전체 문서에는 승인 완료된 문서만 표시됩니다.'
                         : '내 문서에서는 내가 업로드한 문서를 모두 확인할 수 있습니다. 승인 대기 및 반려 문서도 포함됩니다.'}
+                </div>
+            )}
+
+            {!loading && !error && total > 0 && (
+                <div className="flex justify-end text-sm text-muted-foreground mb-2">
+                    <span>문서 {total}개 중 {startItem}-{endItem}</span>
                 </div>
             )}
 

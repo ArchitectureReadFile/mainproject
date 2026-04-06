@@ -231,6 +231,21 @@ export default function ApprovalsTab({ group }) {
     const currentPage = page
     const maxVisiblePages = 5
 
+    /**
+     * 현재 페이지에 표시 중인 승인 문서 범위를 계산한다.
+     */
+    const startItem = total === 0 ? 0 : (page - 1) * LIMIT + 1
+    const endItem = Math.min((page - 1) * LIMIT + items.length, total)
+
+    /**
+     * 현재 서브탭 라벨을 반환한다.
+     */
+    const currentTabLabel = {
+        pending: '처리 대기',
+        approved: '승인 완료',
+        rejected: '반려',
+    }[activeSubTab] ?? '문서'
+
     let startPage = Math.max(1, currentPage - 2)
     let endPage = Math.min(totalPages, currentPage + 2)
 
@@ -321,7 +336,7 @@ export default function ApprovalsTab({ group }) {
                 </div>
             )}
             <div className="space-y-1">
-                <h2 className="text-base font-semibold">승인 관리</h2>
+                <h2 className="text-base font-semibold">문서 승인 관리</h2>
                 <p className="text-sm text-muted-foreground">
                     처리 가능한 승인 요청을 확인하고 승인 또는 반려할 수 있습니다.
                 </p>
@@ -423,6 +438,12 @@ export default function ApprovalsTab({ group }) {
                     초기화
                 </Button>
             </div>
+
+            {!loading && !error && total > 0 && (
+                <div className="flex justify-end text-sm text-muted-foreground mb-2">
+                    <span>{currentTabLabel} 문서 {total}개 중 {startItem}-{endItem}</span>
+                </div>
+            )}
 
             {loading ? (
                 <div className="flex justify-center py-16">
