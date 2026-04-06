@@ -19,11 +19,18 @@ import { ConfirmModal } from '@/components/ui/confirm-modal'
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/Dialog'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/Sheet'
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+} from '@/components/ui/Sheet'
 import { Textarea } from '@/components/ui/Textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAuth } from '@/features/auth/context/AuthContext'
@@ -1542,6 +1549,9 @@ export default function DocumentPage() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>문서 반려</DialogTitle>
+                        <DialogDescription>
+                            문서 반려 사유를 입력하는 검토 모달입니다.
+                        </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-3">
@@ -1922,7 +1932,12 @@ export default function DocumentPage() {
             <Sheet open={isMobileCommentLayout && isCommentPanelOpen} onOpenChange={setIsCommentPanelOpen}>
                 <SheetContent className="w-[min(92vw,380px)] lg:hidden">
                     <SheetHeader>
-                        <SheetTitle>댓글 패널</SheetTitle>
+                        <div>
+                            <SheetTitle>댓글 패널</SheetTitle>
+                            <SheetDescription className="sr-only">
+                                문서 댓글과 검토 댓글을 확인하고 작성할 수 있는 사이드 패널입니다.
+                            </SheetDescription>
+                        </div>
                         <Button
                             variant="ghost"
                             size="icon"
