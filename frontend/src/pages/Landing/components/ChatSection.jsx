@@ -40,10 +40,10 @@ export default function ChatSection() {
       const targetId = parseInt(sessionId, 10);
       if (sessions.some(s => s.id === targetId)) {
         setActiveSessionId(targetId);
-        
+
         const height = window.innerHeight - 72;
         window.scrollTo({
-          top: height, 
+          top: height,
           behavior: 'smooth'
         });
 
@@ -63,16 +63,16 @@ export default function ChatSection() {
     setShowGroupSelect(false);
   }, [activeSessionId]);
 
-  const { 
-    messages, 
-    sendMessage, 
+  const {
+    messages,
+    sendMessage,
     stopMessage,
-    isLoading, 
-    referenceTitle, 
+    isLoading,
+    referenceTitle,
     referenceGroup,
-    removeReferenceDocument, 
+    removeReferenceDocument,
     removeReferenceGroup,
-    currentSessionId 
+    currentSessionId
   } = useChat(
     activeSessionId,
     activeSession?.reference_document_title,
@@ -125,7 +125,7 @@ export default function ChatSection() {
   }, [user]);
 
   const handleCreateAndStart = async () => {
-     const maxNumber = sessions.reduce((max, session) => {
+    const maxNumber = sessions.reduce((max, session) => {
       const match = session.title.match(/새로운 상담 (\d+)/);
       if (match) {
         const num = parseInt(match[1], 10);
@@ -232,7 +232,7 @@ export default function ChatSection() {
     ol: ({ children }) => <ol className="list-decimal pl-6 mb-3 space-y-1.5">{children}</ol>,
     li: ({ children }) => <li className="mb-0">{children}</li>,
     code: ({ inline, children }) => (
-      inline 
+      inline
         ? <code className="bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded text-pink-600 dark:text-pink-400 font-mono text-sm">{children}</code>
         : <code className="block bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl font-mono text-sm overflow-x-auto my-4 border border-slate-200 dark:border-slate-700">{children}</code>
     ),
@@ -256,26 +256,25 @@ export default function ChatSection() {
   };
 
   return (
-    <section className="h-[calc(100vh-72px)] w-full snap-start snap-always flex bg-slate-50/30 dark:bg-slate-950/30 relative overflow-hidden box-border p-0 md:p-8 z-10 -mt-1 md:mt-0">
-      <div className="max-w-7xl mx-auto w-full h-full flex overflow-hidden bg-white dark:bg-slate-900 md:rounded-[3rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] dark:shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] border-none md:border border-slate-200/50 dark:border-slate-800/50 relative">
-        {/* Mobile Sidebar Overlay */}
-        <div 
-          className={`absolute -top-1 inset-x-0 bottom-0 bg-black/40 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-          style={{ height: 'calc(100% + 4px)' }}
-          onClick={() => setIsSidebarOpen(false)}
-        />
-        
+    <section className="h-[calc(100vh-72px)] w-full snap-start snap-always flex bg-slate-50/30 dark:bg-slate-950/30 relative overflow-hidden box-border p-0 md:p-8">
+      <div className="max-w-7xl mx-auto w-full h-full flex overflow-hidden bg-white dark:bg-slate-900 md:rounded-[3rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] dark:shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] md:border border-slate-200/50 dark:border-slate-800/50 relative">
+        {isSidebarOpen && (
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-md z-40 md:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+
         <aside className={`
-          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} 
-          w-[280px] md:w-[300px]
-          ${!isSidebarOpen && 'md:w-0 md:opacity-0'}
-          absolute md:relative -top-1 md:top-0 left-0 h-[calc(100%+4px)] md:h-full bg-white dark:bg-slate-900 md:bg-slate-50/50 md:dark:bg-slate-900/50 
+          ${isSidebarOpen ? 'translate-x-0 w-[280px] md:w-[300px]' : '-translate-x-full md:translate-x-0 md:w-0 md:opacity-0'} 
+          ${isSidebarOpen && 'md:w-[300px] md:opacity-100'}
+          absolute md:relative top-0 left-0 h-full bg-white dark:bg-slate-900 md:bg-slate-50/50 md:dark:bg-slate-900/50 
           border-r border-slate-100 dark:border-slate-800 flex flex-col shrink-0 overflow-hidden 
           transition-all duration-300 ease-in-out z-50 md:z-auto 
-          shadow-none md:shadow-none rounded-none
+          shadow-xl md:shadow-none rounded-none
         `}>
           <div className="w-[280px] md:w-[300px] h-full flex flex-col">
-            <div className="p-4 md:p-8 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 md:bg-white/50 md:dark:bg-slate-900/50 md:backdrop-blur-md">
+            <div className="p-4 md:p-8 border-b border-slate-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md">
               <div className="flex items-center justify-between mb-4 md:mb-0">
                 <h1 className="text-lg md:text-2xl font-black text-foreground flex items-center gap-2.5 md:gap-4">
                   <div className="w-1.5 md:w-2.5 h-5 md:h-8 bg-blue-600 rounded-full" />
@@ -365,9 +364,9 @@ export default function ChatSection() {
                           )}
                         </div>
                       )}
-                      
+
                       <div className={`markdown-content ${msg.sender === 'user' ? 'text-white' : ''}`}>
-                        <ReactMarkdown 
+                        <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={MarkdownComponents}
                         >
@@ -545,30 +544,30 @@ export default function ChatSection() {
                     </div>
                   )}
 
-                <div className="flex gap-2 md:gap-4 items-center p-1 md:p-2">
-                  <input
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleInitialSend()}
-                    placeholder={selectedDoc || selectedGroup ? "내용 입력..." : "법률 질문 입력..."}
-                    className="flex-1 bg-transparent border-none outline-none shadow-none text-base md:text-xl px-3 md:px-6 h-12 md:h-16 focus:ring-0 text-foreground"
-                  />
-                  {isLoading ? (
-                    <Button
-                      onClick={stopMessage}
-                      className="bg-slate-500 hover:bg-slate-600 rounded-full w-12 h-12 md:w-16 md:h-16 shadow-2xl transition-all active:scale-90 shrink-0"
-                    >
-                      <IoStop size={20} md:size={28} />
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={handleInitialSend}
-                      className="bg-blue-600 hover:bg-blue-700 rounded-full w-12 h-12 md:w-16 md:h-16 shadow-2xl transition-all active:scale-90 shrink-0"
-                    >
-                      <IoSend size={20} md:size={28} />
-                    </Button>
-                  )}
-                </div>
+                  <div className="flex gap-2 md:gap-4 items-center p-1 md:p-2">
+                    <input
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleInitialSend()}
+                      placeholder={selectedDoc || selectedGroup ? "내용 입력..." : "법률 질문 입력..."}
+                      className="flex-1 bg-transparent border-none outline-none shadow-none text-base md:text-xl px-3 md:px-6 h-12 md:h-16 focus:ring-0 text-foreground"
+                    />
+                    {isLoading ? (
+                      <Button
+                        onClick={stopMessage}
+                        className="bg-slate-500 hover:bg-slate-600 rounded-full w-12 h-12 md:w-16 md:h-16 shadow-2xl transition-all active:scale-90 shrink-0"
+                      >
+                        <IoStop size={20} md:size={28} />
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleInitialSend}
+                        className="bg-blue-600 hover:bg-blue-700 rounded-full w-12 h-12 md:w-16 md:h-16 shadow-2xl transition-all active:scale-90 shrink-0"
+                      >
+                        <IoSend size={20} md:size={28} />
+                      </Button>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 md:gap-3 px-2 md:px-4 pb-2 md:pb-3">
                     <Button variant="outline" size="sm" onClick={() => { setShowDocSelect(!showDocSelect); setShowGroupSelect(false); }} className={`h-9 md:h-11 text-[10px] md:text-sm rounded-full gap-1.5 md:gap-2 px-4 md:px-6 border-slate-200 dark:border-slate-700 transition-all duration-200 font-bold cursor-pointer ${showDocSelect ? 'bg-slate-800 hover:bg-slate-700 dark:bg-slate-200 dark:hover:bg-slate-300 text-white hover:text-white dark:text-slate-800 dark:hover:text-slate-800 border-slate-800 dark:border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'}`}>
                       <IoAdd size={16} md:size={20} /> 문서 검토

@@ -107,7 +107,9 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
             setIsFetchingHistory(true);
             try {
                 const data = await chatApi.getMessages(sessionId);
-                const formattedMessages = data.map(m => ({
+                const { messages: apiMessages, is_processing } = data;
+
+                const formattedMessages = apiMessages.map(m => ({
                     id: m.id,
                     text: m.content,
                     sender: m.role === 'USER' ? 'user' : 'ai',
@@ -116,11 +118,8 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
                     isStreaming: false
                 }));
 
-                const isLastMsgUser = formattedMessages.length > 0 &&
-                    formattedMessages[formattedMessages.length - 1].sender === 'user';
-
                 setMessages(formattedMessages || []);
-                setIsLoading(isLastMsgUser);
+                setIsLoading(is_processing);
                 setCurrentSessionId(sessionId);
             } catch (error) {
                 console.error("Failed to load chat history:", error);

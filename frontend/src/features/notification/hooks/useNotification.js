@@ -128,6 +128,14 @@ export const useNotification = () => {
       return
     }
 
+    if (type === 'COMMENT_MENTIONED' && n.target_type?.startsWith('doc_comment:')) {
+      const parts = n.target_type.split(':')
+      const page = parts[1]
+      const scope = parts[2]
+      navigate(`/workspace/${n.group_id}/documents/${n.target_id}?tab=approvals&page=${page}&comment_scope=${scope}`)
+      return
+    }
+
     if (n.target_type === 'group' && n.target_id) {
       const groupId = n.target_id
 
