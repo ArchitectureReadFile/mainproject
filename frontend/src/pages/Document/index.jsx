@@ -1,11 +1,14 @@
 import {
+    approveDocument,
     createDocumentComment,
     deleteDocumentComment,
     deleteGroupDocument,
     getDocumentComments,
+    getGroupDetail,
     getGroupDocumentDetail,
     getGroupDocumentOriginalUrl,
     getMembers,
+    rejectDocument,
 } from '@/api/groups'
 import { downloadSummaryPdf } from '@/api/documents'
 import { Avatar, AvatarFallback } from '@/components/ui/Avatar'
@@ -13,6 +16,13 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/Dialog'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/Sheet'
 import { Textarea } from '@/components/ui/Textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -218,7 +228,6 @@ function countVisibleComments(comments) {
     }, 0)
 }
 
-
 const MIN_ZOOM = 0.6
 const MAX_ZOOM = 2
 const ZOOM_STEP = 0.1
@@ -265,6 +274,7 @@ export default function DocumentPage() {
     const location = useLocation()
 
     const [doc, setDoc] = useState(null)
+    const [groupMeta, setGroupMeta] = useState(null)
     const [comments, setComments] = useState([])
     const [members, setMembers] = useState([])
     const [loading, setLoading] = useState(true)
@@ -273,6 +283,11 @@ export default function DocumentPage() {
     const [pdfError, setPdfError] = useState(null)
 
     const [showDeleteModal, setShowDeleteModal] = useState(false)
+    const [showApproveModal, setShowApproveModal] = useState(false)
+    const [showRejectModal, setShowRejectModal] = useState(false)
+    const [rejectReason, setRejectReason] = useState('')
+    const [reviewActionLoading, setReviewActionLoading] = useState(false)
+
     const [isCommentPanelOpen, setIsCommentPanelOpen] = useState(false)
     const [isMobileCommentLayout, setIsMobileCommentLayout] = useState(false)
 
@@ -371,7 +386,7 @@ export default function DocumentPage() {
     }, [group_id, doc_id, commentScope])
 
     /**
-     * 문서 상세, 댓글, 멤버 목록을 한 번에 로드한다.
+     * 문서 상세, 댓글, 멤버 목록을 로드하고 리뷰 버튼용 그룹 메타는 별도로 보강한다.
      */
     const loadPageData = useCallback(async () => {
         setLoading(true)
@@ -390,6 +405,14 @@ export default function DocumentPage() {
             setComments(commentData.items ?? [])
             setMembers(memberData.members ?? [])
             setError(null)
+
+            try {
+                const groupData = await getGroupDetail(group_id)
+                setGroupMeta(groupData)
+            } catch (e) {
+                console.error('그룹 메타 조회 실패:', e)
+                setGroupMeta(null)
+            }
         } catch (e) {
             setError(e.message || '문서를 불러오지 못했습니다.')
         } finally {
@@ -641,6 +664,16 @@ export default function DocumentPage() {
     const isPendingReview = doc?.approval_status === 'PENDING_REVIEW'
     const isRejected = doc?.approval_status === 'REJECTED'
 
+    /**
+     * 상세 페이지에서 승인/반려 버튼 노출 여부를 계산한다.
+     */
+    const canReviewDocument =
+        !isDeletedDocument &&
+        isPendingReview &&
+        groupMeta?.status === 'ACTIVE' &&
+        ['OWNER', 'ADMIN'].includes(groupMeta?.my_role)
+
+
     const mentionableMembers = useMemo(() => {
         return members.filter((member) => member.user_id !== user?.id)
     }, [members, user?.id])
@@ -767,6 +800,58 @@ export default function DocumentPage() {
             }, 0)
         }
     }, [])
+
+    /**
+     * 문서를 승인한다.
+     */
+    const handleApproveConfirm = async () => {
+        setReviewActionLoading(true)
+
+        try {
+            await approveDocument(group_id, doc_id)
+            setShowApproveModal(false)
+            toast.success('문서를 승인했습니다.')
+
+            try {
+                await loadPageData()
+            } catch (e) {
+                console.error('문서 재조회 실패:', e)
+            }
+        } catch (e) {
+            toast.error(e.message || '문서 승인에 실패했습니다.')
+        } finally {
+            setReviewActionLoading(false)
+        }
+    }
+
+    /**
+     * 문서를 반려한다.
+     */
+    const handleRejectConfirm = async () => {
+        if (!rejectReason.trim()) {
+            toast.error('반려 사유를 입력해주세요.')
+            return
+        }
+
+        setReviewActionLoading(true)
+
+        try {
+            await rejectDocument(group_id, doc_id, rejectReason.trim())
+            setShowRejectModal(false)
+            setRejectReason('')
+            toast.success('문서를 반려했습니다.')
+
+            try {
+                await loadPageData()
+            } catch (e) {
+                console.error('문서 재조회 실패:', e)
+            }
+        } catch (e) {
+            toast.error(e.message || '문서 반려에 실패했습니다.')
+        } finally {
+            setReviewActionLoading(false)
+        }
+    }
 
     /**
      * 페이지 입력값을 기준으로 해당 페이지로 이동한다.
@@ -1363,6 +1448,29 @@ export default function DocumentPage() {
                 </Button>
 
                 <div className="flex gap-2">
+                    {canReviewDocument && (
+                        <>
+                            <Button
+                                size="sm"
+                                onClick={() => setShowApproveModal(true)}
+                                disabled={reviewActionLoading}
+                                className="gap-1.5"
+                            >
+                                {reviewActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : '승인'}
+                            </Button>
+
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowRejectModal(true)}
+                                disabled={reviewActionLoading}
+                                className="gap-1.5"
+                            >
+                                반려
+                            </Button>
+                        </>
+                    )}
+
                     {doc.summary_id && (
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -1413,6 +1521,61 @@ export default function DocumentPage() {
                 onConfirm={handleDeleteConfirm}
                 onCancel={() => setShowDeleteModal(false)}
             />
+
+            <ConfirmModal
+                open={showApproveModal}
+                message="이 문서를 승인하시겠습니까?"
+                confirmLabel={reviewActionLoading ? '처리 중...' : '승인'}
+                onConfirm={handleApproveConfirm}
+                onCancel={() => setShowApproveModal(false)}
+            />
+
+            <Dialog
+                open={showRejectModal}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setShowRejectModal(false)
+                        setRejectReason('')
+                    }
+                }}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>문서 반려</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-3">
+                        <p className="text-sm text-muted-foreground">
+                            반려 사유를 입력해주세요.
+                        </p>
+                        <Textarea
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value)}
+                            placeholder="반려 사유를 입력하세요"
+                            rows={5}
+                            maxLength={1000}
+                        />
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowRejectModal(false)
+                                setRejectReason('')
+                            }}
+                        >
+                            취소
+                        </Button>
+                        <Button
+                            onClick={handleRejectConfirm}
+                            disabled={reviewActionLoading}
+                        >
+                            {reviewActionLoading ? '처리 중...' : '반려'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {isDeletedDocument && (
                 <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
