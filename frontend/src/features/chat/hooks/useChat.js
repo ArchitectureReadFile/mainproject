@@ -145,6 +145,16 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
         };
     }, [sessionId, user, connectWebSocket]);
 
+    const stopMessage = useCallback(async () => {
+        if (!sessionId) return;
+        try {
+            await chatApi.stopMessage(sessionId);
+            setIsLoading(false);
+        } catch (error) {
+            console.error("Failed to stop message:", error);
+        }
+    }, [sessionId]);
+
     const sendMessage = useCallback(async (text, doc, group, workspaceSelection) => {
         if (!user) return;
 
@@ -209,6 +219,7 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
         isLoading, 
         isFetchingHistory, 
         sendMessage, 
+        stopMessage,
         referenceTitle, 
         referenceGroup,
         removeReferenceDocument, 
