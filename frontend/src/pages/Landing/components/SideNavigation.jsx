@@ -1,6 +1,6 @@
 export default function SideNavigation({ sections, currentSection, onSectionClick }) {
   return (
-    <div className="fixed left-3 top-1/2 -translate-y-1/2 z-50 flex flex-col items-start gap-4">
+    <div className="fixed left-3 top-1/2 -translate-y-1/2 z-50 hidden md:flex flex-col items-start gap-4">
       {sections.map((section, idx) => (
         <button
           key={section.id}

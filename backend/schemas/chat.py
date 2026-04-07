@@ -3,6 +3,7 @@ schemas/chat.py
 """
 
 from datetime import datetime
+from typing import List
 
 from pydantic import BaseModel, field_validator, model_validator
 
@@ -43,6 +44,11 @@ class ChatMessageResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ChatMessagesResponse(BaseModel):
+    messages: List[ChatMessageResponse]
+    is_processing: bool
 
 
 class ChatWorkspaceSelectionInput(BaseModel):

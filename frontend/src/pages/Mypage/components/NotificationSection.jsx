@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Label } from '@/components/ui/Label'
 import { cn } from '@/lib/utils'
-import { BellRing, FileUp, Inbox, Info, MessageSquare, ShieldAlert, Trash2, Users } from 'lucide-react'
+import { BellRing, FileUp, Inbox, Info, MessageSquare, ShieldAlert, Trash2, Users, AtSign } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { getNotificationSettings, updateNotificationSetting } from '../../../features/notification/api/notification'
 
@@ -29,6 +29,7 @@ export default function NotificationSection() {
     {
       title: '문서',
       items: [
+        { type: 'COMMENT_MENTIONED', label: '댓글 멘션 알림', icon: AtSign, desc: '문서 댓글에서 누군가 나를 멘션했을 때 알림' },
         { type: 'DOCUMENT_UPLOAD_REQUESTED', label: '문서 검토 요청', icon: FileUp, desc: '내가 문서 승인자로 지정되었을 때 알림' },
         { type: 'DOCUMENT_DELETED', label: '문서 삭제 알림', icon: Trash2, desc: '내 문서가 관리자에 의해 삭제되었을 때 알림' }
       ]

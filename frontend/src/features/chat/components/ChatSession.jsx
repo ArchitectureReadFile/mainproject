@@ -13,7 +13,8 @@ import {
   IoDocumentTextOutline,
   IoFolderOpenOutline,
   IoPeopleOutline,
-  IoSend
+  IoSend,
+  IoStop
 } from 'react-icons/io5';
 import { getMyGroups } from '../../../api/groups';
 import { useChat } from '../hooks/useChat.js';
@@ -24,6 +25,7 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
     messages, 
     isLoading, 
     sendMessage, 
+    stopMessage,
     referenceTitle, 
     referenceGroup,
     removeReferenceDocument,
@@ -303,9 +305,15 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
               placeholder={referenceTitle || referenceGroup || selectedDoc || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "메시지를 입력하세요..."}
               className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-2 h-10 text-foreground"
             />
-            <Button size="icon" onClick={handleSend} disabled={isLoading} className="shrink-0 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl w-10 h-10 shadow-sm">
-              <IoSend size={18} className="ml-1" />
-            </Button>
+            {isLoading ? (
+              <Button size="icon" onClick={stopMessage} className="shrink-0 bg-slate-500 hover:bg-slate-600 rounded-xl w-10 h-10 shadow-sm">
+                <IoStop size={18} />
+              </Button>
+            ) : (
+              <Button size="icon" onClick={handleSend} className="shrink-0 bg-blue-600 hover:bg-blue-700 rounded-xl w-10 h-10 shadow-sm">
+                <IoSend size={18} className="ml-1" />
+              </Button>
+            )}
           </div>
 
           <div className="flex items-center gap-2 px-3 pb-2">
