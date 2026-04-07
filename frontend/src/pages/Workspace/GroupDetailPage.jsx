@@ -152,6 +152,17 @@ function RoleBadge({ role }) {
     )
 }
 
+/**
+ * 멤버 표시명을 반환
+ */
+function formatMemberDisplayName(member) {
+    if (!member?.username) return '-'
+    return member.is_active === false
+        ? `${member.username}(탈퇴)`
+        : member.username
+}
+
+
 function MembersTab({ group, setGroup, isWriteRestricted }) {
     const { user } = useAuth()
 
@@ -453,7 +464,7 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
                             <li key={m.user_id} className="flex items-center justify-between px-5 py-3">
                                 <div className="flex flex-col gap-0.5">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium">{m.username}</span>
+                                        <span className="text-sm font-medium">{formatMemberDisplayName(m)}</span>
                                         {m.user_id === user?.id && (
                                             <span className="text-xs text-muted-foreground font-normal">(나)</span>
                                         )}

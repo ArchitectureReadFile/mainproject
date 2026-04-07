@@ -273,6 +273,23 @@ function parseZoomInput(value) {
     return Number(nextZoom.toFixed(2))
 }
 
+/**
+ * 사용자 표시명을 반환한다.
+ */
+function formatUserDisplayName(user) {
+    if (!user?.username) return '알 수 없음'
+    return user.is_active === false
+        ? `${user.username}(탈퇴)`
+        : user.username
+}
+
+/**
+ * 아바타용 사용자 이니셜을 반환한다.
+ */
+function formatUserInitials(user) {
+    if (!user?.username) return '??'
+    return user.username.slice(0, 2).toUpperCase()
+}
 
 export default function DocumentPage() {
     const { user } = useAuth()
@@ -682,7 +699,9 @@ export default function DocumentPage() {
 
 
     const mentionableMembers = useMemo(() => {
-        return members.filter((member) => member.user_id !== user?.id)
+        return members.filter(
+            (member) => member.user_id !== user?.id && member.is_active !== false
+        )
     }, [members, user?.id])
 
     const mentionCandidates = useMemo(() => {
@@ -1190,14 +1209,14 @@ export default function DocumentPage() {
                     <div className="flex items-start gap-3">
                         <Avatar className="size-9">
                             <AvatarFallback className="text-xs font-semibold">
-                                {comment.author?.username?.slice(0, 2)?.toUpperCase() || '??'}
+                                {formatUserInitials(comment.author)}
                             </AvatarFallback>
                         </Avatar>
 
                         <div>
                             <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-sm font-semibold text-foreground">
-                                    {comment.author?.username || '알 수 없음'}
+                                    {formatUserDisplayName(comment.author)}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
                                     {formatCommentDate(comment.created_at)}
@@ -1206,7 +1225,6 @@ export default function DocumentPage() {
                                     <Badge variant="outline">삭제됨</Badge>
                                 )}
                             </div>
-
                             <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
                                 {renderCommentContent(comment.content, comment.mentions)}
                             </p>
@@ -1263,7 +1281,7 @@ export default function DocumentPage() {
                                 <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium text-foreground">
-                                            {reply.author?.username || '알 수 없음'}
+                                            {formatUserDisplayName(reply.author)}
                                         </span>
                                         <span className="text-xs text-muted-foreground">
                                             {formatCommentDate(reply.created_at)}
@@ -1323,7 +1341,7 @@ export default function DocumentPage() {
                             )}
                             {replyTarget && (
                                 <Badge variant="outline">
-                                    답글 대상 @{replyTarget.author?.username || '알 수 없음'}
+                                    답글 대상 @{formatUserDisplayName(replyTarget.author)}
                                 </Badge>
                             )}
                         </div>
