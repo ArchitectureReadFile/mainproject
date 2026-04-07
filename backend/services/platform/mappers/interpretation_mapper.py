@@ -3,25 +3,23 @@ services/platform/mappers/interpretation_mapper.py
 
 국가법령정보 법령해석례 API 응답 → PlatformDocumentSchema 정규화.
 
-━━━ 현재 상태: 구조 검증 전 fail-closed ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-상세 API 필드명이 확정되지 않은 placeholder 상수(_FIELD_QUESTION 등) 기반이다.
-실제 응답 구조가 다를 경우 body_text가 비는 "가짜 성공"이 발생할 수 있으므로,
-아래 required-field validation을 통해 명시적 실패로 막는다.
-
-실제 상세 API 응답을 수신한 후:
-    1. _FIELD_QUESTION / _FIELD_ANSWER / _FIELD_REASON 상수를 실제 필드명으로 교체
-    2. validate_payload()의 검증 기준도 함께 갱신
-    3. settings/platform.py의 ENABLE_INGESTION_INTERPRETATION=true로 전환
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-공식 목록 API 필드:
+공식 API 필드 (목록):
     법령해석례일련번호, 안건명, 안건번호, 질의기관명, 회신기관명, 회신일자
     법령해석례상세링크
 
-상세 API 필드 (미확정 — 아래 상수를 실제 필드명으로 교체):
-    _FIELD_QUESTION → chunk_type="question"
-    _FIELD_ANSWER   → chunk_type="answer"
-    _FIELD_REASON   → chunk_type="reason"
+공식 API 필드 (상세):
+    질의요지, 회답, 이유
+
+body_text 조립 순서:
+    질의요지 → 회답 → 이유
+
+chunk 전략:
+    chunk_type = "question" : 질의요지
+    chunk_type = "answer"   : 회답
+    chunk_type = "reason"   : 이유
+
+title 예시:
+    법제처 21-0913 근로기준법 제74조제5항 관련
 """
 
 from __future__ import annotations
@@ -40,11 +38,10 @@ logger = logging.getLogger(__name__)
 _MAX_CHUNK_CHARS = 1500
 _OVERLAP_CHARS = 150
 
-# ── 상세 API 필드명 상수 (실제 응답 수신 후 이 블록만 교체) ─────────────────────
-# WARNING: 이 필드명은 placeholder다. 실제 API 응답과 다를 수 있다.
-_FIELD_QUESTION = "질의내용"
-_FIELD_ANSWER = "회신내용"
-_FIELD_REASON = "이유내용"
+# ── 상세 API 필드명 상수 (확인 완료) ─────────────────────────────────────────
+_FIELD_QUESTION = "질의요지"
+_FIELD_ANSWER = "회답"
+_FIELD_REASON = "이유"
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -73,17 +70,13 @@ def validate_payload(raw_payload: dict) -> None:
     """
     interpretation payload required-field validation.
 
-    실패 조건 (placeholder mapper이므로 더 엄격히 검증):
+    실패 조건:
         - 법령해석례일련번호 없음 → external_id 없음
         - 안건명 없음 → title 없음
-        - 질의내용 / 회신내용 / 이유내용 모두 없음 → body_text가 비게 됨
-
-    주의:
-        이 필드명은 placeholder 상수 기반이다.
-        실제 응답 수신 후 _FIELD_* 상수와 함께 이 검증 기준도 갱신해야 한다.
+        - 질의요지 / 회답 / 이유 모두 없음 → body_text가 비게 됨
 
     Raises:
-        ValueError: validation 실패 시. 메시지에 "placeholder mapper" 컨텍스트 포함.
+        ValueError: validation 실패 시.
     """
     errors: list[str] = []
 
@@ -101,16 +94,11 @@ def validate_payload(raw_payload: dict) -> None:
     )
     if not has_body:
         errors.append(
-            f"body 필드({_FIELD_QUESTION}/{_FIELD_ANSWER}/{_FIELD_REASON}) 모두 없음 — "
-            "실제 상세 필드 확인 전 placeholder mapper. "
-            "API 응답 구조 확인 후 _FIELD_* 상수를 교체하고 ENABLE_INGESTION_INTERPRETATION=true로 전환하세요."
+            f"body 필드({_FIELD_QUESTION}/{_FIELD_ANSWER}/{_FIELD_REASON}) 모두 없음"
         )
 
     if errors:
-        msg = (
-            "[interpretation mapper] validate_payload 실패 (placeholder mapper 미검증 상태): "
-            + "; ".join(errors)
-        )
+        msg = "[interpretation mapper] validate_payload 실패: " + "; ".join(errors)
         logger.error(msg)
         raise ValueError(msg)
 
@@ -119,8 +107,19 @@ def normalize(raw_payload: dict) -> PlatformDocumentSchema:
     """
     국가법령정보 법령해석례 API 응답 dict → PlatformDocumentSchema.
 
-    validate_payload()를 먼저 실행한다.
-    검증 실패 시 ValueError를 발생시켜 indexing으로 진행하지 않는다.
+    raw_payload 최상위 구조:
+        {
+            "법령해석례일련번호": "...",
+            "안건명": "...",
+            "안건번호": "...",
+            "질의기관명": "...",
+            "회신기관명": "...",
+            "회신일자": "20240101",
+            "법령해석례상세링크": "...",
+            "질의요지": "...",
+            "회답": "...",
+            "이유": "...",
+        }
     """
     validate_payload(raw_payload)
 
@@ -129,12 +128,17 @@ def normalize(raw_payload: dict) -> PlatformDocumentSchema:
     agenda_no = raw_payload.get("안건번호") or ""
 
     title = agenda_name or None
-    display_title = (
-        f"{agenda_name} {agenda_no}".strip() if agenda_no else agenda_name or None
-    )
+    # title 예시: "법제처 21-0913 근로기준법 제74조제5항 관련"
+    responder = raw_payload.get("회신기관명") or ""
+    if responder and agenda_no:
+        display_title = f"{responder} {agenda_no} {agenda_name}".strip()
+    elif agenda_no:
+        display_title = f"{agenda_name} {agenda_no}".strip()
+    else:
+        display_title = agenda_name or None
 
     issued_at = _parse_date(raw_payload.get("회신일자"))
-    agency = raw_payload.get("회신기관명") or None
+    agency = responder or None
     source_url = raw_payload.get("법령해석례상세링크") or None
 
     question = (raw_payload.get(_FIELD_QUESTION) or "").strip()
@@ -145,6 +149,7 @@ def normalize(raw_payload: dict) -> PlatformDocumentSchema:
     metadata: dict[str, Any] = {
         "agenda_no": agenda_no or None,
         "query_org": raw_payload.get("질의기관명") or None,
+        "responder_name": responder or None,
         "source_url": source_url,
     }
 
@@ -164,7 +169,7 @@ def normalize(raw_payload: dict) -> PlatformDocumentSchema:
 def build_chunks(
     doc: PlatformDocumentSchema, raw_payload: dict
 ) -> list[PlatformChunkSchema]:
-    """질의내용 / 회신내용 / 이유내용 3-way chunk 생성."""
+    """질의요지 / 회답 / 이유 3-way chunk 생성."""
     chunks: list[PlatformChunkSchema] = []
     order = 0
 
@@ -177,9 +182,9 @@ def build_chunks(
     }
 
     spec: list[tuple[str, str, str]] = [
-        (_FIELD_QUESTION, "question", "질의내용"),
-        (_FIELD_ANSWER, "answer", "회신내용"),
-        (_FIELD_REASON, "reason", "이유내용"),
+        (_FIELD_QUESTION, "question", "질의요지"),
+        (_FIELD_ANSWER, "answer", "회답"),
+        (_FIELD_REASON, "reason", "이유"),
     ]
 
     for field_key, chunk_type, section_title in spec:

@@ -13,11 +13,17 @@ source_type 활성화 flag:
     settings/platform.py의 is_ingestion_enabled() 기반.
     비활성 source_type이 들어오면 raw 저장 없이 즉시 차단.
 
-현재 지원 범위:
+지원 범위:
     law:            활성
-    precedent:      활성
-    interpretation: 비활성 (placeholder mapper, 실제 필드 확인 후 전환)
-    admin_rule:     비활성 (placeholder mapper, 실제 필드 확인 후 전환)
+    precedent:      활성 (migration flag로 corpus 전환 관리)
+    interpretation: 활성
+    admin_rule:     활성
+
+external_id 계약:
+    ingest_from_payload()에 전달된 external_id가 최종 canonical key이다.
+    mapper가 raw payload에서 다른 ID(예: 법령ID)를 읽더라도
+    최종 doc.external_id는 이 인자로 강제된다.
+    mapper가 추출한 ID는 metadata(예: law_id)에 보존될 수 있다.
 """
 
 from __future__ import annotations
@@ -27,6 +33,14 @@ import logging
 from sqlalchemy.orm import Session
 
 from models.platform_knowledge import PlatformDocument
+from schemas.platform_knowledge_schema import (
+    PlatformChunkSchema,
+    PlatformDocumentSchema,
+)
+from services.platform.mappers.precedent_summary_fallback_mapper import (
+    build_chunks_from_list_item,
+    normalize_from_list_item,
+)
 from services.platform.platform_document_normalize_service import (
     PlatformDocumentNormalizeService,
 )
@@ -63,6 +77,10 @@ class PlatformKnowledgeIngestionService:
     ingest_from_payload():
         raw_payload를 받아 저장 파이프라인 전체를 실행한다.
 
+        external_id 계약:
+            전달된 external_id가 최종 canonical key이다.
+            normalize 후 doc.external_id를 이 값으로 강제한다.
+
         Raises:
             PlatformIngestionDisabledError: source_type이 비활성화된 경우
             PlatformNormalizeError:         normalize / chunk validation 실패
@@ -89,7 +107,7 @@ class PlatformKnowledgeIngestionService:
         Args:
             db:            SQLAlchemy session
             source_type:   "law" | "precedent" | "interpretation" | "admin_rule"
-            external_id:   공공 API 원본 고유 식별자
+            external_id:   공공 API 원본 고유 식별자 (canonical key)
             raw_payload:   API 응답 dict 또는 JSON 문자열
             raw_format:    "json" | "xml"
             force_reindex: True이면 checksum 동일해도 재인덱싱 실행
@@ -151,13 +169,32 @@ class PlatformKnowledgeIngestionService:
                 raw_source_id=raw_row.id,
             )
         except ValueError as exc:
-            # raw는 이미 저장됨 — normalize 실패는 명시적으로 올린다
             msg = (
                 f"[Ingestion] normalize 실패 (raw는 보관됨): "
                 f"source_type={source_type} external_id={external_id} — {exc}"
             )
             logger.error(msg)
             raise PlatformNormalizeError(msg) from exc
+
+        # 2-1. external_id canonical 강제
+        #      mapper가 raw payload 내 다른 ID(예: 법령ID)를 읽더라도
+        #      최종 저장 키는 ingestion 인자(법령일련번호 등)로 통일한다.
+        if doc.external_id != external_id:
+            logger.debug(
+                "[Ingestion] external_id 보정: mapper=%r → canonical=%r "
+                "(source_type=%s)",
+                doc.external_id,
+                external_id,
+                source_type,
+            )
+            # mapper가 추출한 ID는 metadata에 보존
+            if doc.external_id:
+                meta_key = f"{source_type}_id"
+                doc.metadata[meta_key] = doc.external_id
+            doc.external_id = external_id
+            # chunk들도 동일하게 갱신
+            for chunk in chunks:
+                chunk.external_id = external_id
 
         # 3. chunk 0개 → 성공으로 취급하지 않음
         if not chunks:
@@ -207,3 +244,75 @@ class PlatformKnowledgeIngestionService:
             external_id,
             pd.id,
         )
+
+    def ingest_list_only(
+        self,
+        db: Session,
+        *,
+        source_type: str,
+        external_id: str,
+        list_item: dict,
+        detail_fetch_error: str | None = None,
+        data_source_name: str | None = None,
+    ) -> tuple[PlatformDocument, int]:
+        """
+        목록 item만으로 list_only 문서를 생성/갱신한다.
+
+        현재는 precedent source 전용 fallback 경로다.
+        raw 저장소 추가 없이 normalized/chunk/index 레이어에만 적재한다.
+        """
+        if source_type != "precedent":
+            raise PlatformNormalizeError(
+                f"[Ingestion] ingest_list_only는 precedent 전용입니다: {source_type}"
+            )
+
+        if not is_ingestion_enabled(source_type):
+            msg = (
+                f"[Ingestion] source_type={source_type!r} 비활성 — "
+                "ingestion이 활성화되지 않은 source_type입니다. "
+                f"settings/platform.py의 ENABLE_INGESTION_{source_type.upper()}=true로 전환하세요."
+            )
+            logger.warning(msg)
+            raise PlatformIngestionDisabledError(msg)
+
+        try:
+            doc: PlatformDocumentSchema = normalize_from_list_item(
+                list_item,
+                external_id=external_id,
+                detail_fetch_error=detail_fetch_error,
+                data_source_name=data_source_name,
+            )
+            chunks: list[PlatformChunkSchema] = build_chunks_from_list_item(
+                doc, list_item
+            )
+        except ValueError as exc:
+            msg = (
+                f"[Ingestion] list_only normalize 실패: "
+                f"source_type={source_type} external_id={external_id} — {exc}"
+            )
+            logger.error(msg)
+            raise PlatformNormalizeError(msg) from exc
+
+        if doc.external_id != external_id:
+            if doc.external_id:
+                doc.metadata[f"{source_type}_id"] = doc.external_id
+            doc.external_id = external_id
+            for chunk in chunks:
+                chunk.external_id = external_id
+
+        if not chunks:
+            msg = (
+                f"[Ingestion] list_only chunk 0개 — 성공으로 취급하지 않음: "
+                f"source_type={source_type} external_id={external_id}"
+            )
+            logger.error(msg)
+            raise PlatformNormalizeError(msg)
+
+        pd, n_chunks = self._indexing_service.index(db, doc, chunks)
+        logger.info(
+            "[Ingestion] list_only 완료: source_type=%s external_id=%s chunks=%d",
+            source_type,
+            external_id,
+            n_chunks,
+        )
+        return pd, n_chunks

@@ -1,7 +1,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useState } from 'react'
-import { MessageSquare, Users, FileText, ShieldAlert, Trash2, Check, Loader2, UserMinus } from 'lucide-react'
+import { MessageSquare, Users, FileText, ShieldAlert, Trash2, Check, Loader2, UserMinus, AtSign } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { acceptInvite, declineInvite } from '@/api/groups'
@@ -62,6 +62,7 @@ export default function NotificationToast({ notification, onNavigate, onClose })
       case 'WORKSPACE_KICKED': return { color: 'red', label: '워크스페이스 추방', icon: UserMinus }
       case 'WORKSPACE_DELETE_NOTICE': return { color: 'red', label: '워크스페이스 삭제 알림', icon: ShieldAlert }
       case 'DOCUMENT_DELETED': return { color: 'zinc', label: '문서 삭제 알림', icon: Trash2 }
+      case 'COMMENT_MENTIONED': return { color: 'purple', label: '댓글 멘션 알림', icon: AtSign }
       default: return { color: 'zinc', label: '새로운 알림', icon: MessageSquare }
     }
   }
@@ -74,7 +75,8 @@ export default function NotificationToast({ notification, onNavigate, onClose })
     green: { border: 'bg-green-500', bg: 'bg-green-50 dark:bg-green-900/30', text: 'text-green-500' },
     orange: { border: 'bg-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/30', text: 'text-orange-500' },
     red: { border: 'bg-red-500', bg: 'bg-red-50 dark:bg-red-900/30', text: 'text-red-500' },
-    zinc: { border: 'bg-zinc-500', bg: 'bg-zinc-50 dark:bg-zinc-800/30', text: 'text-zinc-500' }
+    zinc: { border: 'bg-zinc-500', bg: 'bg-zinc-50 dark:bg-zinc-800/30', text: 'text-zinc-500' },
+    purple: { border: 'bg-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/30', text: 'text-purple-500' }
   }
 
   const style = colorStyles[theme.color] || colorStyles.zinc
@@ -105,10 +107,6 @@ export default function NotificationToast({ notification, onNavigate, onClose })
           >
             <svg size={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
-        </div>
-        
-        <div className="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 mb-1 leading-tight">
-          {notification.title}
         </div>
         
         <div className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed opacity-80">

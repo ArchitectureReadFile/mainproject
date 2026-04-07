@@ -231,6 +231,21 @@ export default function ApprovalsTab({ group }) {
     const currentPage = page
     const maxVisiblePages = 5
 
+    /**
+     * 현재 페이지에 표시 중인 승인 문서 범위를 계산한다.
+     */
+    const startItem = total === 0 ? 0 : (page - 1) * LIMIT + 1
+    const endItem = Math.min((page - 1) * LIMIT + items.length, total)
+
+    /**
+     * 현재 서브탭 라벨을 반환한다.
+     */
+    const currentTabLabel = {
+        pending: '처리 대기',
+        approved: '승인 완료',
+        rejected: '반려',
+    }[activeSubTab] ?? '문서'
+
     let startPage = Math.max(1, currentPage - 2)
     let endPage = Math.min(totalPages, currentPage + 2)
 
@@ -299,6 +314,12 @@ export default function ApprovalsTab({ group }) {
         }
     }
 
+    const buildApprovalDetailSearch = useCallback(() => {
+        const nextParams = new URLSearchParams(searchParams)
+        nextParams.set('comment_scope', 'review')
+        return nextParams.toString()
+    }, [searchParams])
+
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
             {isWriteRestricted && (
@@ -315,7 +336,7 @@ export default function ApprovalsTab({ group }) {
                 </div>
             )}
             <div className="space-y-1">
-                <h2 className="text-base font-semibold">승인 관리</h2>
+                <h2 className="text-base font-semibold">문서 승인 관리</h2>
                 <p className="text-sm text-muted-foreground">
                     처리 가능한 승인 요청을 확인하고 승인 또는 반려할 수 있습니다.
                 </p>
@@ -328,8 +349,8 @@ export default function ApprovalsTab({ group }) {
                         onClick={() => handleSubTabChange(tab.key)}
                         className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                             activeSubTab === tab.key
-                                ? 'border-blue-600 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                                ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                                : 'border-transparent text-muted-foreground hover:text-foreground'
                         }`}
                     >
                         {tab.label}
@@ -418,6 +439,12 @@ export default function ApprovalsTab({ group }) {
                 </Button>
             </div>
 
+            {!loading && !error && total > 0 && (
+                <div className="flex justify-end text-sm text-muted-foreground mb-2">
+                    <span>{currentTabLabel} 문서 {total}개 중 {startItem}-{endItem}</span>
+                </div>
+            )}
+
             {loading ? (
                 <div className="flex justify-center py-16">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -446,7 +473,7 @@ export default function ApprovalsTab({ group }) {
                                         <div
                                             className="min-w-0 flex-1 cursor-pointer"
                                             onClick={() =>
-                                                navigate(`/workspace/${group.id}/documents/${item.id}?${searchParams.toString()}`)
+                                                navigate(`/workspace/${group.id}/documents/${item.id}?${buildApprovalDetailSearch()}`)
                                             }
                                         >
                                             <p className="text-sm font-medium truncate">{item.title}</p>
@@ -462,6 +489,7 @@ export default function ApprovalsTab({ group }) {
                                                     {item.document_type || '유형 없음'}
                                                 </span>
                                                 <span>업로더 {item.uploader || '-'}</span>
+                                                <span>검토 댓글 {item.comment_count ?? 0}개</span>
                                                 <span>업로드 {formatDateTime(item.created_at)}</span>
                                                 <span>담당자 {item.assignee_username || '미지정'}</span>
                                                 <span className={processingMeta.className}>
@@ -508,7 +536,7 @@ export default function ApprovalsTab({ group }) {
                                         key={item.id}
                                         className="px-5 py-4 cursor-pointer transition-colors hover:bg-muted/50"
                                         onClick={() =>
-                                            navigate(`/workspace/${group.id}/documents/${item.id}?${searchParams.toString()}`)
+                                            navigate(`/workspace/${group.id}/documents/${item.id}?${buildApprovalDetailSearch()}`)
                                         }
                                     >
                                         <p className="text-sm font-medium truncate">{item.title}</p>
@@ -524,6 +552,7 @@ export default function ApprovalsTab({ group }) {
                                                 {item.document_type || '유형 없음'}
                                             </span>
                                             <span>업로더 {item.uploader || '-'}</span>
+                                            <span>검토 댓글 {item.comment_count ?? 0}개</span>
                                             <span>승인일 {formatDateTime(item.reviewed_at)}</span>
                                             <span>담당자 {item.assignee_username || '미지정'}</span>
                                             <span className={processingMeta.className}>
@@ -546,7 +575,7 @@ export default function ApprovalsTab({ group }) {
                                         key={item.id}
                                         className="px-5 py-4 cursor-pointer transition-colors hover:bg-muted/50"
                                         onClick={() =>
-                                            navigate(`/workspace/${group.id}/documents/${item.id}?${searchParams.toString()}`)
+                                            navigate(`/workspace/${group.id}/documents/${item.id}?${buildApprovalDetailSearch()}`)
                                         }
                                     >
                                         <p className="text-sm font-medium truncate">{item.title}</p>
@@ -562,6 +591,7 @@ export default function ApprovalsTab({ group }) {
                                                 {item.document_type || '유형 없음'}
                                             </span>
                                             <span>업로더 {item.uploader || '-'}</span>
+                                            <span>검토 댓글 {item.comment_count ?? 0}개</span>
                                             <span>반려일 {formatDateTime(item.reviewed_at)}</span>
                                             <span className={processingMeta.className}>
                                                 요약 {processingMeta.label}

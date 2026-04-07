@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import Footer from './components/layout/Footer.jsx'
 import Header from './components/layout/Header.jsx'
@@ -13,12 +14,13 @@ import ChatWidget from './features/chat/components/ChatWidget.jsx'
 
 export default function App() {
   const location = useLocation()
-  const hideChatWidget = location.pathname === '/'
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const hideChatWidget = location.pathname === '/' || isMenuOpen
 
   return (
     <div className="min-h-screen flex flex-col">
       <div className="fixed top-0 left-0 w-full z-50">
-        <Header />
+        <Header onMenuOpenChange={setIsMenuOpen} />
       </div>
       <main className="flex-1 pt-[72px]">
         <Routes>

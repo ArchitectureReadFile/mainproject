@@ -74,6 +74,7 @@ class MemberResponse(BaseModel):
     joined_at: Optional[datetime] = None
     is_premium: bool
     has_owned_group: bool
+    is_active: bool
 
 
 class InvitedMemberResponse(BaseModel):

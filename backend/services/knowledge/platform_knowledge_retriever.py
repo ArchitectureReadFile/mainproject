@@ -5,7 +5,7 @@ Platform 지식원 retriever.
 
 책임:
     - platform layer 검색 정책 결정 (include_platform 여부)
-    - migration flag에 따라 legacy precedent corpus / platform corpus 분기 호출
+    - precedent migration policy helper에 따라 legacy corpus / platform corpus 분기 호출
     - search service (retrieval_service / bm25_store / vector_store) 호출
     - 결과를 mapper에 위임해 RetrievedKnowledgeItem으로 변환
 
@@ -43,8 +43,8 @@ from services.rag import bm25_store, vector_store
 from services.rag.embedding_service import embed_query
 from services.rag.retrieval_service import retrieve_precedents
 from settings.platform import (
-    ENABLE_PLATFORM_PRECEDENT_CORPUS,
     get_platform_corpus_source_types,
+    use_legacy_precedent_corpus,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,8 +63,8 @@ class PlatformKnowledgeRetriever:
         items: list[RetrievedKnowledgeItem] = []
 
         # A. legacy precedent corpus
-        # migration 완료(ENABLE_PLATFORM_PRECEDENT_CORPUS=true)이면 비활성화
-        if not ENABLE_PLATFORM_PRECEDENT_CORPUS:
+        # precedent migration policy가 legacy corpus 사용을 허용할 때만 호출
+        if use_legacy_precedent_corpus():
             try:
                 items += self._retrieve_precedents(request, search_mode=search_mode)
             except Exception:

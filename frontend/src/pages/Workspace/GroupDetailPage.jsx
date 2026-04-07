@@ -1,13 +1,13 @@
 import {
     getGroupDetail, requestDeleteGroup, cancelDeleteGroup, getMembers, inviteMember,
-    removeMember, changeMemberRole, transferOwner,
+    removeMember, changeMemberRole, transferOwner, leaveGroup, getGroupDocuments,
 } from '@/api/groups'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import {
     AlertTriangle, FileText, Home, Loader2,
     Trash2, Undo2, Users, ArrowLeft, Lock,
 } from 'lucide-react'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import UploadPage from '@/pages/Upload/index'
 import DocumentsTab from '@/pages/Workspace/DocumentsTab'
@@ -32,6 +32,18 @@ const TABS = [
 ]
 
 const GROUP_POLLING_INTERVAL = 5000
+
+/**
+ * 승인된 문서 수를 조회한다.
+ */
+async function getApprovedDocumentCount(groupId) {
+    const response = await getGroupDocuments(groupId, {
+        skip: 0,
+        limit: 1,
+        viewType: 'all',
+    })
+    return response.total ?? 0
+}
 
 /**
  * D-Day를 계산한다.
@@ -140,6 +152,17 @@ function RoleBadge({ role }) {
     )
 }
 
+/**
+ * 멤버 표시명을 반환
+ */
+function formatMemberDisplayName(member) {
+    if (!member?.username) return '-'
+    return member.is_active === false
+        ? `${member.username}(탈퇴)`
+        : member.username
+}
+
+
 function MembersTab({ group, setGroup, isWriteRestricted }) {
     const { user } = useAuth()
 
@@ -153,6 +176,7 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
     const [inviteLoading, setInviteLoading] = useState(false)
     const [inviteError, setInviteError] = useState('')
     const [confirmRemove, setConfirmRemove] = useState(null)
+    const [confirmCancelInvite, setConfirmCancelInvite] = useState(null)
     const [actionLoading, setActionLoading] = useState(null)
     const [confirmInvite, setConfirmInvite] = useState(false)
     const [confirmTransfer, setConfirmTransfer] = useState(null)
@@ -297,6 +321,27 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
         setConfirmTransfer(targetId)
     }
 
+    /**
+     * 초대 대기 중인 멤버의 초대를 취소한다.
+     */
+    const handleCancelInvite = async (targetId) => {
+        setActionLoading(targetId)
+        try {
+            await removeMember(group.id, targetId)
+            setData((prev) => ({
+                ...prev,
+                invited: prev.invited.filter((m) => m.user_id !== targetId),
+            }))
+            toast.success('초대를 취소했습니다.')
+        } catch (e) {
+            toast.error(e.message || '초대 취소에 실패했습니다.')
+        } finally {
+            setActionLoading(null)
+            setConfirmCancelInvite(null)
+        }
+    }
+
+
     const executeTransferOwner = async (targetId) => {
         setActionLoading(targetId)
 
@@ -419,7 +464,7 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
                             <li key={m.user_id} className="flex items-center justify-between px-5 py-3">
                                 <div className="flex flex-col gap-0.5">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium">{m.username}</span>
+                                        <span className="text-sm font-medium">{formatMemberDisplayName(m)}</span>
                                         {m.user_id === user?.id && (
                                             <span className="text-xs text-muted-foreground font-normal">(나)</span>
                                         )}
@@ -523,7 +568,18 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
                                             초대일: {new Date(m.invited_at).toLocaleDateString('ko-KR')}
                                         </p>
                                     </div>
-                                    <RoleBadge role={m.role} />
+                                    <div className="flex items-center gap-2">
+                                        <RoleBadge role={m.role} />
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setConfirmCancelInvite(m.user_id)}
+                                            disabled={actionLoading === m.user_id}
+                                            className="h-8 px-2 text-xs"
+                                        >
+                                            초대 취소 
+                                        </Button>
+                                    </div>                
                                 </li>
                             ))}
                         </ul>
@@ -551,6 +607,14 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
             />
 
             <ConfirmModal
+                open={confirmCancelInvite !== null}
+                message="해당 초대를 취소하시겠습니까?"
+                confirmLabel={actionLoading ? '처리 중...' : '초대 취소'}
+                onConfirm={() => handleCancelInvite(confirmCancelInvite)}
+                onCancel={() => setConfirmCancelInvite(null)}
+            />
+
+            <ConfirmModal
                 open={confirmTransfer !== null}
                 message="해당 멤버에게 오너 권한을 양도하시겠습니까?"
                 confirmLabel={actionLoading ? '처리 중...' : '양도'}
@@ -562,6 +626,7 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
 }
 
 function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
+    const navigate = useNavigate()
     const isOwner = group.my_role === 'OWNER'
     const isPending = group.status === 'DELETE_PENDING'
     const isOwnerDeletePending =
@@ -569,6 +634,9 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
 
     const canDelete = isOwner && group.status === 'ACTIVE'
     const canCancelDelete = isOwner && isOwnerDeletePending
+    const canLeave =
+        group.my_role !== 'OWNER' &&
+        (group.status === 'ACTIVE' || group.status === 'DELETE_PENDING')
 
     const [confirmType, setConfirmType] = useState(null)
     const [loading, setLoading] = useState(false)
@@ -576,11 +644,19 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
     const handleConfirm = async () => {
         setLoading(true)
         try {
-            const updated = confirmType === 'delete'
-                ? await requestDeleteGroup(group.id)
-                : await cancelDeleteGroup(group.id)
-            onUpdated(updated)
-            toast.success(confirmType === 'delete' ? '삭제 요청이 완료됐습니다.' : '삭제가 취소됐습니다.')
+            if (confirmType === 'delete') {
+                const updated = await requestDeleteGroup(group.id)
+                onUpdated(updated)
+                toast.success('삭제 요청이 완료됐습니다.')
+            } else if (confirmType === 'cancel') {
+                const updated = await cancelDeleteGroup(group.id)
+                onUpdated(updated)
+                toast.success('삭제가 취소됐습니다.')
+            } else if (confirmType === 'leave') {
+                await leaveGroup(group.id)
+                toast.success('워크스페이스에서 탈퇴했습니다.')
+                navigate('/workspace')
+            }
         } catch (e) {
             toast.error(e.message || '처리에 실패했습니다.')
         } finally {
@@ -676,6 +752,22 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
                 </div>
             )}
 
+            {canLeave && (
+                <div className="rounded-lg border border-destructive/30 p-5 space-y-3">
+                    <h3 className="text-base font-semibold text-destructive">워크스페이스 탈퇴</h3>
+                    <p className="text-base text-muted-foreground">
+                        탈퇴하면 이 워크스페이스의 문서와 대화에 더 이상 접근할 수 없습니다.
+                    </p>
+                    <Button
+                        variant="outline"
+                        onClick={() => setConfirmType('leave')}
+                        className="flex items-center gap-2 rounded-md border border-destructive px-3 py-1.5 text-sm text-destructive hover:bg-destructive/5 transition-colors"
+                    >
+                        워크스페이스 탈퇴
+                    </Button>
+                </div>
+            )}
+
             <ConfirmModal
                 open={confirmType === 'delete'}
                 message="워크스페이스를 삭제 요청합니다. 30일 후 영구 삭제되며, 그 전까지 취소할 수 있습니다."
@@ -683,10 +775,19 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
                 onConfirm={handleConfirm}
                 onCancel={() => setConfirmType(null)}
             />
+
             <ConfirmModal
                 open={confirmType === 'cancel'}
                 message="삭제 요청을 취소하고 워크스페이스를 복구합니다."
                 confirmLabel={loading ? '처리 중...' : '삭제 취소'}
+                onConfirm={handleConfirm}
+                onCancel={() => setConfirmType(null)}
+            />
+
+            <ConfirmModal
+                open={confirmType === 'leave'}
+                message="정말 이 워크스페이스에서 탈퇴하시겠습니까? 탈퇴 후에는 다시 초대받아야 접근할 수 있습니다."
+                confirmLabel={loading ? '처리 중...' : '탈퇴'}
                 onConfirm={handleConfirm}
                 onCancel={() => setConfirmType(null)}
             />
@@ -697,6 +798,7 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
 export default function GroupDetailPage() {
     const { group_id } = useParams()
     const [group, setGroup] = useState(null)
+    const [approvedDocumentCount, setApprovedDocumentCount] = useState(0)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [activeTab, setActiveTab] = useState('documents')
@@ -704,18 +806,34 @@ export default function GroupDetailPage() {
     const [searchParams, setSearchParams] = useSearchParams()
     const tabFromUrl = searchParams.get('tab')
 
+
+    /**
+     * 그룹 상세와 헤더용 승인 문서 수를 불러온다.
+     */
+    const loadGroupDetailPage = useCallback(async () => {
+        const groupDetail = await getGroupDetail(group_id)
+        setGroup(groupDetail)
+
+        try {
+            const nextApprovedDocumentCount = await getApprovedDocumentCount(group_id)
+            setApprovedDocumentCount(nextApprovedDocumentCount)
+        } catch (e) {
+            console.error('승인 문서 수 조회 실패:', e)
+            setApprovedDocumentCount(0)
+        }
+    }, [group_id])
+
     useEffect(() => {
         const timerId = window.setInterval(async () => {
             try {
-                const updated = await getGroupDetail(group_id)
-                setGroup(updated)
+                await loadGroupDetailPage()
             } catch (e) {
                 console.error('그룹 상세 polling 실패:', e)
             }
         }, GROUP_POLLING_INTERVAL)
 
         return () => window.clearInterval(timerId)
-    }, [group_id])
+    }, [loadGroupDetailPage])
 
     useEffect(() => {
         setActiveTab(tabFromUrl || 'documents')
@@ -731,11 +849,11 @@ export default function GroupDetailPage() {
 
     useEffect(() => {
         setLoading(true)
-        getGroupDetail(group_id)
-            .then(setGroup)
+        loadGroupDetailPage()
             .catch((e) => setError(e.message ?? '불러오기에 실패했습니다.'))
             .finally(() => setLoading(false))
-    }, [group_id])
+    }, [loadGroupDetailPage])
+
 
     const viewState = group ? getGroupViewState(group) : null
     const isWriteRestricted = viewState?.isWriteRestricted ?? false
@@ -808,19 +926,19 @@ export default function GroupDetailPage() {
                             {group.my_role}
                         </Badge>
                     </div>
-                    <div className="flex items-center gap-4 mt-3 text-sm">
-                        <div className="flex items-center gap-1">
-                            <Users className="h-4 w-4" />
-                            <span>멤버 {group.member_count}명</span>
-                        </div>
+                        <div className="flex items-center gap-4 mt-3 text-sm">
+                            <div className="flex items-center gap-1">
+                                <Users className="h-4 w-4" />
+                                <span>멤버 {group.member_count}명</span>
+                            </div>
 
-                        <div className="h-3 w-px bg-border" />
+                            <div className="h-3 w-px bg-border" />
 
-                        <div className="flex items-center gap-1">
-                            <FileText className="h-4 w-4" />
-                            <span>문서 {group.document_count}개</span>
+                            <div className="flex items-center gap-1">
+                                <FileText className="h-4 w-4" />
+                                <span>승인된 문서 {approvedDocumentCount}개</span>
+                            </div>
                         </div>
-                    </div>
                 </div>
 
                 <div className="flex gap-2 border-b mb-6">
@@ -828,10 +946,10 @@ export default function GroupDetailPage() {
                         <button
                             key={tab.key}
                             onClick={() => handleTabChange(tab.key)}
-                            className={`px-4 py-2 text-sm font-medium text-slate-900 border-b-2 transition-colors ${
+                            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                                 activeTab === tab.key
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                                    ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                                    : 'border-transparent text-muted-foreground hover:text-foreground'
                             }`}
                         >
                             {tab.label}

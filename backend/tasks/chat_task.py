@@ -16,7 +16,6 @@ def process_chat_message(payload: dict):
     session_id = payload.get("session_id")
     group_id = payload.get("group_id")
 
-    # workspace_selection 복원
     raw_selection = payload.get("workspace_selection")
     workspace_selection: WorkspaceSelection | None = None
     if raw_selection is not None:
@@ -39,5 +38,6 @@ def process_chat_message(payload: dict):
             workspace_selection=workspace_selection,
         )
     finally:
+        redis_client.delete(f"chat_task:{session_id}")
         db.close()
         redis_client.close()

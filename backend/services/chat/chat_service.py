@@ -46,19 +46,42 @@ class ChatService:
         db.refresh(session)
         return session
 
+    def stop_message(self, session_id: int):
+        from celery_app import celery_app
+        from redis_client import redis_client
+
+        task_key = f"chat_task:{session_id}"
+        task_id = redis_client.get(task_key)
+
+        if task_id:
+            celery_app.control.revoke(task_id, terminate=True, signal="SIGKILL")
+            redis_client.delete(task_key)
+            return {"status": "success", "message": "Task stopped"}
+        return {
+            "status": "no_active_task",
+            "message": "No active task found for this session",
+        }
+
     def delete_session(self, db: Session, user_id: int, session_id: int):
         session = self._get_session_with_permission(db, user_id, session_id)
+        self.stop_message(session_id)
         db.delete(session)
         db.commit()
 
     def get_messages(self, db: Session, user_id: int, session_id: int):
         self._get_session_with_permission(db, user_id, session_id)
-        return (
+        messages = (
             db.query(ChatMessage)
             .filter(ChatMessage.session_id == session_id)
             .order_by(ChatMessage.created_at.asc())
             .all()
         )
+
+        from redis_client import redis_client
+
+        is_processing = redis_client.exists(f"chat_task:{session_id}") > 0
+
+        return {"messages": messages, "is_processing": is_processing}
 
     def upload_reference_document(
         self,
@@ -84,6 +107,13 @@ class ChatService:
         db.refresh(session)
         return session
 
+    def delete_reference_group(self, db: Session, user_id: int, session_id: int):
+        session = self._get_session_with_permission(db, user_id, session_id)
+        session.reference_group_id = None
+        db.commit()
+        db.refresh(session)
+        return session
+
     def send_message(
         self,
         db: Session,
@@ -100,6 +130,7 @@ class ChatService:
 
         if workspace_selection is not None:
             self._require_group_membership(db, user_id, group_id)
+            session.reference_group_id = group_id
 
         user_msg = ChatMessage(
             session_id=session_id, role=ChatMessageRole.USER, content=text
@@ -126,19 +157,27 @@ class ChatService:
         payload = {
             "user_id": user_id,
             "session_id": session_id,
-            "group_id": group_id,
+            "group_id": group_id or session.reference_group_id,
             "workspace_selection": (
                 {
                     "mode": workspace_selection.mode,
                     "document_ids": workspace_selection.document_ids,
                 }
                 if workspace_selection is not None
-                else None
+                else (
+                    {"mode": "all", "document_ids": []}
+                    if session.reference_group_id
+                    else None
+                )
             ),
         }
-        process_chat_message.delay(payload)
+        task = process_chat_message.delay(payload)
 
-        return {"status": "success", "message": "Task queued"}
+        from redis_client import redis_client
+
+        redis_client.set(f"chat_task:{session_id}", task.id, ex=3600)
+
+        return {"status": "success", "message": "Task queued", "task_id": task.id}
 
     # ── 권한 헬퍼 ─────────────────────────────────────────────────────────────
 

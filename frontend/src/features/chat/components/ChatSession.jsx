@@ -13,21 +13,37 @@ import {
   IoDocumentTextOutline,
   IoFolderOpenOutline,
   IoPeopleOutline,
-  IoSend
+  IoSend,
+  IoStop
 } from 'react-icons/io5';
 import { getMyGroups } from '../../../api/groups';
 import { useChat } from '../hooks/useChat.js';
 
 export default function ChatSession({ session, onBack, onClose, onUpdateSession }) {
-  const { messages, isLoading, sendMessage, referenceTitle, removeReference } = useChat(session.id, session.reference_document_title);
+  const initialGroup = session.reference_group_id ? { id: session.reference_group_id, name: session.reference_group_name } : null;
+  const { 
+    messages, 
+    isLoading, 
+    sendMessage, 
+    stopMessage,
+    referenceTitle, 
+    referenceGroup,
+    removeReferenceDocument,
+    removeReferenceGroup
+  } = useChat(session.id, session.reference_document_title, initialGroup);
+  
   const [input, setInput] = useState('');
   const scrollRef = useRef(null);
 
   useEffect(() => {
-    if (onUpdateSession && referenceTitle !== session.reference_document_title) {
-      onUpdateSession({ reference_document_title: referenceTitle });
+    if (onUpdateSession && (referenceTitle !== session.reference_document_title || referenceGroup?.id !== session.reference_group_id)) {
+      onUpdateSession({ 
+        reference_document_title: referenceTitle,
+        reference_group_id: referenceGroup?.id,
+        reference_group_name: referenceGroup?.name
+      });
     }
-  }, [referenceTitle, session.reference_document_title, onUpdateSession]);
+  }, [referenceTitle, referenceGroup, session, onUpdateSession]);
 
   const fileInputRef = useRef(null);
 
@@ -71,12 +87,22 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
   };
 
   const handleSend = () => {
-    if (!input.trim() && !selectedDoc && !selectedGroup && !referenceTitle) return;
+    if (!input.trim() && !selectedDoc && !selectedGroup && !referenceTitle && !referenceGroup) return;
 
-    sendMessage(input, selectedDoc, selectedGroup);
+    let workspaceSelection = null;
+    const groupToUse = selectedGroup || referenceGroup;
+    if (groupToUse) {
+      workspaceSelection = {
+        mode: "all",
+        document_ids: []
+      };
+    }
+
+    sendMessage(input, selectedDoc, selectedGroup, workspaceSelection);
 
     setInput('');
     setSelectedDoc(null);
+    setSelectedGroup(null);
   };
 
   const toggleDocSelect = () => {
@@ -243,14 +269,14 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
         )}
 
         <div className="flex flex-col bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 focus-within:border-blue-400 dark:focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-400 transition-all shadow-sm">
-          {(referenceTitle || selectedDoc || selectedGroup) && (
+          {(referenceTitle || referenceGroup || selectedDoc || selectedGroup) && (
             <div className="flex flex-wrap gap-2 px-3 pt-3 pb-1">
               {referenceTitle && !selectedDoc && (
                 <span className="flex items-center gap-1.5 text-xs bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded-md border border-indigo-200 dark:border-indigo-800 animate-in fade-in" title="이 문서를 기반으로 답변합니다">
                   <IoDocumentTextOutline size={14} />
                   <span className="max-w-[150px] truncate font-medium">{referenceTitle}</span>
-                  <span className="text-[10px] opacity-70">(참조 중)</span>
-                  <button onClick={removeReference} className="hover:text-indigo-900 dark:hover:text-indigo-100 ml-0.5"><IoCloseCircle size={15} /></button>
+                  <span className="text-[10px] opacity-70 ml-1">(참조 중)</span>
+                  <button onClick={removeReferenceDocument} className="hover:text-indigo-900 dark:hover:text-indigo-100 ml-0.5"><IoCloseCircle size={15} /></button>
                 </span>
               )}
               {selectedDoc && (
@@ -260,11 +286,12 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
                   <button onClick={() => setSelectedDoc(null)} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={15} /></button>
                 </span>
               )}
-              {selectedGroup && (
+              {(referenceGroup || selectedGroup) && (
                 <span className="flex items-center gap-1.5 text-xs bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded-md border border-emerald-200 dark:border-emerald-800 animate-in fade-in">
                   <IoPeopleOutline size={14} />
-                  <span className="max-w-[150px] truncate">{selectedGroup.name}</span>
-                  <button onClick={() => setSelectedGroup(null)} className="hover:text-emerald-900 dark:hover:text-emerald-100"><IoCloseCircle size={15} /></button>
+                  <span className="max-w-[150px] truncate">{selectedGroup?.name || referenceGroup?.name}</span>
+                  {!selectedGroup && referenceGroup && <span className="text-[10px] opacity-70 ml-1">(참조 중)</span>}
+                  <button onClick={() => { selectedGroup ? setSelectedGroup(null) : removeReferenceGroup(); }} className="hover:text-emerald-900 dark:hover:text-emerald-100"><IoCloseCircle size={15} /></button>
                 </span>
               )}
             </div>
@@ -275,12 +302,18 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder={referenceTitle || selectedDoc || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "메시지를 입력하세요..."}
+              placeholder={referenceTitle || referenceGroup || selectedDoc || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "메시지를 입력하세요..."}
               className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-2 h-10 text-foreground"
             />
-            <Button size="icon" onClick={handleSend} disabled={isLoading} className="shrink-0 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl w-10 h-10 shadow-sm">
-              <IoSend size={18} className="ml-1" />
-            </Button>
+            {isLoading ? (
+              <Button size="icon" onClick={stopMessage} className="shrink-0 bg-slate-500 hover:bg-slate-600 rounded-xl w-10 h-10 shadow-sm">
+                <IoStop size={18} />
+              </Button>
+            ) : (
+              <Button size="icon" onClick={handleSend} className="shrink-0 bg-blue-600 hover:bg-blue-700 rounded-xl w-10 h-10 shadow-sm">
+                <IoSend size={18} className="ml-1" />
+              </Button>
+            )}
           </div>
 
           <div className="flex items-center gap-2 px-3 pb-2">

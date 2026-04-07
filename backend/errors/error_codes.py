@@ -127,14 +127,16 @@ class ErrorCode(Enum):
     # ── 파일 다운로드 (FILE) ─────────────────────────────────────────────────
     FILE_NOT_FOUND = ("FILE_001", 404, "파일을 찾을 수 없습니다.")
 
-    # ── 판례 (PRECEDENT) ─────────────────────────────────────────────────────
-    PRECEDENT_NOT_FOUND = ("PRECEDENT_001", 404, "판례를 찾을 수 없습니다.")
-    PRECEDENT_DUPLICATE_URL = ("PRECEDENT_002", 409, "이미 등록된 판례 URL입니다.")
-    PRECEDENT_INVALID_URL = ("PRECEDENT_003", 422, "유효하지 않은 URL 형식입니다.")
-    PRECEDENT_DOMAIN_NOT_ALLOWED = (
-        "PRECEDENT_004",
-        422,
-        "허용되지 않은 도메인입니다. 등록 가능한 판례 사이트의 URL만 입력해주세요.",
+    # ── 플랫폼 동기화 (PLATFORM) ───────────────────────────────────────────
+    PLATFORM_SYNC_CONFIG_MISSING = (
+        "PLATFORM_001",
+        500,
+        "공공 법령 Open API 설정이 올바르지 않습니다.",
+    )
+    PLATFORM_SYNC_REQUEST_FAILED = (
+        "PLATFORM_002",
+        502,
+        "공공 법령 Open API 호출에 실패했습니다.",
     )
 
     # ── 채팅 (CHAT) ──────────────────────────────────────────────────────────
@@ -207,4 +209,38 @@ class ErrorCode(Enum):
         "GROUP_020",
         409,
         "해당 사용자는 이미 다른 워크스페이스의 오너입니다.",
+    )
+    GROUP_OWNER_CANNOT_LEAVE = (
+        "GROUP_021",
+        403,
+        "OWNER는 워크스페이스를 바로 탈퇴할 수 없습니다. 다른 멤버에게 오너를 양도한 뒤 탈퇴해주세요.",
+    )
+
+    # ── 댓글 (COMMENT) ───────────────────────────────────────────────────────
+    COMMENT_NOT_FOUND = ("COMMENT_001", 404, "댓글을 찾을 수 없습니다.")
+    COMMENT_ALREADY_DELETED = ("COMMENT_002", 409, "이미 삭제된 댓글입니다.")
+    COMMENT_PARENT_MISMATCH = (
+        "COMMENT_003",
+        400,
+        "같은 문서의 댓글에만 답글을 작성할 수 있습니다.",
+    )
+    COMMENT_REPLY_DEPTH_EXCEEDED = (
+        "COMMENT_004",
+        400,
+        "대댓글에는 추가 답글을 작성할 수 없습니다.",
+    )
+    COMMENT_PARENT_DELETED = (
+        "COMMENT_005",
+        409,
+        "삭제된 댓글에는 답글을 작성할 수 없습니다.",
+    )
+    COMMENT_MENTION_INVALID = (
+        "COMMENT_006",
+        422,
+        "멘션 데이터가 댓글 본문과 일치하지 않습니다.",
+    )
+    COMMENT_MENTION_USER_NOT_FOUND = (
+        "COMMENT_007",
+        422,
+        "멘션할 수 없는 사용자입니다.",
     )

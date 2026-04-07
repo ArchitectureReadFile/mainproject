@@ -2,13 +2,15 @@ import logging
 from datetime import timedelta
 from typing import Optional
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from models.model import (
     Category,
     Document,
     DocumentApproval,
+    DocumentComment,
+    DocumentCommentScope,
     DocumentLifecycleStatus,
     DocumentStatus,
     GroupMember,
@@ -25,6 +27,30 @@ logger = logging.getLogger(__name__)
 class DocumentRepository:
     def __init__(self, db: Session):
         self.db = db
+
+    def get_member_status_map(
+        self,
+        *,
+        group_id: int,
+        user_ids: list[int],
+    ) -> dict[int, MembershipStatus]:
+        """
+        그룹 내 사용자별 멤버십 상태 맵을 반환
+        문서 목록/상세 표시명 가공에 사용
+        """
+        if not user_ids:
+            return {}
+
+        rows = (
+            self.db.query(GroupMember.user_id, GroupMember.status)
+            .filter(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id.in_(user_ids),
+            )
+            .all()
+        )
+
+        return {user_id: status for user_id, status in rows}
 
     def is_group_admin(self, user_id: int, group_id: int) -> bool:
         return (
@@ -118,14 +144,40 @@ class DocumentRepository:
         category,
         group_id=None,
     ):
+        """
+        문서 목록을 조회하고 카드 표시용 일반 댓글 수를 함께 집계
+        삭제된 댓글과 REVIEW 범위 댓글은 제외
+        """
+        comment_count_subquery = (
+            self.db.query(
+                DocumentComment.document_id.label("document_id"),
+                func.count(DocumentComment.id).label("comment_count"),
+            )
+            .filter(
+                DocumentComment.comment_scope == DocumentCommentScope.GENERAL.value,
+                DocumentComment.deleted_at.is_(None),
+            )
+            .group_by(DocumentComment.document_id)
+            .subquery()
+        )
+
         query = (
-            self.db.query(Document)
+            self.db.query(
+                Document,
+                func.coalesce(comment_count_subquery.c.comment_count, 0).label(
+                    "comment_count"
+                ),
+            )
             .options(
                 joinedload(Document.owner),
                 joinedload(Document.summary),
                 joinedload(Document.approval).joinedload(DocumentApproval.assignee),
             )
             .outerjoin(Document.summary)
+            .outerjoin(
+                comment_count_subquery,
+                comment_count_subquery.c.document_id == Document.id,
+            )
             .filter(Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE)
         )
 
@@ -154,9 +206,26 @@ class DocumentRepository:
             query = query.filter(Document.processing_status == status)
 
         total = query.count()
-        documents = (
-            query.order_by(Document.created_at.desc()).offset(skip).limit(limit).all()
-        )
+
+        if view_type == "my":
+            documents = (
+                query.order_by(Document.created_at.desc(), Document.id.desc())
+                .offset(skip)
+                .limit(limit)
+                .all()
+            )
+        else:
+            documents = (
+                query.order_by(
+                    DocumentApproval.reviewed_at.desc(),
+                    Document.created_at.desc(),
+                    Document.id.desc(),
+                )
+                .offset(skip)
+                .limit(limit)
+                .all()
+            )
+
         return documents, total
 
     def get_detail(self, doc_id: int):

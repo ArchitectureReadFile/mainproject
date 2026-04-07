@@ -26,7 +26,7 @@ export const chatApi = {
         return response.data;
     },
 
-    sendMessage: async (sessionId, text, doc) => {
+    sendMessage: async (sessionId, text, doc, groupId, workspaceSelection) => {
         const formData = new FormData();
 
         if (text) {
@@ -39,6 +39,14 @@ export const chatApi = {
             formData.append('document_id', doc.id);
         }
 
+        if (groupId) {
+            formData.append('group_id', groupId);
+        }
+
+        if (workspaceSelection) {
+            formData.append('workspace_selection_json', JSON.stringify(workspaceSelection));
+        }
+
         const response = await client.post(`/chat/sessions/${sessionId}/messages`, formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
@@ -48,8 +56,18 @@ export const chatApi = {
         return response.data;
     },
 
-    deleteReference: async (sessionId) => {
+    deleteReferenceDocument: async (sessionId) => {
         const response = await client.delete(`/chat/sessions/${sessionId}/reference`);
+        return response.data;
+    },
+
+    deleteReferenceGroup: async (sessionId) => {
+        const response = await client.delete(`/chat/sessions/${sessionId}/reference-group`);
+        return response.data;
+    },
+
+    stopMessage: async (sessionId) => {
+        const response = await client.post(`/chat/sessions/${sessionId}/stop`);
         return response.data;
     }
 };

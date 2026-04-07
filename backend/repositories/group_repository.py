@@ -25,6 +25,30 @@ class GroupRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    def get_member_status_map(
+        self,
+        *,
+        group_id: int,
+        user_ids: list[int],
+    ) -> dict[int, MembershipStatus]:
+        """
+        그룹 내 사용자별 멤버십 상태 맵을 반환
+        댓글/답글 표시명 가공에 사용
+        """
+        if not user_ids:
+            return {}
+
+        rows = (
+            self.db.query(GroupMember.user_id, GroupMember.status)
+            .filter(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id.in_(user_ids),
+            )
+            .all()
+        )
+
+        return {user_id: status for user_id, status in rows}
+
     def create_group(
         self, owner_user_id: int, name: str, description: Optional[str]
     ) -> Group:
@@ -187,6 +211,31 @@ class GroupRepository:
                 GroupMember.status == MembershipStatus.ACTIVE,
             )
             .first()
+        )
+
+    def get_active_users_by_ids(
+        self,
+        *,
+        group_id: int,
+        user_ids: list[int],
+    ) -> list[User]:
+        """
+        워크스페이스의 활성 멤버 중 지정한 사용자 목록을 조회
+        멘션 가능 대상 검증에 사용
+        """
+        if not user_ids:
+            return []
+
+        return (
+            self.db.query(User)
+            .join(GroupMember, GroupMember.user_id == User.id)
+            .filter(
+                GroupMember.group_id == group_id,
+                GroupMember.status == MembershipStatus.ACTIVE,
+                User.id.in_(user_ids),
+                User.is_active.is_(True),
+            )
+            .all()
         )
 
     def get_invited_members(self, group_id: int) -> list[tuple[GroupMember, User]]:

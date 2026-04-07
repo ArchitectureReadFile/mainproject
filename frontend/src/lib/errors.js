@@ -49,11 +49,9 @@ export const ERROR_CODE = {
   // ── 파일 다운로드 (FILE) ────────────────────────────────────
   FILE_NOT_FOUND:               "FILE_001",
 
-  // ── 판례 (PRECEDENT) ────────────────────────────────────────
-  PRECEDENT_NOT_FOUND:          "PRECEDENT_001",
-  PRECEDENT_DUPLICATE_URL:      "PRECEDENT_002",
-  PRECEDENT_INVALID_URL:        "PRECEDENT_003",
-  PRECEDENT_DOMAIN_NOT_ALLOWED: "PRECEDENT_004",
+  // ── 플랫폼 동기화 (PLATFORM) ─────────────────────────────────
+  PLATFORM_SYNC_CONFIG_MISSING: "PLATFORM_001",
+  PLATFORM_SYNC_REQUEST_FAILED: "PLATFORM_002",
 };
 
 export function getErrorCode(error) {
@@ -81,10 +79,8 @@ export function getErrorMessageByCode(code, fallback = "요청에 실패했습�
     [ERROR_CODE.DOC_NOT_FOUND]: "문서를 찾을 수 없습니다.",
     [ERROR_CODE.DOC_INVALID_FILE_TYPE]: "PDF 파일만 업로드 가능합니다.",
     [ERROR_CODE.DOC_FILE_TOO_LARGE]: "파일 크기는 20MB 이하여야 합니다.",
-    [ERROR_CODE.PRECEDENT_NOT_FOUND]: "판례를 찾을 수 없습니다.",
-    [ERROR_CODE.PRECEDENT_DUPLICATE_URL]: "이미 등록된 판례 URL입니다.",
-    [ERROR_CODE.PRECEDENT_INVALID_URL]: "유효하지 않은 URL 형식입니다.",
-    [ERROR_CODE.PRECEDENT_DOMAIN_NOT_ALLOWED]: "허용되지 않은 도메인입니다. 등록 가능한 판례 사이트의 URL만 입력해주세요.",
+    [ERROR_CODE.PLATFORM_SYNC_CONFIG_MISSING]: "공공 법령 Open API 설정이 올바르지 않습니다.",
+    [ERROR_CODE.PLATFORM_SYNC_REQUEST_FAILED]: "공공 법령 Open API 호출에 실패했습니다.",
   };
 
   return codeMessages[code] ?? fallback;
