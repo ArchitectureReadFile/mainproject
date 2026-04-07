@@ -5,7 +5,11 @@ from sqlalchemy.orm import Session
 
 from dependencies import get_chat_service, get_current_user, get_db
 from models.model import User
-from schemas.chat import ChatMessageResponse, ChatSessionRequest, ChatSessionResponse
+from schemas.chat import (
+    ChatMessagesResponse,
+    ChatSessionRequest,
+    ChatSessionResponse,
+)
 from services.chat.chat_service import ChatService
 from services.chat.workspace_selection_parser import parse_workspace_selection
 
@@ -54,7 +58,7 @@ def delete_session(
     chat_service.delete_session(db, current_user.id, session_id)
 
 
-@router.get("/sessions/{session_id}/messages", response_model=List[ChatMessageResponse])
+@router.get("/sessions/{session_id}/messages", response_model=ChatMessagesResponse)
 def get_messages(
     session_id: int,
     db: Session = Depends(get_db),
@@ -104,6 +108,14 @@ async def send_message(
         group_id=group_id,
         workspace_selection=workspace_selection,
     )
+
+
+@router.post("/sessions/{session_id}/stop")
+def stop_message(
+    session_id: int,
+    chat_service: ChatService = Depends(get_chat_service),
+):
+    return chat_service.stop_message(session_id)
 
 
 @router.delete("/sessions/{session_id}/reference", response_model=ChatSessionResponse)

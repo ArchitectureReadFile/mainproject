@@ -64,5 +64,10 @@ export const chatApi = {
     deleteReferenceGroup: async (sessionId) => {
         const response = await client.delete(`/chat/sessions/${sessionId}/reference-group`);
         return response.data;
+    },
+
+    stopMessage: async (sessionId) => {
+        const response = await client.post(`/chat/sessions/${sessionId}/stop`);
+        return response.data;
     }
 };

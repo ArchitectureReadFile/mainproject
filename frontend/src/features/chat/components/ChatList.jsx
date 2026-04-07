@@ -31,7 +31,9 @@ export default function ChatList({ onSelectRoom, onClose, refreshTrigger }) {
 
   const handleDeleteRoom = async (e, id) => {
     e.stopPropagation();
-    await deleteRoom(id);
+    if (window.confirm('상담 내역을 삭제하시겠습니까?')) {
+      await deleteRoom(id);
+    }
   };
 
   const startEdit = (e, session) => {
