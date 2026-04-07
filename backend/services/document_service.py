@@ -263,7 +263,7 @@ class DocumentService:
         current_user_id: int,
         current_user_role: MembershipRole | None,
     ) -> tuple[str, str]:
-        """그룹 문서의 원본 PDF 경로와 파일명을 반환"""
+        """그룹 문서의 원본 파일 경로와 파일명을 반환"""
         doc = self.get_document_in_group_with_permission(
             doc_id=doc_id,
             group_id=group_id,

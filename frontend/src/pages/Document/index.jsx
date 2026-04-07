@@ -6,11 +6,11 @@ import {
     getDocumentComments,
     getGroupDetail,
     getGroupDocumentDetail,
-    getGroupDocumentOriginalUrl,
+    getGroupDocumentDownloadUrl,
+    getGroupDocumentPreviewUrl,
     getMembers,
     rejectDocument,
 } from '@/api/groups'
-import { downloadSummaryPdf } from '@/api/documents'
 import { Avatar, AvatarFallback } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -375,7 +375,8 @@ export default function DocumentPage() {
     const pendingZoomCenterRef = useRef(null)
 
     const backToListUrl = `/workspace/${group_id}${location.search || '?tab=documents'}`
-    const originalPdfUrl = getGroupDocumentOriginalUrl(group_id, doc_id)
+    const previewPdfUrl = getGroupDocumentPreviewUrl(group_id, doc_id)
+    const downloadUrl = getGroupDocumentDownloadUrl(group_id, doc_id)
 
     const STATUS_MESSAGE = {
         PENDING: 'AI 요약 대기 중입니다. 잠시 후 다시 확인해주세요.',
@@ -1127,13 +1128,15 @@ export default function DocumentPage() {
         }
     }
 
-    const handleDownload = async () => {
-        if (!s.summary_id) return
-        try {
-            await downloadSummaryPdf(s.summary_id, s.case_number, s.case_name)
-        } catch {
-            toast.error('다운로드에 실패했습니다.')
-        }
+    /**
+     * 원본 문서 다운로드
+     */
+    const handleDownload = () => {
+        const link = document.createElement('a')
+        link.href = downloadUrl
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
     }
 
     const handleDeleteConfirm = async () => {
@@ -1496,22 +1499,22 @@ export default function DocumentPage() {
                         </>
                     )}
 
-                    {doc.summary_id && (
+                    {doc && (
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button variant="outline" size="sm" onClick={handleDownload} className="gap-1.5">
                                     <Download size={14} />
-                                    PDF 다운로드
+                                    원본 다운로드
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>요약본 PDF를 다운로드합니다</TooltipContent>
+                            <TooltipContent>원본 파일을 다운로드합니다</TooltipContent>
                         </Tooltip>
                     )}
 
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button asChild variant="outline" size="sm" className="gap-1.5">
-                                <a href={originalPdfUrl} target="_blank" rel="noreferrer">
+                                <a href={previewPdfUrl} target="_blank" rel="noreferrer">
                                     <ExternalLink size={14} />
                                     새 탭으로 열기
                                 </a>
@@ -1821,7 +1824,7 @@ export default function DocumentPage() {
                         ) : (
                             <div className="mx-auto flex w-fit min-w-full flex-col items-center gap-4 p-4">
                                 <PdfDocument
-                                    file={originalPdfUrl}
+                                    file={previewPdfUrl}
                                     options={PDF_OPTIONS}
                                     loading={
                                         <div className="flex items-center justify-center py-20 text-muted-foreground">

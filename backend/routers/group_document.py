@@ -1,3 +1,4 @@
+import mimetypes
 from typing import Literal, Optional
 from urllib.parse import quote
 
@@ -365,6 +366,35 @@ def delete_document(
     group, _ = group_service.assert_view_permission(current_user.id, group_id)
     group_service.assert_group_writable(group)
     service.delete_document(doc_id, current_user.id, group_id)
+
+
+@router.get("/{group_id}/documents/{doc_id}/download")
+def download_original_document(
+    group_id: int,
+    doc_id: int,
+    group_service: GroupService = Depends(get_group_service),
+    document_service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
+):
+    """권한이 있는 사용자가 원본 파일을 다운로드할 수 있게 반환"""
+    _, role = group_service.assert_view_permission(current_user.id, group_id)
+    file_path, original_filename = document_service.get_original_file_in_group(
+        doc_id=doc_id,
+        group_id=group_id,
+        current_user_id=current_user.id,
+        current_user_role=role,
+    )
+
+    encoded_filename = quote(original_filename)
+    media_type, _ = mimetypes.guess_type(original_filename)
+
+    return FileResponse(
+        path=file_path,
+        media_type=media_type or "application/octet-stream",
+        headers={
+            "Content-Disposition": (f"attachment; filename*=UTF-8''{encoded_filename}")
+        },
+    )
 
 
 @router.get(
