@@ -1,6 +1,12 @@
 import { Button } from '@/components/ui/Button'
 import { Separator } from '@/components/ui/separator'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/Sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/Sheet'
 import { cn } from '@/lib/utils'
 import { FolderOpen, Home, LogIn, LogOut, Shield, User, UserPlus, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
@@ -38,7 +44,12 @@ export default function MenuDrawer({
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose() }}>
       <SheetContent>
         <SheetHeader>
-          <SheetTitle>메뉴</SheetTitle>
+          <div>
+            <SheetTitle>메뉴</SheetTitle>
+            <SheetDescription className="sr-only">
+              프로필, 홈, 워크스페이스, 로그인, 로그아웃 등 주요 메뉴로 이동할 수 있는 사이드 메뉴입니다.
+            </SheetDescription>
+          </div>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="닫기">
             <X size={20} />
           </Button>

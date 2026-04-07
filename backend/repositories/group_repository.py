@@ -25,6 +25,30 @@ class GroupRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    def get_member_status_map(
+        self,
+        *,
+        group_id: int,
+        user_ids: list[int],
+    ) -> dict[int, MembershipStatus]:
+        """
+        그룹 내 사용자별 멤버십 상태 맵을 반환
+        댓글/답글 표시명 가공에 사용
+        """
+        if not user_ids:
+            return {}
+
+        rows = (
+            self.db.query(GroupMember.user_id, GroupMember.status)
+            .filter(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id.in_(user_ids),
+            )
+            .all()
+        )
+
+        return {user_id: status for user_id, status in rows}
+
     def create_group(
         self, owner_user_id: int, name: str, description: Optional[str]
     ) -> Group:

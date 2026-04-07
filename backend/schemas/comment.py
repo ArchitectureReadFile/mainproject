@@ -92,6 +92,7 @@ class DocumentCommentAuthorResponse(BaseModel):
 
     id: Optional[int] = None
     username: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class DocumentCommentMentionResponse(BaseModel):

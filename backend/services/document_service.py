@@ -4,6 +4,7 @@ from errors import AppException, ErrorCode
 from models.model import (
     DocumentLifecycleStatus,
     MembershipRole,
+    MembershipStatus,
     ReviewStatus,
 )
 from repositories.document_repository import DocumentRepository
@@ -24,6 +25,26 @@ from services.summary.summary_mapper import (
 class DocumentService:
     def __init__(self, repository: DocumentRepository):
         self.repository = repository
+
+    @staticmethod
+    def _build_user_display_name(
+        user,
+        member_status: MembershipStatus | None = None,
+    ) -> str | None:
+        """
+        계정 탈퇴 또는 그룹 탈퇴 상태를 반영한 사용자 표시명을 반환
+        """
+        if not user:
+            return None
+
+        is_deactivated = user.is_active is False
+        is_removed_member = member_status == MembershipStatus.REMOVED
+
+        return (
+            f"{user.username}(탈퇴)"
+            if is_deactivated or is_removed_member
+            else user.username
+        )
 
     @staticmethod
     def _build_document_title(doc, summary) -> str:
@@ -49,6 +70,10 @@ class DocumentService:
         category="전체",
         group_id=None,
     ):
+        """
+        문서 목록 응답
+        목록 카드에서 바로 사용할 수 있도록 댓글 수를 함께 전달
+        """
         limit = min(limit, 50)
         documents, total = self.repository.get_list(
             skip,
@@ -61,13 +86,32 @@ class DocumentService:
             group_id,
         )
 
+        owner_ids = [
+            doc.owner.id for doc, _ in documents if getattr(doc, "owner", None)
+        ]
+
+        member_status_map = (
+            self.repository.get_member_status_map(
+                group_id=group_id,
+                user_ids=owner_ids,
+            )
+            if group_id is not None
+            else {}
+        )
+
         results: list[DocumentListItemResponse] = []
 
-        for doc in documents:
+        for doc, comment_count in documents:
             summary = getattr(doc, "summary", None)
             approval = getattr(doc, "approval", None)
             title = self._build_document_title(doc, summary)
             preview = self._build_preview(summary)
+
+            owner_status = (
+                member_status_map.get(doc.owner.id)
+                if getattr(doc, "owner", None)
+                else None
+            )
 
             results.append(
                 DocumentListItemResponse(
@@ -81,7 +125,8 @@ class DocumentService:
                     if summary
                     else None,
                     created_at=doc.created_at,
-                    uploader=doc.owner.username if doc.owner else None,
+                    uploader=self._build_user_display_name(doc.owner, owner_status),
+                    comment_count=comment_count,
                     delete_requested_at=None,
                     delete_scheduled_at=None,
                     deleted_by=None,
@@ -152,15 +197,31 @@ class DocumentService:
         summary = getattr(doc, "summary", None)
         title = self._build_document_title(doc, summary)
 
+        users_for_display = [
+            user.id
+            for user in [doc.owner, assignee, doc.deleted_by]
+            if user is not None
+        ]
+        member_status_map = self.repository.get_member_status_map(
+            group_id=doc.group_id,
+            user_ids=users_for_display,
+        )
+
         response_data = {
             "id": doc.id,
-            "uploader": doc.owner.username if doc.owner else None,
+            "uploader": self._build_user_display_name(
+                doc.owner,
+                member_status_map.get(doc.owner.id) if doc.owner else None,
+            ),
             "summary_id": summary.id if summary else None,
             "title": title,
             "status": doc.processing_status.value,
             "approval_status": approval.status.value if approval else None,
             "assignee_user_id": approval.assignee_user_id if approval else None,
-            "assignee_username": assignee.username if assignee else None,
+            "assignee_username": self._build_user_display_name(
+                assignee,
+                member_status_map.get(assignee.id) if assignee else None,
+            ),
             "feedback": approval.feedback
             if approval and approval.status == ReviewStatus.REJECTED
             else None,
@@ -169,7 +230,10 @@ class DocumentService:
             "delete_requested_at": doc.delete_requested_at,
             "delete_scheduled_at": doc.delete_scheduled_at,
             "deleted_by": doc.deleted_by_user_id,
-            "deleted_by_username": doc.deleted_by.username if doc.deleted_by else None,
+            "deleted_by_username": self._build_user_display_name(
+                doc.deleted_by,
+                member_status_map.get(doc.deleted_by.id) if doc.deleted_by else None,
+            ),
         }
 
         if summary:
@@ -276,10 +340,25 @@ class DocumentService:
             group_id,
         )
 
+        owner_ids = [doc.owner.id for doc in documents if getattr(doc, "owner", None)]
+        member_status_map = (
+            self.repository.get_member_status_map(
+                group_id=group_id,
+                user_ids=owner_ids,
+            )
+            if group_id is not None
+            else {}
+        )
+
         results = []
 
         for doc in documents:
             summary = getattr(doc, "summary", None)
+            owner_status = (
+                member_status_map.get(doc.owner.id)
+                if getattr(doc, "owner", None)
+                else None
+            )
 
             results.append(
                 DocumentListItemResponse(
@@ -292,7 +371,7 @@ class DocumentService:
                     if summary
                     else None,
                     created_at=doc.created_at,
-                    uploader=doc.owner.username if doc.owner else None,
+                    uploader=self._build_user_display_name(doc.owner, owner_status),
                     delete_requested_at=doc.delete_requested_at,
                     delete_scheduled_at=doc.delete_scheduled_at,
                     deleted_by=doc.deleted_by_user_id,

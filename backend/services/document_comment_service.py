@@ -1,5 +1,5 @@
 from errors import AppException, ErrorCode
-from models.model import MembershipRole
+from models.model import MembershipRole, MembershipStatus
 from repositories.document_comment_repository import DocumentCommentRepository
 from repositories.group_repository import GroupRepository
 from schemas.comment import (
@@ -24,20 +24,49 @@ class DocumentCommentService:
         self.group_repository = group_repository
 
     @staticmethod
-    def _build_author_response(comment) -> DocumentCommentAuthorResponse | None:
+    def _build_user_display_name(
+        user,
+        member_status: MembershipStatus | None = None,
+    ) -> str | None:
+        """
+        계정 탈퇴 또는 그룹 탈퇴 상태를 반영한 사용자 표시명을 반환
+        """
+        if not user:
+            return None
+
+        is_deactivated = user.is_active is False
+        is_removed_member = member_status == MembershipStatus.REMOVED
+
+        return (
+            f"{user.username}(탈퇴)"
+            if is_deactivated or is_removed_member
+            else user.username
+        )
+
+    def _build_author_response(
+        self,
+        comment,
+        member_status_map: dict[int, MembershipStatus],
+    ) -> DocumentCommentAuthorResponse | None:
         """
         댓글 작성자 응답 스키마를 구성
         """
         if not getattr(comment, "author", None):
             return None
 
+        member_status = member_status_map.get(comment.author.id)
+
         return DocumentCommentAuthorResponse(
             id=comment.author.id,
-            username=comment.author.username,
+            username=self._build_user_display_name(comment.author, member_status),
+            is_active=comment.author.is_active,
         )
 
-    @staticmethod
-    def _build_mentions_response(comment) -> list[DocumentCommentMentionResponse]:
+    def _build_mentions_response(
+        self,
+        comment,
+        member_status_map: dict[int, MembershipStatus],
+    ) -> list[DocumentCommentMentionResponse]:
         """
         댓글 멘션 응답 목록을 구성
         """
@@ -51,7 +80,12 @@ class DocumentCommentService:
                 user_id=mention.mentioned_user_id,
                 snapshot_username=mention.snapshot_username,
                 current_username=(
-                    mention.mentioned_user.username
+                    self._build_user_display_name(
+                        mention.mentioned_user,
+                        member_status_map.get(mention.mentioned_user.id)
+                        if getattr(mention, "mentioned_user", None)
+                        else None,
+                    )
                     if getattr(mention, "mentioned_user", None)
                     else None
                 ),
@@ -61,7 +95,33 @@ class DocumentCommentService:
             for mention in mentions
         ]
 
-    def _build_comment_response(self, comment) -> DocumentCommentResponse:
+    def _collect_comment_user_ids(self, comments) -> list[int]:
+        """
+        댓글 트리에서 작성자와 멘션 대상 사용자 id를 수집
+        """
+        collected: set[int] = set()
+
+        def walk(comment):
+            if getattr(comment, "author_user_id", None):
+                collected.add(comment.author_user_id)
+
+            for mention in getattr(comment, "mentions", []):
+                if getattr(mention, "mentioned_user_id", None):
+                    collected.add(mention.mentioned_user_id)
+
+            for reply in getattr(comment, "replies", []):
+                walk(reply)
+
+        for comment in comments:
+            walk(comment)
+
+        return list(collected)
+
+    def _build_comment_response(
+        self,
+        comment,
+        member_status_map: dict[int, MembershipStatus],
+    ) -> DocumentCommentResponse:
         """
         댓글 엔티티를 API 응답 스키마로 변환
         soft delete 댓글은 표시용 본문으로 치환
@@ -84,13 +144,21 @@ class DocumentCommentService:
             page=None if is_deleted else comment.page,
             x=None if is_deleted else comment.x,
             y=None if is_deleted else comment.y,
-            author=self._build_author_response(comment),
+            author=self._build_author_response(comment, member_status_map),
             can_delete=False,
             created_at=comment.created_at,
             updated_at=comment.updated_at,
             deleted_at=comment.deleted_at,
-            mentions=[] if is_deleted else self._build_mentions_response(comment),
-            replies=[self._build_comment_response(reply) for reply in sorted_replies],
+            mentions=[]
+            if is_deleted
+            else self._build_mentions_response(
+                comment,
+                member_status_map,
+            ),
+            replies=[
+                self._build_comment_response(reply, member_status_map)
+                for reply in sorted_replies
+            ],
         )
 
     def _validate_and_normalize_mentions(
@@ -212,9 +280,14 @@ class DocumentCommentService:
             scope=scope,
         )
 
+        member_status_map = self.group_repository.get_member_status_map(
+            group_id=group_id,
+            user_ids=self._collect_comment_user_ids(comments),
+        )
+
         items = [
             self._apply_delete_permission_recursively(
-                self._build_comment_response(comment),
+                self._build_comment_response(comment, member_status_map),
                 comment,
                 current_user_id=current_user_id,
                 current_user_role=current_user_role,

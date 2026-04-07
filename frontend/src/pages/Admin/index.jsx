@@ -108,8 +108,8 @@ export default function AdminPage() {
             onClick={() => handleTabChange(tab.key)}
             className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.key
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             {tab.label}
