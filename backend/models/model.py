@@ -109,6 +109,22 @@ class DocumentCommentScope(enum.Enum):
     REVIEW = "REVIEW"
 
 
+class SocialAccount(Base):
+    __tablename__ = "social_accounts"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    provider = Column(String(50), nullable=False)
+    provider_id = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False)
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+    user = relationship("User", back_populates="social_accounts")
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -141,6 +157,10 @@ class User(Base):
         back_populates="user",
         uselist=False,
         cascade="all, delete-orphan",
+    )
+
+    social_accounts = relationship(
+        "SocialAccount", back_populates="user", cascade="all, delete-orphan"
     )
 
     owned_groups = relationship("Group", back_populates="owner")
@@ -735,6 +755,18 @@ class NotificationSetting(Base):
     )
     is_enabled = Column(Boolean, default=True, nullable=False)
     is_toast_enabled = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "notification_type", name="uq_user_notification_type"
+        ),
+    )
+
+    user = relationship("User", backref="notification_preferences")
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
     updated_at = Column(
         DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False

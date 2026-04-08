@@ -41,6 +41,7 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime
     subscription: SubscriptionResponse | None = None
+    social_providers: list[str] = []
 
 
 class ConfirmAccountRequest(BaseModel):

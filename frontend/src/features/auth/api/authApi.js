@@ -60,3 +60,8 @@ export const cancelSubscription = async () => {
   const response = await client.post('/auth/subscription/cancel', { confirm: true })
   return response.data
 }
+
+export const unlinkSocialAccount = async (provider) => {
+  const response = await client.delete(`/auth/social/${provider}/unlink`)
+  return response.data
+}
