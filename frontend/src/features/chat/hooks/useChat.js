@@ -28,7 +28,7 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
         }
 
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-        const wsUrl = `${protocol}://${window.location.host}/api/ws/notifications/${user.id}`
+        const wsUrl = `${protocol}://${window.location.host}/api/ws/chat/${sessionId}/${user.id}`
         ws.current = new WebSocket(wsUrl);
 
         ws.current.onopen = () => {
