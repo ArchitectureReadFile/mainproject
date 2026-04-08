@@ -36,14 +36,19 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
   const scrollRef = useRef(null);
 
   useEffect(() => {
-    if (onUpdateSession && (referenceTitle !== session.reference_document_title || referenceGroup?.id !== session.reference_group_id)) {
-      onUpdateSession({ 
-        reference_document_title: referenceTitle,
-        reference_group_id: referenceGroup?.id,
-        reference_group_name: referenceGroup?.name
-      });
+    if (onUpdateSession) {
+      const hasTitleChanged = referenceTitle !== (session.reference_document_title || null);
+      const hasGroupChanged = referenceGroup?.id !== (session.reference_group_id || null);
+
+      if (hasTitleChanged || hasGroupChanged) {
+        onUpdateSession({ 
+          reference_document_title: referenceTitle,
+          reference_group_id: referenceGroup?.id,
+          reference_group_name: referenceGroup?.name
+        });
+      }
     }
-  }, [referenceTitle, referenceGroup, session, onUpdateSession]);
+  }, [referenceTitle, referenceGroup, session.reference_document_title, session.reference_group_id, onUpdateSession]);
 
   const fileInputRef = useRef(null);
 
