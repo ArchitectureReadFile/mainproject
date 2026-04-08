@@ -1,6 +1,6 @@
 /* global AbortController */
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { deleteGroupDocument } from '@/api/groups'
 import { uploadDocumentApi } from '../api/uploadApi.js'
@@ -9,6 +9,30 @@ import {
   makeItem,
   MAX_FILES,
 } from '../uploadState.js'
+
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx']
+const ALLOWED_CONTENT_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+])
+
+function isAllowedDocumentFile(file) {
+  /**
+   * 업로드 허용 문서인지 검사한다.
+   *
+   * 브라우저/OS 환경에 따라 MIME 타입이 비어 있거나 다르게 들어올 수 있어
+   * content-type과 파일 확장자를 함께 확인한다.
+   */
+  const fileType = (file.type || '').toLowerCase()
+  const fileName = (file.name || '').toLowerCase()
+
+  if (ALLOWED_CONTENT_TYPES.has(fileType)) {
+    return true
+  }
+
+  return ALLOWED_EXTENSIONS.some((ext) => fileName.endsWith(ext))
+}
 
 export function useUploadQueue({
   fileInputRef,
@@ -19,6 +43,29 @@ export function useUploadQueue({
 }) {
   const uploadControllersRef = useRef(new Map())
   const abortRequestedRef = useRef(false)
+
+  const waitingItems = useMemo(
+    () => items.filter((it) => it.uploadStatus === 'waiting'),
+    [items]
+  )
+
+  const uploadItems = useMemo(
+    () =>
+      items.filter(
+        (it) =>
+          it.uploadStatus !== 'waiting' ||
+          it.summaryStatus === 'queued' ||
+          it.summaryStatus === 'processing' ||
+          it.summaryStatus === 'done' ||
+          it.summaryStatus === 'failed'
+      ),
+    [items]
+  )
+
+  const isUploadingFiles = useMemo(
+    () => items.some((it) => it.uploadStatus === 'uploading'),
+    [items]
+  )
 
   const syncServerStatuses = useCallback((serverDocuments = []) => {
     const statusByDocId = new Map(
@@ -55,14 +102,19 @@ export function useUploadQueue({
     )
   }, [setItems])
 
-
   const updateItem = useCallback((file, patch) => {
     setItems((prev) => prev.map((it) => (isSameFile(it, file) ? { ...it, ...patch } : it)))
   }, [setItems])
 
   const addFiles = useCallback((newFiles) => {
-    const pdfs = newFiles.filter((f) => f.type === 'application/pdf')
-    if (pdfs.length !== newFiles.length) toast.error('PDF 파일만 업로드 가능합니다.')
+    /**
+     * 허용 문서만 업로드 대기열에 추가한다.
+     */
+    const allowedFiles = newFiles.filter(isAllowedDocumentFile)
+
+    if (allowedFiles.length !== newFiles.length) {
+      toast.error('PDF, DOC, DOCX 파일만 업로드 가능합니다.')
+    }
 
     setItems((prev) => {
       const occupiedCount = prev.filter((it) =>
@@ -83,8 +135,8 @@ export function useUploadQueue({
           .map((it) => it.file.name)
       )
 
-      const deduped = pdfs.filter((f) => !existingNames.has(f.name))
-      if (deduped.length !== pdfs.length) {
+      const deduped = allowedFiles.filter((f) => !existingNames.has(f.name))
+      if (deduped.length !== allowedFiles.length) {
         toast.warning('이미 추가된 파일은 제외되었습니다.')
       }
 
@@ -220,10 +272,15 @@ export function useUploadQueue({
       controller.abort()
     }
     uploadControllersRef.current.clear()
-    resetUploadState()
-  }, [resetUploadState])
+    setItems([])
+  }, [setItems])
 
   return {
+    waitingItems,
+    uploadItems,
+    isUploadingFiles,
+    syncServerStatuses,
+    addFiles,
     handleFileChange,
     handleDrop,
     handleDragOver,
@@ -231,11 +288,7 @@ export function useUploadQueue({
     openFilePicker,
     removeItem,
     handleUpload,
-    syncServerStatuses,
-    cancelUploadsAndReset,
     resetUploadState,
-    waitingItems: items.filter((it) => it.uploadStatus === 'waiting'),
-    uploadItems: items.filter((it) => it.uploadStatus !== 'waiting'),
-    isUploadingFiles: items.some((it) => it.uploadStatus === 'uploading'),
+    cancelUploadsAndReset,
   }
 }

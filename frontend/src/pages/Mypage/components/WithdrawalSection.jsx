@@ -21,6 +21,8 @@ export default function WithdrawalSection() {
   const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false)
   const [step, setStep] = useState(1)
 
+  const hasSocialLinked = user?.social_providers?.length > 0;
+
   const handleModalOpenChange = (open) => {
     setIsWithdrawDialogOpen(open)
     if (!open) {
@@ -87,16 +89,24 @@ export default function WithdrawalSection() {
             </div>
             <div>
               <h4 className="text-lg font-black text-red-600 dark:text-red-500 mb-2">회원 탈퇴</h4>
-              <p className="text-sm text-red-500/80 dark:text-red-400/80 leading-relaxed font-medium">
-                계정을 삭제하면 모든 상담 내역, 업로드한 문서, 그리고 개인 정보가 <br className="hidden md:block" />
-                <strong className="dark:text-red-400">영구적으로 삭제</strong>되며 절대 복구할 수 없습니다.
-              </p>
+              {hasSocialLinked ? (
+                <p className="text-sm text-red-500/80 dark:text-red-400/80 leading-relaxed font-medium">
+                  소셜 로그인이 연동되어 있습니다.<br className="hidden md:block" />
+                  안전한 정보 파기를 위해 <strong className="dark:text-red-400">소셜 연동을 모두 해제</strong>한 후 다시 시도해주세요.
+                </p>
+              ) : (
+                <p className="text-sm text-red-500/80 dark:text-red-400/80 leading-relaxed font-medium">
+                  계정을 삭제하면 모든 상담 내역, 업로드한 문서, 그리고 개인 정보가 <br className="hidden md:block" />
+                  <strong className="dark:text-red-400">영구적으로 삭제</strong>되며 절대 복구할 수 없습니다.
+                </p>
+              )}
             </div>
             <div className="mt-4 flex justify-center w-full">
               <Button
                 variant="destructive"
                 onClick={() => setIsWithdrawDialogOpen(true)}
-                className="rounded-xl font-bold px-8 h-12 shadow-lg shadow-red-100 dark:shadow-none bg-red-500 hover:bg-red-600 transition-all hover:scale-[1.02] active:scale-[0.98] w-full md:w-auto flex items-center gap-2"
+                disabled={hasSocialLinked}
+                className="rounded-xl font-bold px-8 h-12 shadow-lg shadow-red-100 dark:shadow-none bg-red-500 hover:bg-red-600 transition-all hover:scale-[1.02] active:scale-[0.98] w-full md:w-auto flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
               >
                 <Trash2 size={18} />
                 탈퇴 절차 진행하기

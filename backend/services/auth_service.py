@@ -12,6 +12,7 @@ from models.model import (
     Group,
     GroupPendingReason,
     GroupStatus,
+    SocialAccount,
     Subscription,
     SubscriptionPlan,
     SubscriptionStatus,
@@ -53,7 +54,8 @@ class AuthService:
     ) -> UserResponse:
         email = payload.email.strip().lower()
 
-        if not redis_client.get(f"email_verified:{email}"):
+        verification_data = redis_client.get(f"email_verified:{email}")
+        if not verification_data:
             raise AppException(ErrorCode.USER_EMAIL_NOT_VERIFIED)
 
         username = payload.username.strip()
@@ -69,6 +71,17 @@ class AuthService:
         )
         db.add(user)
         db.flush()
+
+        if isinstance(verification_data, bytes):
+            verification_data = verification_data.decode("utf-8")
+
+        if verification_data.startswith("social:"):
+            _, provider, provider_id = verification_data.split(":", 2)
+            social_account = SocialAccount(
+                user_id=user.id, provider=provider, provider_id=provider_id, email=email
+            )
+            db.add(social_account)
+            db.flush()
 
         subscription = Subscription(
             user_id=user.id,
@@ -312,6 +325,10 @@ class AuthService:
     def to_user_response(self, db: Session, user: User) -> UserResponse:
         subscription = self.get_effective_subscription(db, user.id)
 
+        social_providers = []
+        if hasattr(user, "social_accounts") and user.social_accounts:
+            social_providers = [acc.provider for acc in user.social_accounts]
+
         return UserResponse(
             id=user.id,
             email=user.email,
@@ -330,6 +347,7 @@ class AuthService:
                 if subscription
                 else None
             ),
+            social_providers=social_providers,
         )
 
     def get_user_from_token(self, db: Session, token: str | None) -> User:

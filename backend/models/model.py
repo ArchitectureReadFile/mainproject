@@ -65,6 +65,13 @@ class DocumentStatus(enum.Enum):
     FAILED = "FAILED"
 
 
+class DocumentPreviewStatus(enum.Enum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    READY = "READY"
+    FAILED = "FAILED"
+
+
 class ReviewStatus(enum.Enum):
     PENDING_REVIEW = "PENDING_REVIEW"
     APPROVED = "APPROVED"
@@ -102,6 +109,22 @@ class DocumentCommentScope(enum.Enum):
     REVIEW = "REVIEW"
 
 
+class SocialAccount(Base):
+    __tablename__ = "social_accounts"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    provider = Column(String(50), nullable=False)
+    provider_id = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False)
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+    user = relationship("User", back_populates="social_accounts")
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -134,6 +157,10 @@ class User(Base):
         back_populates="user",
         uselist=False,
         cascade="all, delete-orphan",
+    )
+
+    social_accounts = relationship(
+        "SocialAccount", back_populates="user", cascade="all, delete-orphan"
     )
 
     owned_groups = relationship("Group", back_populates="owner")
@@ -323,6 +350,14 @@ class Document(Base):
 
     original_filename = Column(String(255), nullable=False)
     stored_path = Column(String(1024), nullable=False, unique=True)
+    original_content_type = Column(String(255), nullable=True)
+
+    preview_pdf_path = Column(String(1024), nullable=True, unique=True)
+    preview_status = Column(
+        Enum(DocumentPreviewStatus, native_enum=False),
+        default=DocumentPreviewStatus.PENDING,
+        nullable=False,
+    )
 
     title = Column(String(255))
     document_type = Column(String(50))
@@ -720,6 +755,18 @@ class NotificationSetting(Base):
     )
     is_enabled = Column(Boolean, default=True, nullable=False)
     is_toast_enabled = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "notification_type", name="uq_user_notification_type"
+        ),
+    )
+
+    user = relationship("User", backref="notification_preferences")
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
     updated_at = Column(
         DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False

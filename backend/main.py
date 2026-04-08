@@ -14,6 +14,7 @@ from routers.email import router as email_router
 from routers.group import router as group_router
 from routers.group_document import router as group_document_router
 from routers.notification import router as notification_router
+from routers.oauth import router as oauth_router
 from routers.summarize import router as summarize_router
 from routers.ws import router as ws_router
 
@@ -56,6 +57,7 @@ def health_check():
 
 
 app.include_router(auth_router, prefix="/api")
+app.include_router(oauth_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(summarize_router, prefix="/api")
 app.include_router(group_document_router, prefix="/api")

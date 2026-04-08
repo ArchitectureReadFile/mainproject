@@ -29,25 +29,28 @@ class UploadService:
         uploader_role: MembershipRole,
         assignee_user_id: Optional[int] = None,
     ):
+        """
+        업로드된 원본 문서를 저장하고 문서/승인 레코드를 생성
+        """
         doc_ids = []
 
-        # 자동 승인 대상자
         is_auto_approved = uploader_role in (
             MembershipRole.OWNER,
             MembershipRole.ADMIN,
         )
 
-        # 승인 담당자가 지정 됐을 때만
         if not is_auto_approved and assignee_user_id is not None:
             self.group_service.assert_reviewer_assignable(assignee_user_id, group_id)
 
         for file in files:
-            filename = file.filename or "unknown.pdf"
+            filename = file.filename or "unknown"
             safe_name = re.sub(r"[^\w\-_. ]", "_", filename)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             unique_name = f"{timestamp}_u{user_id}_g{group_id}_{safe_name}"
+
             group_dir = os.path.join(self.UPLOAD_DIR, f"group_{group_id}")
             os.makedirs(group_dir, exist_ok=True)
+
             file_path = os.path.join(group_dir, unique_name)
 
             with open(file_path, "wb") as f:
@@ -58,6 +61,7 @@ class UploadService:
                 uploader_user_id=user_id,
                 original_filename=filename,
                 stored_path=file_path,
+                original_content_type=file.content_type,
             )
 
             if is_auto_approved:
@@ -102,4 +106,4 @@ class UploadService:
         if doc_ids:
             process_next_pending_document.delay()
 
-        return {"message": "업로드 완료, AI 요약 대기 중", "document_ids": doc_ids}
+        return {"message": "업로드 완료, AI 처리 대기 중", "document_ids": doc_ids}

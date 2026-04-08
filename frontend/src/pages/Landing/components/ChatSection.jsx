@@ -1,12 +1,12 @@
 import { Button } from "@/components/ui/Button.jsx";
 import { Input } from "@/components/ui/Input.jsx";
 import { useEffect, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import {
   IoAdd,
   IoChatbubbleEllipsesOutline,
   IoCheckmarkOutline,
+  IoChevronBackOutline,
+  IoChevronForwardOutline,
   IoClose,
   IoCloseCircle,
   IoCloudUploadOutline,
@@ -15,17 +15,17 @@ import {
   IoPencilOutline,
   IoPeopleOutline,
   IoSend,
+  IoStop,
   IoTimeOutline,
-  IoTrashOutline,
-  IoChevronBackOutline,
-  IoChevronForwardOutline,
-  IoStop
+  IoTrashOutline
 } from 'react-icons/io5';
+import ReactMarkdown from 'react-markdown';
+import { useSearchParams } from 'react-router-dom';
+import remarkGfm from 'remark-gfm';
 import { getMyGroups } from '../../../api/groups';
 import { useAuth } from '../../../features/auth';
 import { useChat } from '../../../features/chat/hooks/useChat';
 import { useChatSessions } from '../../../features/chat/hooks/useChatSessions';
-import { useSearchParams } from 'react-router-dom';
 
 export default function ChatSection() {
   const { user } = useAuth();
@@ -80,10 +80,24 @@ export default function ChatSection() {
   );
 
   useEffect(() => {
-    if (activeSessionId && currentSessionId === activeSessionId && (referenceTitle !== activeSession?.reference_document_title || referenceGroup?.id !== activeSession?.reference_group_id)) {
-      refreshRooms();
+    if (activeSessionId && currentSessionId === activeSessionId) {
+      const hasTitleChanged = referenceTitle !== (activeSession?.reference_document_title || null);
+      const hasGroupChanged = referenceGroup?.id !== (activeSession?.reference_group_id || null);
+
+      if (hasTitleChanged || hasGroupChanged) {
+        refreshRooms();
+      }
     }
-  }, [referenceTitle, referenceGroup, activeSessionId, currentSessionId, activeSession, refreshRooms]);
+  }, [
+    referenceTitle,
+    referenceGroup,
+    activeSessionId,
+    currentSessionId,
+    activeSession?.reference_document_title,
+    activeSession?.reference_group_id,
+    refreshRooms
+  ]);
+
   const [inputText, setInputText] = useState('');
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
