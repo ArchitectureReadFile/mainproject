@@ -1,5 +1,4 @@
 import logging
-import os
 import sys
 
 sys.path.insert(0, "/app")
@@ -8,6 +7,7 @@ from celery_app import celery_app
 from database import SessionLocal
 from models.model import ReviewStatus
 from repositories.document_repository import DocumentRepository
+from services.document_preview_service import DocumentPreviewService
 from services.rag.group_document_indexing_service import (
     deindex_group_document,
     index_group_document,
@@ -19,22 +19,19 @@ logger = logging.getLogger(__name__)
 @celery_app.task(bind=True, name="tasks.group_document_task.index_approved_document")
 def index_approved_document(self, document_id: int) -> dict:
     """
-    APPROVED 상태 그룹 문서를 RAG 인덱스에 등록한다.
-    문서 승인(APPROVED) 시점에 호출한다.
-
-    Args:
-        document_id: documents.id
+    APPROVED 상태 그룹 문서를 RAG 인덱스에 등록
+    문서 승인(APPROVED) 시점에 호출
     """
     db = SessionLocal()
     try:
         repository = DocumentRepository(db)
+        preview_service = DocumentPreviewService(repository)
         document = repository.get_by_id(document_id)
 
         if document is None:
             logger.warning("[그룹문서 인덱싱 태스크] document 없음: id=%s", document_id)
             return {"indexed": False, "reason": "document_not_found"}
 
-        # approval 상태 검증 — APPROVED 아니면 인덱싱 금지
         approval = document.approval
         if approval is None or approval.status != ReviewStatus.APPROVED:
             current = approval.status.value if approval else "no_approval_record"
@@ -49,23 +46,17 @@ def index_approved_document(self, document_id: int) -> dict:
                 "status": current,
             }
 
-        # stored_path 방어 검증
-        if not document.stored_path or not os.path.exists(document.stored_path):
-            logger.warning(
-                "[그룹문서 인덱싱 태스크] 파일 없음: document_id=%s, path=%s",
-                document_id,
-                document.stored_path,
-            )
-            return {"indexed": False, "reason": "file_not_found"}
+        preview_pdf_path = preview_service.ensure_preview_pdf(document)
 
         chunk_count = index_group_document(
             document_id=document_id,
             group_id=document.group_id,
             file_name=document.original_filename,
-            file_path=document.stored_path,
             document_type=document.document_type,
             category=document.category,
+            file_path=preview_pdf_path,
         )
+
         return {"indexed": True, "document_id": document_id, "chunks": chunk_count}
 
     except Exception as e:

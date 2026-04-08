@@ -135,7 +135,7 @@ export async function getGroupDocumentDetail(groupId, docId) {
 
 
 export function getGroupDocumentPreviewUrl(groupId, docId) {
-    return `/api/groups/${groupId}/documents/${docId}/original`
+    return `/api/groups/${groupId}/documents/${docId}/preview`
 }
 
 

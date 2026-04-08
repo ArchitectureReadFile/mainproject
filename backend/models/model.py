@@ -65,6 +65,13 @@ class DocumentStatus(enum.Enum):
     FAILED = "FAILED"
 
 
+class DocumentPreviewStatus(enum.Enum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    READY = "READY"
+    FAILED = "FAILED"
+
+
 class ReviewStatus(enum.Enum):
     PENDING_REVIEW = "PENDING_REVIEW"
     APPROVED = "APPROVED"
@@ -323,6 +330,14 @@ class Document(Base):
 
     original_filename = Column(String(255), nullable=False)
     stored_path = Column(String(1024), nullable=False, unique=True)
+    original_content_type = Column(String(255), nullable=True)
+
+    preview_pdf_path = Column(String(1024), nullable=True, unique=True)
+    preview_status = Column(
+        Enum(DocumentPreviewStatus, native_enum=False),
+        default=DocumentPreviewStatus.PENDING,
+        nullable=False,
+    )
 
     title = Column(String(255))
     document_type = Column(String(50))

@@ -12,6 +12,7 @@ from schemas.document import (
     DocumentDetailResponse,
     DocumentListItemResponse,
 )
+from services.document_preview_service import DocumentPreviewService
 from services.summary.summary_mapper import (
     SUMMARY_METADATA_FIELDS,
     build_document_title,
@@ -29,6 +30,7 @@ _CLASSIFICATION_FIELDS = frozenset({"document_type"})
 class DocumentService:
     def __init__(self, repository: DocumentRepository):
         self.repository = repository
+        self.preview_service = DocumentPreviewService(repository)
 
     @staticmethod
     def _build_user_display_name(
@@ -210,6 +212,8 @@ class DocumentService:
             user_ids=users_for_display,
         )
 
+        preview_path = (getattr(doc, "preview_pdf_path", None) or "").strip()
+
         response_data = {
             "id": doc.id,
             "uploader": self._build_user_display_name(
@@ -240,6 +244,14 @@ class DocumentService:
             # source of truth: Document 모델 — summary 루프보다 먼저, 덮어쓰지 않음
             "document_type": doc.document_type,
             "category": doc.category,
+            "original_filename": doc.original_filename,
+            "original_content_type": getattr(doc, "original_content_type", None),
+            "preview_status": (
+                doc.preview_status.value
+                if getattr(doc, "preview_status", None)
+                else None
+            ),
+            "preview_available": bool(preview_path and os.path.exists(preview_path)),
         }
 
         if summary:
@@ -353,6 +365,30 @@ class DocumentService:
             )
 
         return results, total
+    def get_preview_file_in_group(
+        self,
+        doc_id: int,
+        group_id: int,
+        current_user_id: int,
+        current_user_role: MembershipRole | None,
+    ) -> tuple[str, str]:
+        """
+        그룹 문서의 preview PDF 경로와 브라우저 표시용 파일명을 반환
+        """
+        doc = self.get_document_in_group_with_permission(
+            doc_id=doc_id,
+            group_id=group_id,
+            current_user_id=current_user_id,
+            current_user_role=current_user_role,
+        )
+
+        preview_path = self.preview_service.ensure_preview_pdf(doc)
+
+        download_name = os.path.splitext(doc.original_filename or f"document_{doc.id}")[
+            0
+        ]
+        preview_filename = f"{download_name}.pdf"
+        return preview_path, preview_filename
 
     def delete_document(self, doc_id: int, user_id: int, group_id: int) -> None:
         doc = self.repository.get_detail(doc_id)
@@ -456,8 +492,15 @@ class DocumentService:
                     status=doc.processing_status.value,
                     document_type=doc.document_type,
                     category=doc.category,
+                    approval_status=getattr(doc.approval, "status", None).value
+                    if getattr(doc, "approval", None)
+                    else None,
+                    document_type=get_summary_field(summary, "document_type")
+                    if summary
+                    else None,
                     created_at=doc.created_at,
                     uploader=self._build_user_display_name(doc.owner, owner_status),
+                    comment_count=0,
                     delete_requested_at=doc.delete_requested_at,
                     delete_scheduled_at=doc.delete_scheduled_at,
                     deleted_by=doc.deleted_by_user_id,

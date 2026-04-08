@@ -384,6 +384,12 @@ export default function DocumentPage() {
         FAILED: '요약 생성에 실패했습니다. 다시 업로드하거나 관리자에게 문의해주세요.',
     }
 
+    const PREVIEW_STATUS_MESSAGE = {
+        PENDING: '미리보기 PDF를 준비 중입니다. 잠시 후 다시 확인해주세요.',
+        PROCESSING: '문서 미리보기를 생성하고 있습니다. 잠시 후 다시 확인해주세요.',
+        FAILED: '미리보기 변환에 실패했습니다. 원본 파일을 다운로드해 확인해주세요.',
+    }
+
     /**
      * 현재 줌 배율을 반영한 PDF 렌더링 너비를 계산한다.
      */
@@ -682,6 +688,11 @@ export default function DocumentPage() {
     const s = doc
     const statusMessage = STATUS_MESSAGE[s?.status] ?? null
     const hasSummary = Boolean(s?.summary_text)
+
+    const previewStatus = s?.preview_status ?? null
+    const previewAvailable = Boolean(s?.preview_available)
+    const previewStatusMessage = PREVIEW_STATUS_MESSAGE[previewStatus] ?? null
+    const canRenderPreview = previewAvailable && previewStatus === 'READY'
 
     const isDeletedDocument = Boolean(doc?.delete_scheduled_at)
     const canDelete = Boolean(doc?.can_delete) && !isDeletedDocument
@@ -1513,14 +1524,23 @@ export default function DocumentPage() {
 
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button asChild variant="outline" size="sm" className="gap-1.5">
-                                <a href={previewPdfUrl} target="_blank" rel="noreferrer">
+                            {canRenderPreview ? (
+                                <Button asChild variant="outline" size="sm" className="gap-1.5">
+                                    <a href={previewPdfUrl} target="_blank" rel="noreferrer">
+                                        <ExternalLink size={14} />
+                                        새 탭으로 열기
+                                    </a>
+                                </Button>
+                            ) : (
+                                <Button variant="outline" size="sm" className="gap-1.5" disabled>
                                     <ExternalLink size={14} />
                                     새 탭으로 열기
-                                </a>
-                            </Button>
+                                </Button>
+                            )}
                         </TooltipTrigger>
-                        <TooltipContent>원본 PDF를 새 탭에서 엽니다</TooltipContent>
+                        <TooltipContent>
+                            {canRenderPreview ? '미리보기 PDF를 새 탭에서 엽니다' : '미리보기가 아직 준비되지 않았습니다'}
+                        </TooltipContent>
                     </Tooltip>
 
                     {canDelete && (
@@ -1820,6 +1840,17 @@ export default function DocumentPage() {
                         {pdfError ? (
                             <div className="flex h-full items-center justify-center p-8 text-sm text-destructive">
                                 {pdfError}
+                            </div>
+                        ) : !canRenderPreview ? (
+                            <div className="flex h-full items-center justify-center p-8">
+                                <div className="max-w-md rounded-xl border bg-background px-6 py-5 text-center">
+                                    <p className="text-sm font-medium">
+                                        {previewStatusMessage || '미리보기를 준비할 수 없습니다.'}
+                                    </p>
+                                    <p className="mt-2 text-xs text-muted-foreground">
+                                        원본 다운로드는 계속 사용할 수 있습니다.
+                                    </p>
+                                </div>
                             </div>
                         ) : (
                             <div className="mx-auto flex w-fit min-w-full flex-col items-center gap-4 p-4">

@@ -11,6 +11,7 @@ from models.model import (
     DocumentComment,
     DocumentCommentScope,
     DocumentLifecycleStatus,
+    DocumentPreviewStatus,
     DocumentStatus,
     GroupMember,
     MembershipRole,
@@ -52,6 +53,9 @@ class DocumentRepository:
         return {user_id: status for user_id, status in rows}
 
     def is_group_admin(self, user_id: int, group_id: int) -> bool:
+        """
+        사용자가 그룹 OWNER/ADMIN 권한인지 확인
+        """
         return (
             self.db.query(GroupMember.id)
             .filter(
@@ -74,7 +78,9 @@ class DocumentRepository:
         feedback: Optional[str] = None,
         reviewed_at=None,
     ) -> DocumentApproval:
-        """업로드 직후 문서 승인 레코드 생성"""
+        """
+        업로드 직후 문서 승인 레코드를 생성
+        """
         approval = DocumentApproval(
             document_id=document_id,
             status=status,
@@ -94,12 +100,19 @@ class DocumentRepository:
         uploader_user_id: int,
         original_filename: str,
         stored_path: str,
+        original_content_type: str | None = None,
     ) -> Document:
+        """
+        원본 업로드 직후 PENDING 상태 문서를 생성
+        """
         document = Document(
             group_id=group_id,
             uploader_user_id=uploader_user_id,
             original_filename=original_filename,
             stored_path=stored_path,
+            original_content_type=original_content_type,
+            preview_pdf_path=None,
+            preview_status=DocumentPreviewStatus.PENDING,
             processing_status=DocumentStatus.PENDING,
         )
         self.db.add(document)
@@ -107,6 +120,9 @@ class DocumentRepository:
         return document
 
     def update_status(self, document_id: int, status: DocumentStatus):
+        """
+        문서 요약/처리 상태를 갱신
+        """
         document = self.db.query(Document).filter(Document.id == document_id).first()
         if document:
             document.processing_status = status
@@ -129,8 +145,33 @@ class DocumentRepository:
             document.category = category
             return
         logger.warning("[Document 분류 저장 누락] document_id=%s", document_id)
+    
+    def update_preview_status(
+        self,
+        document_id: int,
+        status: DocumentPreviewStatus,
+        preview_pdf_path: str | None = None,
+    ) -> None:
+        """
+        preview PDF 준비 상태와 경로를 갱신
+        """
+        document = self.db.query(Document).filter(Document.id == document_id).first()
+        if not document:
+            logger.warning(
+                "[Document preview 상태 변경 누락] document_id=%s, status=%s",
+                document_id,
+                status,
+            )
+            return
+
+        document.preview_status = status
+        if preview_pdf_path is not None:
+            document.preview_pdf_path = preview_pdf_path
 
     def claim_next_pending_document(self) -> Document | None:
+        """
+        처리 대기 중인 다음 문서를 점유하고 PROCESSING 으로 전환
+        """
         document = (
             self.db.query(Document)
             .filter(
@@ -274,6 +315,9 @@ class DocumentRepository:
         return documents, total
 
     def get_detail(self, doc_id: int):
+        """
+        문서 상세 조회에 필요한 연관 데이터를 함께 불러옴
+        """
         return (
             self.db.query(Document)
             .options(
@@ -287,9 +331,15 @@ class DocumentRepository:
         )
 
     def get_by_id(self, document_id: int) -> Document | None:
+        """
+        문서 ID로 단건 조회
+        """
         return self.db.query(Document).filter(Document.id == document_id).first()
 
     def delete_document(self, document: Document, user_id: int) -> None:
+        """
+        문서를 삭제 대기 상태로 전환
+        """
         now = utc_now_naive()
         document.lifecycle_status = DocumentLifecycleStatus.DELETE_PENDING
         document.delete_requested_at = now
@@ -298,6 +348,9 @@ class DocumentRepository:
         self.db.commit()
 
     def restore_document(self, document: Document) -> None:
+        """
+        삭제 대기 문서를 복구
+        """
         document.lifecycle_status = DocumentLifecycleStatus.ACTIVE
         document.delete_requested_at = None
         document.delete_scheduled_at = None

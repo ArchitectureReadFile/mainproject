@@ -3,6 +3,10 @@ FROM python:3.11-slim
 # 시스템 패키지
 RUN apt-get update && apt-get install -y --no-install-recommends \
     default-jre-headless \
+    libreoffice \
+    libreoffice-writer \
+    fonts-noto-cjk \
+    fonts-nanum \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
@@ -11,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb1 \
     libgomp1 \
     curl \
+ && fc-cache -f -v \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

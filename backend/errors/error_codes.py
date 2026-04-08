@@ -100,7 +100,11 @@ class ErrorCode(Enum):
         "PDF에서 충분한 텍스트를 추출할 수 없습니다. 스캔본이거나 텍스트 레이어가 없는 문서일 수 있습니다.",
     )
     DOC_PDF_PARSE_FAILED = ("DOC_003", 422, "PDF 파일을 읽을 수 없습니다.")
-    DOC_INVALID_FILE_TYPE = ("DOC_004", 415, "PDF 파일만 업로드 가능합니다.")
+    DOC_INVALID_FILE_TYPE = (
+        "DOC_004",
+        415,
+        "PDF, DOC, DOCX, HWP 파일만 업로드 가능합니다.",
+    )
     DOC_FILE_TOO_LARGE = ("DOC_005", 413, "파일 크기는 20MB 이하여야 합니다.")
     DOC_INTERNAL_PARSE_ERROR = (
         "DOC_006",

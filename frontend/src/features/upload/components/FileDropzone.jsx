@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { IoCloudUploadOutline } from 'react-icons/io5';
+import { IoCloudUploadOutline } from 'react-icons/io5'
 
 export default function FileDropzone({
   fileInputRef,
@@ -26,7 +26,7 @@ export default function FileDropzone({
         }
       }}
       className={cn(
-        'flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 cursor-pointer transition-colors select-none',
+        'flex cursor-pointer select-none flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 transition-colors',
         isDragOver
           ? 'border-primary bg-primary/5'
           : 'border-border hover:border-primary/50 hover:bg-muted/40',
@@ -36,7 +36,7 @@ export default function FileDropzone({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,application/pdf"
+        accept=".pdf,.doc,.docx,.hwp"
         multiple
         onChange={onFileChange}
         disabled={isUploading}
@@ -50,8 +50,10 @@ export default function FileDropzone({
         )}
       />
       <div className="text-center">
-        <p className="text-sm font-medium">클릭하여 업로드할 PDF 선택</p>
-        <p className="text-xs text-muted-foreground mt-1">또는 파일을 드래그 앤 드롭하세요</p>
+        <p className="text-sm font-medium">클릭하여 업로드할 문서 선택</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          PDF, DOC, DOCX, HWP 파일을 드래그 앤 드롭하거나 선택하세요
+        </p>
       </div>
     </div>
   )
