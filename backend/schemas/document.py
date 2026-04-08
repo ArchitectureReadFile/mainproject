@@ -14,6 +14,7 @@ class DocumentListItemResponse(BaseModel):
     document_type: Optional[str] = None
     created_at: datetime
     uploader: str | None
+    comment_count: int = 0
 
     delete_requested_at: datetime | None = None
     delete_scheduled_at: datetime | None = None
@@ -57,6 +58,7 @@ class PendingDocumentListItemResponse(BaseModel):
     uploader: Optional[str] = None
     assignee_user_id: Optional[int] = None
     assignee_username: Optional[str] = None
+    comment_count: int = 0
 
 
 class DocumentRejectRequest(BaseModel):
@@ -86,3 +88,4 @@ class ReviewedDocumentListItemResponse(BaseModel):
     reviewed_at: Optional[datetime] = None
     reviewer_username: Optional[str] = None
     feedback: Optional[str] = None
+    comment_count: int = 0

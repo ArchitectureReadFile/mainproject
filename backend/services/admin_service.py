@@ -21,7 +21,11 @@ from sqlalchemy.orm import Session
 
 from errors import AppException, ErrorCode
 from models.model import (
+    ChatMessage,
+    ChatMessageRole,
+    ChatSession,
     Document,
+    DocumentLifecycleStatus,
     DocumentStatus,
     Group,
     GroupMember,
@@ -39,7 +43,9 @@ from schemas.admin import (
     AdminStatsResponse,
     AdminUsageResponse,
     AdminUserListResponse,
+    ChatOverview,
     DailyUploadItem,
+    DocumentOverview,
     JobStatusCount,
     RagUsage,
     ServiceUsage,
@@ -86,14 +92,79 @@ def get_admin_stats(db: Session) -> AdminStatsResponse:
     )
     ai_success_rate = round(done_docs / total_docs * 100, 1) if total_docs else 0.0
 
+    conversion_trend: list[DailyUploadItem] | list = []
+    ai_trend = []
+    today = datetime.now(timezone.utc).date()
+
+    for offset in range(6, -1, -1):
+        day = today - timedelta(days=offset)
+        day_end = datetime.combine(day, datetime.max.time()).replace(tzinfo=None)
+
+        cumulative_active_general = (
+            db.query(func.count(User.id))
+            .filter(
+                User.role == UserRole.GENERAL,
+                User.is_active,
+                User.created_at <= day_end,
+            )
+            .scalar()
+            or 0
+        )
+        cumulative_premium = (
+            db.query(func.count(User.id))
+            .join(User.subscription)
+            .filter(
+                User.role == UserRole.GENERAL,
+                User.is_active,
+                User.created_at <= day_end,
+                Subscription.plan == SubscriptionPlan.PREMIUM,
+                Subscription.status == SubscriptionStatus.ACTIVE,
+                Subscription.created_at <= day_end,
+            )
+            .scalar()
+            or 0
+        )
+        day_conversion_rate = (
+            round(cumulative_premium / cumulative_active_general * 100, 1)
+            if cumulative_active_general
+            else 0.0
+        )
+        conversion_trend.append({"date": str(day), "rate": day_conversion_rate})
+
+        day_requests = (
+            db.query(func.count(Document.id))
+            .filter(func.date(Document.created_at) == day)
+            .scalar()
+            or 0
+        )
+        day_failed = (
+            db.query(func.count(Document.id))
+            .filter(
+                func.date(Document.created_at) == day,
+                Document.processing_status == DocumentStatus.FAILED,
+            )
+            .scalar()
+            or 0
+        )
+        day_failure_rate = (
+            round(day_failed / day_requests * 100, 1) if day_requests else 0.0
+        )
+        ai_trend.append(
+            {
+                "date": str(day),
+                "requests": day_requests,
+                "failure_rate": day_failure_rate,
+            }
+        )
+
     return AdminStatsResponse(
         total_users=active_general,
         premium_users=premium_users,
         premium_conversion_rate=premium_conversion_rate,
         active_groups=active_groups,
         ai_success_rate=ai_success_rate,
-        conversion_trend=[],
-        ai_trend=[],
+        conversion_trend=conversion_trend,
+        ai_trend=ai_trend,
     )
 
 
@@ -122,9 +193,74 @@ def get_admin_usage(db: Session) -> AdminUsageResponse:
             FAILED=mapping.get(DocumentStatus.FAILED, 0),
         )
 
+    today_start = datetime.combine(today, datetime.min.time()).replace(tzinfo=None)
+    last_7d_start = datetime.combine(
+        today - timedelta(days=6), datetime.min.time()
+    ).replace(tzinfo=None)
+
     return AdminUsageResponse(
         service_usage=ServiceUsage(
             storage=StorageInfo(used_gb=0.0, limit_gb=10.0),
+            document_overview=DocumentOverview(
+                total_documents=db.query(func.count(Document.id)).scalar() or 0,
+                active_documents=(
+                    db.query(func.count(Document.id))
+                    .filter(Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE)
+                    .scalar()
+                    or 0
+                ),
+                delete_pending_documents=(
+                    db.query(func.count(Document.id))
+                    .filter(
+                        Document.lifecycle_status
+                        == DocumentLifecycleStatus.DELETE_PENDING
+                    )
+                    .scalar()
+                    or 0
+                ),
+                deleted_documents=(
+                    db.query(func.count(Document.id))
+                    .filter(
+                        Document.lifecycle_status == DocumentLifecycleStatus.DELETED
+                    )
+                    .scalar()
+                    or 0
+                ),
+                summary_completed_documents=(
+                    db.query(func.count(Document.id))
+                    .filter(Document.processing_status == DocumentStatus.DONE)
+                    .scalar()
+                    or 0
+                ),
+            ),
+            chat_overview=ChatOverview(
+                total_sessions=db.query(func.count(ChatSession.id)).scalar() or 0,
+                total_messages=db.query(func.count(ChatMessage.id)).scalar() or 0,
+                total_ai_responses=(
+                    db.query(func.count(ChatMessage.id))
+                    .filter(ChatMessage.role == ChatMessageRole.ASSISTANT)
+                    .scalar()
+                    or 0
+                ),
+                today_ai_responses=(
+                    db.query(func.count(ChatMessage.id))
+                    .filter(
+                        ChatMessage.role == ChatMessageRole.ASSISTANT,
+                        ChatMessage.created_at >= today_start,
+                    )
+                    .scalar()
+                    or 0
+                ),
+                last_7d_ai_responses=(
+                    db.query(func.count(ChatMessage.id))
+                    .filter(
+                        ChatMessage.role == ChatMessageRole.ASSISTANT,
+                        ChatMessage.created_at >= last_7d_start,
+                    )
+                    .scalar()
+                    or 0
+                ),
+            ),
             daily_uploads=list(reversed(daily_uploads)),
             document_jobs=_job_counts(Document.processing_status),
         ),

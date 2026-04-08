@@ -461,6 +461,7 @@ class GroupService:
                     self.db, user.id
                 ),
                 has_owned_group=self._has_effective_owned_group(user.id),
+                is_active=user.is_active,
             )
             for member, user in active_rows
         ]

@@ -50,4 +50,13 @@ function SheetTitle({ className, ...props }) {
   )
 }
 
-export { Sheet, SheetContent, SheetHeader, SheetTitle }
+function SheetDescription({ className, ...props }) {
+  return (
+    <Drawer.Description
+      className={cn('text-sm text-muted-foreground', className)}
+      {...props}
+    />
+  )
+}
+
+export { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle }
