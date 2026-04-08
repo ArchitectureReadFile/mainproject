@@ -10,7 +10,6 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
-    Table,
     Text,
     UniqueConstraint,
 )
@@ -101,24 +100,6 @@ class SubscriptionPlan(enum.Enum):
 class DocumentCommentScope(enum.Enum):
     GENERAL = "GENERAL"
     REVIEW = "REVIEW"
-
-
-document_categories = Table(
-    "document_categories",
-    Base.metadata,
-    Column(
-        "document_id",
-        Integer,
-        ForeignKey("documents.id", ondelete="CASCADE"),
-        primary_key=True,
-    ),
-    Column(
-        "category_id",
-        Integer,
-        ForeignKey("categories.id", ondelete="CASCADE"),
-        primary_key=True,
-    ),
-)
 
 
 class SocialAccount(Base):
