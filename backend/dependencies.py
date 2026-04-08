@@ -11,6 +11,7 @@ from services.auth_service import AuthService
 from services.chat.chat_service import ChatService
 from services.email_service import EmailService
 from services.notification_service import NotificationService
+from services.oauth_service import OAuthService
 
 cookie_scheme = APIKeyCookie(name="access_token", auto_error=False)
 
@@ -18,6 +19,10 @@ cookie_scheme = APIKeyCookie(name="access_token", auto_error=False)
 # 주입
 def get_auth_service():
     return AuthService()
+
+
+def get_oauth_service():
+    return OAuthService()
 
 
 def get_chat_service():
