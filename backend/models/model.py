@@ -750,17 +750,4 @@ class NotificationSetting(Base):
             "user_id", "notification_type", name="uq_user_notification_type"
         ),
     )
-
-    user = relationship("User", backref="notification_preferences")
-    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
-    updated_at = Column(
-        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            "user_id", "notification_type", name="uq_user_notification_type"
-        ),
-    )
-
     user = relationship("User", backref="notification_preferences")
