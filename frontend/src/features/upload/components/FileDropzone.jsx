@@ -36,7 +36,7 @@ export default function FileDropzone({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.doc,.docx,.hwp"
+        accept=".pdf,.doc,.docx"
         multiple
         onChange={onFileChange}
         disabled={isUploading}
@@ -52,7 +52,7 @@ export default function FileDropzone({
       <div className="text-center">
         <p className="text-sm font-medium">클릭하여 업로드할 문서 선택</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          PDF, DOC, DOCX, HWP 파일을 드래그 앤 드롭하거나 선택하세요
+          PDF, DOC, DOCX 파일을 드래그 앤 드롭하거나 선택하세요
         </p>
       </div>
     </div>

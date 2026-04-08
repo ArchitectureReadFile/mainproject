@@ -175,6 +175,10 @@ class DocumentPreviewService:
         os.makedirs(preview_dir, exist_ok=True)
 
         tag = f"doc_id={document.id} file={os.path.basename(document.stored_path)}"
+        convert_env = os.environ.copy()
+        convert_env["HOME"] = "/tmp"
+        convert_env["LANG"] = convert_env.get("LANG", "ko_KR.UTF-8")
+        convert_env["LC_ALL"] = convert_env.get("LC_ALL", "ko_KR.UTF-8")
 
         with (
             tempfile.TemporaryDirectory() as output_dir,
@@ -187,7 +191,7 @@ class DocumentPreviewService:
                         "--headless",
                         f"-env:UserInstallation=file://{profile_dir}",
                         "--convert-to",
-                        "pdf",
+                        "pdf:writer_pdf_Export",
                         "--outdir",
                         output_dir,
                         document.stored_path,
@@ -195,6 +199,7 @@ class DocumentPreviewService:
                     capture_output=True,
                     text=True,
                     timeout=self._timeout,
+                    env=convert_env,
                 )
             except subprocess.TimeoutExpired as exc:
                 logger.error(
@@ -214,9 +219,10 @@ class DocumentPreviewService:
             if not generated_pdf:
                 self._log_failure(tag, proc)
                 logger.error(
-                    "[preview 변환 결과 없음] %s output_dir=%s",
+                    "[preview 변환 결과 없음] %s output_dir=%s files=%s",
                     tag,
                     output_dir,
+                    os.listdir(output_dir),
                 )
                 raise RuntimeError("문서 preview PDF 결과 파일을 찾을 수 없습니다.")
 

@@ -10,13 +10,11 @@ import {
   MAX_FILES,
 } from '../uploadState.js'
 
-const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.hwp']
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx']
 const ALLOWED_CONTENT_TYPES = new Set([
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/x-hwp',
-  'application/haansofthwp',
 ])
 
 function isAllowedDocumentFile(file) {
@@ -115,7 +113,7 @@ export function useUploadQueue({
     const allowedFiles = newFiles.filter(isAllowedDocumentFile)
 
     if (allowedFiles.length !== newFiles.length) {
-      toast.error('PDF, DOC, DOCX, HWP 파일만 업로드 가능합니다.')
+      toast.error('PDF, DOC, DOCX 파일만 업로드 가능합니다.')
     }
 
     setItems((prev) => {

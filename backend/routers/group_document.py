@@ -38,15 +38,12 @@ ALLOWED_CONTENT_TYPES = {
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/x-hwp",
-    "application/haansofthwp",
 }
 
 ALLOWED_EXTENSIONS = {
     ".pdf",
     ".doc",
     ".docx",
-    ".hwp",
 }
 
 

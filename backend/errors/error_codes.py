@@ -103,7 +103,7 @@ class ErrorCode(Enum):
     DOC_INVALID_FILE_TYPE = (
         "DOC_004",
         415,
-        "PDF, DOC, DOCX, HWP 파일만 업로드 가능합니다.",
+        "PDF, DOC, DOCX 파일만 업로드 가능합니다.",
     )
     DOC_FILE_TOO_LARGE = ("DOC_005", 413, "파일 크기는 20MB 이하여야 합니다.")
     DOC_INTERNAL_PARSE_ERROR = (

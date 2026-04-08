@@ -1,10 +1,14 @@
 FROM python:3.11-slim
 
+ENV LANG=ko_KR.UTF-8
+ENV LC_ALL=ko_KR.UTF-8
+
 # 시스템 패키지
 RUN apt-get update && apt-get install -y --no-install-recommends \
     default-jre-headless \
     libreoffice \
     libreoffice-writer \
+    locales \
     fonts-noto-cjk \
     fonts-nanum \
     libgl1 \
@@ -15,6 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb1 \
     libgomp1 \
     curl \
+ && sed -i '/ko_KR.UTF-8/s/^# //g' /etc/locale.gen \
+ && locale-gen \
  && fc-cache -f -v \
  && rm -rf /var/lib/apt/lists/*
 
