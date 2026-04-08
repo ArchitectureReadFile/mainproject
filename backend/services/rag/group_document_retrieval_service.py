@@ -83,7 +83,6 @@ def retrieve_group_documents(
     ]
 
     if document_ids is not None:
-        # MatchAny: document_id가 whitelist 중 하나여야 함
         must_conditions.append(
             qmodels.FieldCondition(
                 key="document_id",
@@ -115,7 +114,6 @@ def retrieve_group_documents(
         )
 
     # ── 최종 Python 레벨 whitelist 재검증 ────────────────────────────────────
-    # Qdrant BM25-only hit가 query_filter를 뚫는 경우를 이중으로 차단한다.
     if document_ids is not None:
         allowed_set = set(document_ids)
         chunk_hits = [h for h in chunk_hits if h.get("document_id") in allowed_set]

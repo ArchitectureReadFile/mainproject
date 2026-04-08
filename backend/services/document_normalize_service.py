@@ -12,10 +12,10 @@ ExtractedDocument → DocumentSchema 정규화 계층.
     - metadata 기본값 생성
 
 비책임 (각 소비처 서비스가 담당):
-    - [본문]/[표] prompt 문자열 조립 (→ DocumentSummaryPayloadService / SessionDocumentPayloadService)
+    - [본문]/[표] prompt 문자열 조립 (→ DocumentSummaryPayloadService)
     - truncate / 길이 정책
     - chunk 분할 (→ DocumentChunkService)
-    - document_type 분류 확정
+    - 분류 (→ DocumentClassificationService)
 """
 
 from __future__ import annotations

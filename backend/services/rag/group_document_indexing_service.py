@@ -29,18 +29,27 @@ def index_group_document(
     group_id: int,
     file_name: str,
     file_path: str,
+    *,
+    document_type: str | None = None,
+    category: str | None = None,
 ) -> int:
     """
     PDF 파일을 추출 → normalize → chunk → Qdrant + BM25에 저장한다.
+
+    document_type / category 는 각 chunk payload에 포함되어
+    retrieval 단계의 boost에 사용된다.
 
     Returns:
         저장된 chunk 수
     """
     logger.info(
-        "[그룹문서 인덱싱 시작] document_id=%s, group_id=%s, file=%s",
+        "[그룹문서 인덱싱 시작] document_id=%s, group_id=%s, file=%s, "
+        "document_type=%s, category=%s",
         document_id,
         group_id,
         file_name,
+        document_type,
+        category,
     )
 
     # 1. 기존 인덱스 삭제 (재인덱싱 안전)
@@ -71,6 +80,10 @@ def index_group_document(
     # 6. Qdrant + BM25 저장
     for chunk, embedding in zip(chunks, embeddings):
         payload = {k: v for k, v in chunk.items() if k != "text"}
+        # 분류 metadata 추가 — retrieval boost 용도
+        payload["document_type"] = document_type
+        payload["category"] = category
+
         vector_store.upsert(
             chunk_id=chunk["chunk_id"],
             embedding=embedding,

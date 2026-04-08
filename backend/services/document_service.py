@@ -21,6 +21,10 @@ from services.summary.summary_mapper import (
     parse_summary_metadata,
 )
 
+# SUMMARY_METADATA_FIELDS 중 Document 모델이 source of truth인 필드
+# summary 루프에서 이 필드들은 건너뛴다
+_CLASSIFICATION_FIELDS = frozenset({"document_type"})
+
 
 class DocumentService:
     def __init__(self, repository: DocumentRepository):
@@ -121,9 +125,8 @@ class DocumentService:
                     preview=preview,
                     status=doc.processing_status.value,
                     approval_status=approval.status.value if approval else None,
-                    document_type=get_summary_field(summary, "document_type")
-                    if summary
-                    else None,
+                    document_type=doc.document_type,
+                    category=doc.category,
                     created_at=doc.created_at,
                     uploader=self._build_user_display_name(doc.owner, owner_status),
                     comment_count=comment_count,
@@ -234,15 +237,21 @@ class DocumentService:
                 doc.deleted_by,
                 member_status_map.get(doc.deleted_by.id) if doc.deleted_by else None,
             ),
+            # source of truth: Document 모델 — summary 루프보다 먼저, 덮어쓰지 않음
+            "document_type": doc.document_type,
+            "category": doc.category,
         }
 
         if summary:
             response_data["summary_text"] = get_summary_field(summary, "summary_text")
             response_data["key_points"] = get_key_points(summary)
             response_data["metadata"] = parse_summary_metadata(summary)
-            response_data["document_type"] = get_summary_field(summary, "document_type")
 
+            # _CLASSIFICATION_FIELDS에 속한 필드는 Document 모델이 source of truth이므로
+            # summary metadata 루프에서 제외한다
             for field in SUMMARY_METADATA_FIELDS:
+                if field in _CLASSIFICATION_FIELDS:
+                    continue
                 response_data[field] = get_summary_field(summary, field)
 
         return DocumentDetailResponse(**response_data)
@@ -266,6 +275,84 @@ class DocumentService:
             raise AppException(ErrorCode.FILE_NOT_FOUND)
 
         return doc.stored_path, doc.original_filename
+
+    def update_classification(
+        self,
+        doc_id: int,
+        group_id: int,
+        *,
+        document_type: str,
+        category: str,
+    ) -> None:
+        """
+        분류값 수동 수정.
+        승인된 문서인 경우 Qdrant payload 동기화를 위해 재인덱싱 태스크를 큐에 넣는다.
+        이력 저장은 1차에서 하지 않는다.
+        """
+        doc = self.repository.get_by_id(doc_id)
+        if not doc:
+            raise AppException(ErrorCode.DOC_NOT_FOUND)
+        if doc.group_id != group_id:
+            raise AppException(ErrorCode.DOC_NOT_FOUND)
+
+        self.repository.update_classification(
+            doc_id,
+            document_type=document_type,
+            category=category,
+        )
+        self.repository.db.commit()
+
+        # 승인된 문서는 Qdrant에 이전 분류값이 남아 있으므로 재인덱싱으로 동기화
+        approval = getattr(doc, "approval", None)
+        if approval and approval.status == ReviewStatus.APPROVED:
+            from tasks.group_document_task import index_approved_document
+
+            index_approved_document.delay(doc_id)
+
+    def get_unclassified_list(
+        self,
+        group_id: int,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[DocumentListItemResponse], int]:
+        """
+        미분류 문서 목록 반환.
+        운영에서 재처리 대상 식별 및 수동 수정 진입점으로 사용한다.
+        """
+        documents, total = self.repository.get_unclassified_list(group_id, skip, limit)
+
+        owner_ids = [doc.owner.id for doc in documents if getattr(doc, "owner", None)]
+        member_status_map = self.repository.get_member_status_map(
+            group_id=group_id,
+            user_ids=owner_ids,
+        )
+
+        results = []
+        for doc in documents:
+            summary = getattr(doc, "summary", None)
+            owner_status = (
+                member_status_map.get(doc.owner.id)
+                if getattr(doc, "owner", None)
+                else None
+            )
+            results.append(
+                DocumentListItemResponse(
+                    id=doc.id,
+                    summary_id=summary.id if summary else None,
+                    title=self._build_document_title(doc, summary),
+                    preview=self._build_preview(summary),
+                    status=doc.processing_status.value,
+                    document_type=doc.document_type,
+                    category=doc.category,
+                    created_at=doc.created_at,
+                    uploader=self._build_user_display_name(doc.owner, owner_status),
+                    delete_requested_at=None,
+                    delete_scheduled_at=None,
+                    deleted_by=None,
+                )
+            )
+
+        return results, total
 
     def delete_document(self, doc_id: int, user_id: int, group_id: int) -> None:
         doc = self.repository.get_detail(doc_id)
@@ -367,9 +454,8 @@ class DocumentService:
                     title=self._build_document_title(doc, summary),
                     preview=self._build_preview(summary),
                     status=doc.processing_status.value,
-                    document_type=get_summary_field(summary, "document_type")
-                    if summary
-                    else None,
+                    document_type=doc.document_type,
+                    category=doc.category,
                     created_at=doc.created_at,
                     uploader=self._build_user_display_name(doc.owner, owner_status),
                     delete_requested_at=doc.delete_requested_at,

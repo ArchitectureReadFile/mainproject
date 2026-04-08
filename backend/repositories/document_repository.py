@@ -6,7 +6,6 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from models.model import (
-    Category,
     Document,
     DocumentApproval,
     DocumentComment,
@@ -116,6 +115,21 @@ class DocumentRepository:
             "[Document 상태 변경 누락] document_id=%s, status=%s", document_id, status
         )
 
+    def update_classification(
+        self,
+        document_id: int,
+        *,
+        document_type: str,
+        category: str,
+    ) -> None:
+        """분류 결과를 Document에 저장한다. 수동 수정도 이 메서드를 경유한다."""
+        document = self.db.query(Document).filter(Document.id == document_id).first()
+        if document:
+            document.document_type = document_type
+            document.category = category
+            return
+        logger.warning("[Document 분류 저장 누락] document_id=%s", document_id)
+
     def claim_next_pending_document(self) -> Document | None:
         document = (
             self.db.query(Document)
@@ -145,8 +159,9 @@ class DocumentRepository:
         group_id=None,
     ):
         """
-        문서 목록을 조회하고 카드 표시용 일반 댓글 수를 함께 집계
-        삭제된 댓글과 REVIEW 범위 댓글은 제외
+        문서 목록을 조회하고 카드 표시용 일반 댓글 수를 함께 집계.
+        삭제된 댓글과 REVIEW 범위 댓글은 제외.
+        category 필터는 Document.category 컬럼 직접 비교.
         """
         comment_count_subquery = (
             self.db.query(
@@ -192,7 +207,7 @@ class DocumentRepository:
             )
 
         if category and category != "전체":
-            query = query.join(Document.categories).filter(Category.name == category)
+            query = query.filter(Document.category == category)
 
         if keyword:
             query = query.filter(
@@ -226,6 +241,36 @@ class DocumentRepository:
                 .all()
             )
 
+        return documents, total
+
+    def get_unclassified_list(
+        self,
+        group_id: int,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[Document], int]:
+        """
+        미분류 문서 목록 반환.
+        document_type 또는 category 중 하나라도 미분류/NULL인 문서를 반환한다.
+        운영에서 재처리 대상을 식별하는 용도로 사용한다.
+        """
+        query = (
+            self.db.query(Document)
+            .filter(
+                Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE,
+                Document.group_id == group_id,
+                or_(
+                    Document.document_type.is_(None),
+                    Document.document_type == "미분류",
+                    Document.category.is_(None),
+                    Document.category == "미분류",
+                ),
+            )
+            .order_by(Document.created_at.desc(), Document.id.desc())
+        )
+
+        total = query.count()
+        documents = query.offset(skip).limit(limit).all()
         return documents, total
 
     def get_detail(self, doc_id: int):

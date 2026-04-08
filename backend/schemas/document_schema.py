@@ -2,9 +2,8 @@
 """
 추출 후 공통 소비 계약. ExtractedDocument(raw)를 정규화한 결과.
 
-raw 영역  : 추출기 원본 그대로 보존 (소비처가 직접 읽지 않음)
-normalized: 소비처(summary / rag / chat)가 실제로 쓰는 정규화 결과
-downstream: summary / classification 단계가 나중에 채우는 enrichment 허용 필드
+raw 영역      : 추출기 원본 그대로 보존 (소비처가 직접 읽지 않음)
+normalized    : 소비처(summary / rag / chat)가 실제로 쓰는 정규화 결과
 """
 
 from __future__ import annotations
@@ -57,15 +56,17 @@ class DocumentSchema:
     """
     추출 후 공통 소비 계약.
 
-    ┌──────────────────────────────────────────────────┐
-    │ raw 영역    : 추출기 원본 보존 (소비처 직접 X)    │
-    │ normalized  : 소비처가 실제로 쓰는 정규화 필드    │
-    │ downstream  : 이후 단계가 채우는 enrichment 필드  │
-    └──────────────────────────────────────────────────┘
+    ┌──────────────────────────────────────────────┐
+    │ raw 영역    : 추출기 원본 보존 (소비처 직접 X) │
+    │ normalized  : 소비처가 실제로 쓰는 정규화 필드 │
+    └──────────────────────────────────────────────┘
 
     source_type:
         "odl" - opendataloader-pdf 경로 (raw_markdown + raw_json 있음)
         "ocr" - OCR fallback 경로 (raw_text만 있음)
+
+    분류(document_type / category)는 DocumentClassificationService가
+    DocumentSchema와 별개로 Document 모델에 직접 저장한다.
     """
 
     # ── 출처 구분 ─────────────────────────────────────────────────────────────
@@ -80,7 +81,4 @@ class DocumentSchema:
     body_text: str = ""
     table_blocks: list[DocumentTableBlock] = field(default_factory=list)
     pages: list[DocumentPage] = field(default_factory=list)
-
-    # ── downstream enrichment (v1은 None 허용, 이후 단계가 채움) ─────────────
-    document_type: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
