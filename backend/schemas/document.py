@@ -12,6 +12,7 @@ class DocumentListItemResponse(BaseModel):
     status: str
     approval_status: str | None = None
     document_type: Optional[str] = None
+    category: Optional[str] = None
     created_at: datetime
     uploader: str | None
     comment_count: int = 0
@@ -33,6 +34,7 @@ class DocumentDetailResponse(BaseModel):
     feedback: Optional[str] = None
     can_delete: bool = False
     document_type: Optional[str] = None
+    category: Optional[str] = None
     summary_text: Optional[str] = None
     key_points: list[str] = []
     metadata: dict = {}
@@ -54,6 +56,7 @@ class PendingDocumentListItemResponse(BaseModel):
     status: str
     approval_status: str
     document_type: Optional[str] = None
+    category: Optional[str] = None
     created_at: datetime
     uploader: Optional[str] = None
     assignee_user_id: Optional[int] = None
@@ -81,6 +84,7 @@ class ReviewedDocumentListItemResponse(BaseModel):
     status: str
     approval_status: str
     document_type: Optional[str] = None
+    category: Optional[str] = None
     created_at: datetime
     uploader: Optional[str] = None
     assignee_user_id: Optional[int] = None

@@ -1,13 +1,13 @@
 # Backend Architecture — Document Pipeline & Chat Knowledge Flow
 
-> 작성 기준: 13단계 완료 시점  
+> 작성 기준: 문서 분류 시스템 구현 완료 시점
 > 대상 독자: 신규 합류 개발자, 구조 파악이 필요한 팀원
 
 ---
 
 ## 1. Document Pipeline
 
-PDF 업로드부터 저장/인덱싱까지의 흐름.
+PDF 업로드부터 분류/요약/인덱싱까지의 흐름.
 
 ```
 PDF 파일
@@ -19,23 +19,52 @@ DocumentExtractService          services/document_extract_service.py
   - 반환: ExtractedDocument(markdown, json_data, source_type)
   │
   ▼
-DocumentNormalizeService         services/document_normalize_service.py
+DocumentNormalizeService        services/document_normalize_service.py
   - extractor가 넘긴 source_type 사용 (odl | ocr)
   - body_text, table_blocks, pages, metadata 생성
   - 반환: DocumentSchema
   │
-  ├──▶ DocumentSummaryPayloadService    services/summary/document_summary_payload_service.py
-  │      - [본문]/[표] LLM 입력 문자열 조립
-  │      - ProcessService → LLMService → SummaryRepository
+  ▼
+DocumentClassificationService   services/document_classification_service.py
+  - title + body_text(최대 3000자) → LLM 단일 호출
+  - 반환: {document_type, category}
+  - 허용값 외 응답 및 LLM 오류 → "미분류" fallback (파이프라인 중단 없음)
   │
-  ├──▶ DocumentChunkService            services/rag/document_chunk_service.py
-  │      - body chunk / table chunk 분할
-  │      - group_document_indexing_service → Qdrant + BM25
+  ▼
+Document.document_type          repositories/document_repository.py
+Document.category               update_classification() → DB commit
+  (source of truth)
   │
-  └──▶ SessionDocumentPayloadService   services/chat/session_document_payload_service.py
-         - 세션 임시 첨부용 단일 텍스트 (body 6000자 / table 2000자 상한)
-         - ChatSession.reference_document_text 에 저장
+  ▼
+DocumentSummaryPayloadService   services/summary/document_summary_payload_service.py
+  - [본문]/[표] LLM 입력 문자열 조립
+  │
+  ▼
+LLMService.summarize()          services/summary/llm_service.py
+  - summary_text, key_points 생성
+  - document_type는 추출하지 않음 (분류는 별도 단계에서 완료)
+  │
+  ▼
+SummaryRepository.create_summary()
+  - summary_text, key_points 저장
+  - metadata: {"source": "group_document_summary"} (보조 기록)
+  │
+  ▼
+DONE
 ```
+
+### 분류 허용값
+
+| 필드 | 허용값 |
+|---|---|
+| `document_type` | 계약서, 신청서, 준비서면, 의견서, 내용증명, 소장, 고소장, 기타, 미분류 |
+| `category` | 민사, 계약, 회사, 행정, 형사, 노동, 기타, 미분류 |
+
+### source of truth 원칙
+
+- `document_type`, `category` → `Document` 모델이 유일한 source of truth
+- summary metadata는 보조 기록 전용이며, 어떤 화면/서비스도 분류 기준으로 읽지 않는다
+- PDF 생성, 목록/상세 응답, 운영 조회 전부 `Document.document_type` / `Document.category` 직접 참조
 
 ### 핵심 계약
 
@@ -48,7 +77,69 @@ DocumentNormalizeService         services/document_normalize_service.py
 
 ---
 
-## 2. Chat Knowledge Flow
+## 2. 승인 후 RAG 인덱싱
+
+승인(APPROVE) 전에는 RAG 인덱싱을 수행하지 않는다.
+승인 시점에 `index_approved_document` Celery task가 호출된다.
+
+```
+DocumentReviewService.approve_document()
+  │
+  ├─ DocumentApproval.status = APPROVED → DB commit
+  │
+  └─ index_approved_document.delay(document_id)   tasks/group_document_task.py
+       │
+       ▼
+     index_group_document()     services/rag/group_document_indexing_service.py
+       - extract → normalize → chunk
+       - document.document_type / document.category → 각 chunk payload에 포함
+       - Qdrant + BM25 저장
+```
+
+### chunk payload 계약
+
+| 필드 | 설명 |
+|---|---|
+| `chunk_id` | `gdoc:{document_id}:chunk:{order_index}` |
+| `document_id` | 그룹핑 기준 |
+| `group_id` | 권한/검색 범위 필터 |
+| `file_name` | citation / 카드 표시용 |
+| `source_type` | `"pdf"` |
+| `chunk_type` | `"body"` \| `"table"` |
+| `document_type` | `Document.document_type` 값 (metadata) |
+| `category` | `Document.category` 값 (metadata) |
+
+`document_type` / `category`는 현재 chunk payload metadata로 저장된다.
+검색 boost 연결은 별도 설계 후 추가 예정이다.
+
+---
+
+## 3. 분류 수동 수정
+
+운영 중 미분류 문서나 잘못 분류된 문서를 수정하는 경로.
+
+```
+PATCH /groups/{group_id}/documents/{doc_id}/classification
+  - OWNER / ADMIN 권한 필요
+  - 허용값 외 입력 → 422 (Pydantic Literal 검증)
+
+  DocumentService.update_classification()
+    - Document.document_type / Document.category 업데이트 → commit
+    - approval.status == APPROVED 이면 index_approved_document.delay() 호출
+      → Qdrant payload 재동기화
+```
+
+미분류 문서 목록 조회:
+```
+GET /groups/{group_id}/documents/unclassified
+  - document_type IS NULL 또는 "미분류"
+  - category IS NULL 또는 "미분류"
+  - ADMIN 이상 권한
+```
+
+---
+
+## 4. Chat Knowledge Flow
 
 챗봇 답변 생성 시 지식원 검색과 context 조립 흐름.
 
@@ -91,7 +182,7 @@ LLMClient.stream_chat()          스트리밍 답변 생성
 
 ---
 
-## 3. Workspace Selection Flow
+## 5. Workspace Selection Flow
 
 사용자가 특정 그룹 문서를 선택해 검색 범위를 지정하는 흐름.
 
@@ -131,12 +222,13 @@ WorkspaceKnowledgeRetriever.retrieve()
 
 ---
 
-## 4. 현재 제약 및 다음 과제
+## 6. 현재 제약 및 다음 과제
 
 | 항목 | 현재 상태 | 다음 과제 |
 |---|---|---|
 | `pages` 분리 | v1: 전체 문서 = 1페이지로 단순화 | ODL/OCR page 정보 실제 분리 |
-| `document_type` | normalize 단계에서 None | DocumentClassificationService 추가 |
+| 분류 수정 이력 | 1차 미구현 | 2차에서 수정 이력 저장 검토 |
+| 검색 boost | chunk payload에 분류값 저장 완료 | 질문 측 category 근거 설계 후 연결 예정 |
 | workspace `mode="documents"` | 지원 (BM25 + Qdrant whitelist) | folder/category 확장 가능 |
 | session retrieval | 단일 텍스트 블록 반환 | 긴 문서 분할 후 top chunk 반환 |
 | LangChain | 미도입 | core contract는 완성됨, adapter 검토 가능 |
@@ -144,7 +236,7 @@ WorkspaceKnowledgeRetriever.retrieve()
 
 ---
 
-## 5. 운영 튜닝 포인트
+## 7. 운영 튜닝 포인트
 
 운영 중 retrieval 개수, context 길이, 세션 저장 길이를 조정해야 할 때
 우선 확인할 위치는 아래 두 파일이다.
@@ -177,7 +269,7 @@ WorkspaceKnowledgeRetriever.retrieve()
 
 ---
 
-## 6. 패키지 구조 요약
+## 8. 패키지 구조 요약
 
 ```
 backend/
@@ -187,16 +279,19 @@ backend/
 │   └── chat.py                 ChatWorkspaceSelectionInput
 │
 ├── services/
-│   ├── document_extract_service.py      ExtractedDocument 생성
-│   ├── document_normalize_service.py    ExtractedDocument → DocumentSchema
+│   ├── document_extract_service.py           ExtractedDocument 생성
+│   ├── document_normalize_service.py         ExtractedDocument → DocumentSchema
+│   ├── document_classification_service.py    DocumentSchema → document_type / category
 │   │
 │   ├── summary/
-│   │   ├── process_service.py                  요약 파이프라인 진입점
-│   │   └── document_summary_payload_service.py DocumentSchema → LLM 입력
+│   │   ├── process_service.py                       요약 파이프라인 진입점
+│   │   │                                            (classify → save → summarize → save)
+│   │   └── document_summary_payload_service.py      DocumentSchema → LLM 입력
 │   │
 │   ├── rag/
 │   │   ├── document_chunk_service.py           DocumentSchema → chunk 리스트
 │   │   ├── group_document_indexing_service.py  extract → normalize → index
+│   │   │                                       chunk payload에 document_type/category 포함
 │   │   └── group_document_retrieval_service.py group/document 범위 검색
 │   │
 │   ├── chat/
@@ -211,4 +306,11 @@ backend/
 │       ├── platform_knowledge_retriever.py     판례 RAG
 │       ├── workspace_knowledge_retriever.py    그룹 문서 RAG (selection 지원)
 │       └── session_document_retriever.py       임시 첨부 문서
+│
+├── prompts/
+│   ├── classify_prompt.py      분류 LLM 프롬프트 (허용값 고정)
+│   └── summarize_prompt.py     요약 LLM 프롬프트
+│
+└── repositories/
+    └── document_repository.py  update_classification() — 분류 저장 단일 진입점
 ```

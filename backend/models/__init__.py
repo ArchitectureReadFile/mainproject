@@ -1,5 +1,4 @@
 from models.model import (  # noqa: F401
-    Category,
     ChatMessage,
     ChatSession,
     Document,

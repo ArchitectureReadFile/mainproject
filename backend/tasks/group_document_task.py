@@ -63,6 +63,8 @@ def index_approved_document(self, document_id: int) -> dict:
             group_id=document.group_id,
             file_name=document.original_filename,
             file_path=document.stored_path,
+            document_type=document.document_type,
+            category=document.category,
         )
         return {"indexed": True, "document_id": document_id, "chunks": chunk_count}
 
