@@ -365,6 +365,7 @@ class DocumentService:
             )
 
         return results, total
+
     def get_preview_file_in_group(
         self,
         doc_id: int,
@@ -490,7 +491,6 @@ class DocumentService:
                     title=self._build_document_title(doc, summary),
                     preview=self._build_preview(summary),
                     status=doc.processing_status.value,
-                    document_type=doc.document_type,
                     category=doc.category,
                     approval_status=getattr(doc.approval, "status", None).value
                     if getattr(doc, "approval", None)

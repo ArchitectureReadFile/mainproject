@@ -1,6 +1,6 @@
 import mimetypes
-from typing import Literal, Optional
 import os
+from typing import Literal, Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
@@ -59,6 +59,7 @@ def _is_allowed_upload_file(file: UploadFile) -> bool:
     content_type = (file.content_type or "").lower()
 
     return content_type in ALLOWED_CONTENT_TYPES or ext in ALLOWED_EXTENSIONS
+
 
 DocumentTypeLiteral = Literal[
     "계약서",
@@ -353,7 +354,6 @@ def update_document_classification(
         category=payload.category,
     )
     return {"message": "분류가 수정되었습니다."}
-
 
 
 @router.get("/{group_id}/documents/{doc_id}/preview")

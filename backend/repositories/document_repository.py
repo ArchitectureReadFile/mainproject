@@ -145,7 +145,7 @@ class DocumentRepository:
             document.category = category
             return
         logger.warning("[Document 분류 저장 누락] document_id=%s", document_id)
-    
+
     def update_preview_status(
         self,
         document_id: int,
