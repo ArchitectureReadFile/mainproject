@@ -31,6 +31,8 @@ export const useNotification = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   const ws = useRef(null)
+  const intentionalClose = useRef(false)
+  const reconnectTimer = useRef(null)
   const navigate = useNavigate()
 
   const userRef = useRef(user)
@@ -186,7 +188,14 @@ export const useNotification = () => {
       }
     }
 
-    ws.onerror = (error) => console.error(error)
+    ws.current.onerror = (error) => console.error(error)
+
+    ws.current.onclose = () => {
+      if (intentionalClose.current) return
+      reconnectTimer.current = setTimeout(() => {
+        connectWebSocket()
+      }, 3000)
+    }
   }, [isAuthenticated, user?.id, handleNavigate, updateInviteStatus, markAsRead])
 
   useEffect(() => {
@@ -196,6 +205,8 @@ export const useNotification = () => {
   useEffect(() => {
     connectWebSocket()
     return () => {
+      intentionalClose.current = true
+      clearTimeout(reconnectTimer.current)
       if (ws.current) {
         ws.current.close()
         ws.current = null
