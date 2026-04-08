@@ -134,8 +134,16 @@ export async function getGroupDocumentDetail(groupId, docId) {
 }
 
 
-export function getGroupDocumentOriginalUrl(groupId, docId) {
-    return `/api/groups/${groupId}/documents/${docId}/original`
+export function getGroupDocumentPreviewUrl(groupId, docId) {
+    return `/api/groups/${groupId}/documents/${docId}/preview`
+}
+
+
+/**
+ * 그룹 문서 원본 다운로드 URL을 반환
+ */
+export function getGroupDocumentDownloadUrl(groupId, docId) {
+    return `/api/groups/${groupId}/documents/${docId}/download`
 }
 
 
@@ -165,6 +173,8 @@ export async function getPendingDocuments(
     })
     return data
 }
+
+
 
 
 /**

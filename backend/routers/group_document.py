@@ -1,3 +1,5 @@
+import mimetypes
+import os
 from typing import Literal, Optional
 from urllib.parse import quote
 
@@ -31,7 +33,33 @@ router = APIRouter(prefix="/groups", tags=["group-documents"])
 
 MAX_FILE_SIZE_MB = 20
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
-ALLOWED_CONTENT_TYPES = {"application/pdf"}
+
+ALLOWED_CONTENT_TYPES = {
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+ALLOWED_EXTENSIONS = {
+    ".pdf",
+    ".doc",
+    ".docx",
+}
+
+
+def _is_allowed_upload_file(file: UploadFile) -> bool:
+    """
+    업로드 허용 문서인지 검사
+
+    content_type은 브라우저/OS 환경에 따라 비어 있거나 다르게 올 수 있으므로
+    확장자와 함께 느슨하게 검사
+    """
+    filename = (file.filename or "").lower()
+    ext = os.path.splitext(filename)[1]
+    content_type = (file.content_type or "").lower()
+
+    return content_type in ALLOWED_CONTENT_TYPES or ext in ALLOWED_EXTENSIONS
+
 
 DocumentTypeLiteral = Literal[
     "계약서",
@@ -85,7 +113,7 @@ def upload_group_document(
     current_user: User = Depends(get_current_user),
     group_service: GroupService = Depends(get_group_service),
 ):
-    if file.content_type not in ALLOWED_CONTENT_TYPES:
+    if not _is_allowed_upload_file(file):
         raise AppException(ErrorCode.DOC_INVALID_FILE_TYPE)
 
     file.file.seek(0, 2)
@@ -328,24 +356,23 @@ def update_document_classification(
     return {"message": "분류가 수정되었습니다."}
 
 
-@router.get("/{group_id}/documents/{doc_id}/original")
-def view_original_document(
+@router.get("/{group_id}/documents/{doc_id}/preview")
+def view_preview_document(
     group_id: int,
     doc_id: int,
     group_service: GroupService = Depends(get_group_service),
     document_service: DocumentService = Depends(get_document_service),
     current_user: User = Depends(get_current_user),
 ):
-    """권한이 있는 사용자가 원본 PDF를 브라우저에서 바로 볼 수 있게 반환"""
     _, role = group_service.assert_view_permission(current_user.id, group_id)
-    file_path, original_filename = document_service.get_original_file_in_group(
+    file_path, preview_filename = document_service.get_preview_file_in_group(
         doc_id=doc_id,
         group_id=group_id,
         current_user_id=current_user.id,
         current_user_role=role,
     )
 
-    encoded_filename = quote(original_filename)
+    encoded_filename = quote(preview_filename)
 
     return FileResponse(
         path=file_path,
@@ -365,6 +392,34 @@ def delete_document(
     group, _ = group_service.assert_view_permission(current_user.id, group_id)
     group_service.assert_group_writable(group)
     service.delete_document(doc_id, current_user.id, group_id)
+
+
+@router.get("/{group_id}/documents/{doc_id}/download")
+def download_original_document(
+    group_id: int,
+    doc_id: int,
+    group_service: GroupService = Depends(get_group_service),
+    document_service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
+):
+    _, role = group_service.assert_view_permission(current_user.id, group_id)
+    file_path, original_filename = document_service.get_original_file_in_group(
+        doc_id=doc_id,
+        group_id=group_id,
+        current_user_id=current_user.id,
+        current_user_role=role,
+    )
+
+    encoded_filename = quote(original_filename)
+    media_type, _ = mimetypes.guess_type(original_filename)
+
+    return FileResponse(
+        path=file_path,
+        media_type=media_type or "application/octet-stream",
+        headers={
+            "Content-Disposition": (f"attachment; filename*=UTF-8''{encoded_filename}")
+        },
+    )
 
 
 @router.get(
