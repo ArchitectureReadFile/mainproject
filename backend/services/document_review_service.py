@@ -13,7 +13,6 @@ from schemas.document import (
 from services.summary.summary_mapper import (
     build_document_title,
     build_summary_preview,
-    get_summary_field,
 )
 from tasks.group_document_task import index_approved_document
 
@@ -107,9 +106,8 @@ class DocumentReviewService:
                     preview=self._build_preview(summary),
                     status=doc.processing_status.value,
                     approval_status=approval.status.value if approval else "",
-                    document_type=get_summary_field(summary, "document_type")
-                    if summary
-                    else None,
+                    document_type=doc.document_type,
+                    category=doc.category,
                     created_at=doc.created_at,
                     uploader=self._build_user_display_name(
                         doc.owner,
@@ -242,9 +240,8 @@ class DocumentReviewService:
                     preview=self._build_preview(summary),
                     status=doc.processing_status.value,
                     approval_status=approval.status.value if approval else "",
-                    document_type=get_summary_field(summary, "document_type")
-                    if summary
-                    else None,
+                    document_type=doc.document_type,
+                    category=doc.category,
                     created_at=doc.created_at,
                     uploader=self._build_user_display_name(
                         doc.owner,
@@ -325,9 +322,8 @@ class DocumentReviewService:
                     preview=self._build_preview(summary),
                     status=doc.processing_status.value,
                     approval_status=approval.status.value if approval else "",
-                    document_type=get_summary_field(summary, "document_type")
-                    if summary
-                    else None,
+                    document_type=doc.document_type,
+                    category=doc.category,
                     created_at=doc.created_at,
                     uploader=self._build_user_display_name(
                         doc.owner,

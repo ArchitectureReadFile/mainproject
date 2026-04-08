@@ -12,6 +12,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 from sqlalchemy.orm import Session
 
 from errors import AppException, ErrorCode
+from repositories.document_repository import DocumentRepository
 from repositories.summary_repository import SummaryRepository
 from services.summary.summary_mapper import get_key_points, get_summary_field
 
@@ -33,6 +34,11 @@ class PdfService:
         summary = SummaryRepository(self.db).get_by_id(summary_id)
         if not summary:
             raise AppException(ErrorCode.SUM_NOT_FOUND)
+
+        # document_type source of truth: Document 모델
+        # summary metadata의 document_type는 보조 기록이므로 표시에 사용하지 않는다
+        document = DocumentRepository(self.db).get_by_id(summary.document_id)
+        document_type = (document.document_type if document else None) or "-"
 
         buffer = BytesIO()
         doc = SimpleDocTemplate(
@@ -67,7 +73,7 @@ class PdfService:
         meta_data = [
             [
                 "문서 유형",
-                get_summary_field(summary, "document_type") or "-",
+                document_type,
                 "생성일",
                 str(summary.created_at.date()),
             ],

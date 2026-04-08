@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Literal, Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -31,6 +32,26 @@ router = APIRouter(prefix="/groups", tags=["group-documents"])
 MAX_FILE_SIZE_MB = 20
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 ALLOWED_CONTENT_TYPES = {"application/pdf"}
+
+DocumentTypeLiteral = Literal[
+    "계약서",
+    "신청서",
+    "준비서면",
+    "의견서",
+    "내용증명",
+    "소장",
+    "고소장",
+    "기타",
+    "미분류",
+]
+DocumentCategoryLiteral = Literal[
+    "민사", "계약", "회사", "행정", "형사", "노동", "기타", "미분류"
+]
+
+
+class ClassificationUpdateRequest(BaseModel):
+    document_type: DocumentTypeLiteral
+    category: DocumentCategoryLiteral
 
 
 def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
@@ -111,6 +132,22 @@ def list_documents(
         category=category,
         group_id=group_id,
     )
+    return {"items": items, "total": total}
+
+
+@router.get("/{group_id}/documents/unclassified")
+def list_unclassified_documents(
+    group_id: int,
+    skip: int = 0,
+    limit: int = 50,
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    """미분류 문서 목록. 운영에서 재처리 대상 식별 및 수동 수정 진입점."""
+    group_service.assert_review_view_permission(current_user.id, group_id)
+
+    items, total = service.get_unclassified_list(group_id, skip, limit)
     return {"items": items, "total": total}
 
 
@@ -264,6 +301,31 @@ def get_detail_document(
         current_user_id=current_user.id,
         current_user_role=role,
     )
+
+
+@router.patch("/{group_id}/documents/{doc_id}/classification")
+def update_document_classification(
+    group_id: int,
+    doc_id: int,
+    payload: ClassificationUpdateRequest,
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    분류값 수동 수정 (OWNER/ADMIN 전용).
+    허용값 외 입력은 422로 거부된다.
+    승인된 문서는 Qdrant 재인덱싱 태스크를 큐에 넣어 분류 동기화한다.
+    이력 저장은 1차에서 하지 않는다.
+    """
+    group_service.assert_review_permission(current_user.id, group_id)
+    service.update_classification(
+        doc_id,
+        group_id,
+        document_type=payload.document_type,
+        category=payload.category,
+    )
+    return {"message": "분류가 수정되었습니다."}
 
 
 @router.get("/{group_id}/documents/{doc_id}/original")

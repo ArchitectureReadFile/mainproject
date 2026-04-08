@@ -2,7 +2,6 @@ import json
 from datetime import date
 
 SUMMARY_METADATA_FIELDS = (
-    "document_type",
     "case_number",
     "case_name",
     "court_name",

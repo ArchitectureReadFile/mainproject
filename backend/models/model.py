@@ -347,17 +347,6 @@ class GroupMember(Base):
     )
 
 
-class Category(Base):
-    __tablename__ = "categories"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), unique=True, nullable=False)
-
-    documents = relationship(
-        "Document", secondary=document_categories, back_populates="categories"
-    )
-
-
 class Document(Base):
     __tablename__ = "documents"
 
@@ -376,6 +365,7 @@ class Document(Base):
 
     title = Column(String(255))
     document_type = Column(String(50))
+    category = Column(String(50), nullable=True)
 
     processing_status = Column(
         Enum(DocumentStatus, native_enum=False),
@@ -415,12 +405,6 @@ class Document(Base):
         back_populates="document",
         uselist=False,
         cascade="all, delete-orphan",
-    )
-
-    categories = relationship(
-        "Category",
-        secondary=document_categories,
-        back_populates="documents",
     )
 
     group = relationship("Group", back_populates="documents")
@@ -503,7 +487,7 @@ class Summary(Base):
     summary_text = Column(Text)
     key_points = Column(Text)
 
-    metadata_json = Column(Text)  # 판례/계약서 구조 데이터
+    metadata_json = Column(Text)  # 판례/계약서 구조 데이터 (보조 기록)
 
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
     updated_at = Column(
@@ -610,7 +594,6 @@ class DocumentCommentMention(Base):
         index=True,
     )
 
-    # 식별용
     mentioned_user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -618,7 +601,6 @@ class DocumentCommentMention(Base):
         index=True,
     )
 
-    # snapshot_username: 저장 시점 본문 검증용 스냅샷
     snapshot_username = Column(String(20), nullable=False)
     start_index = Column(Integer, nullable=False)
     end_index = Column(Integer, nullable=False)
@@ -700,8 +682,8 @@ class Precedent(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     source_url = Column(String(2048), unique=True, nullable=False)
-    title = Column(String(512), nullable=True)  # 자동 추출 전까지 null 허용
-    text = Column(Text, nullable=True)  # 요지 + 판결내용 + 상세내용 합본
+    title = Column(String(512), nullable=True)
+    text = Column(Text, nullable=True)
     processing_status = Column(
         Enum(DocumentStatus, native_enum=False),
         default=DocumentStatus.PENDING,
