@@ -29,6 +29,7 @@ jobs:
     needs: lint-backend
     env:
       DATABASE_URL: "sqlite:///:memory:"
+      PYTEST_CURRENT_TEST: "ci"
     steps:
       - uses: actions/checkout@v4
 
