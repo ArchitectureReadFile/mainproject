@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Inbox, Loader2, Search } from 'lucide-react'
+import { Inbox, Loader2, Search, RotateCcw } from 'lucide-react'
 
 import { getGroupDocuments } from '@/api/groups'
 import { Button } from '@/components/ui/Button'
@@ -191,6 +191,21 @@ export default function DocumentsTab({ group }) {
     }
 
     /**
+     * 문서 목록 필터를 기본값으로 초기화한다.
+     */
+    const handleResetFilters = () => {
+        setKeyword('')
+        setSearchParams({
+            tab: 'documents',
+            page: '1',
+            keyword: '',
+            view_type: 'all',
+            status: 'all',
+            category: '전체',
+        })
+    }
+
+    /**
      * 문서 목록 페이지를 이동한다.
      */
     const movePage = (nextPage) => {
@@ -226,63 +241,68 @@ export default function DocumentsTab({ group }) {
 
     return (
         <div className="space-y-4 max-w-3xl mx-auto">
-            <div className="flex flex-col gap-2">
+            <div className="space-y-3">
+                <div className="flex min-w-0 gap-2">
+                    <Input
+                        placeholder="문서명 검색"
+                        value={keyword}
+                        onChange={(e) => setKeyword(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                        className="min-w-0 flex-1"
+                    />
+                    <Button variant="outline" onClick={handleSearch}>
+                        <Search className="h-4 w-4" />
+                    </Button>
+                </div>
+
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="flex rounded-md border overflow-hidden text-sm">
-                        <button
+                        <Button
+                            type="button"
+                            variant={viewType === 'all' ? 'default' : 'ghost'}
                             onClick={() => handleViewTypeChange('all')}
-                            className={`px-3 py-1.5 transition-colors ${
+                            className={`h-auto rounded-none px-3 py-1.5 ${
                                 viewType === 'all'
-                                    ? 'bg-primary text-primary-foreground'
+                                    ? ''
                                     : 'text-muted-foreground hover:bg-muted'
                             }`}
                         >
                             승인된 문서
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                            type="button"
+                            variant={viewType === 'my' ? 'default' : 'ghost'}
                             onClick={() => handleViewTypeChange('my')}
-                            className={`px-3 py-1.5 transition-colors border-l ${
+                            className={`h-auto rounded-none border-l px-3 py-1.5 ${
                                 viewType === 'my'
-                                    ? 'bg-primary text-primary-foreground'
+                                    ? ''
                                     : 'text-muted-foreground hover:bg-muted'
                             }`}
                         >
                             내 문서
-                        </button>
-                    </div>
-
-                    <div className="flex min-w-0 flex-1 gap-2">
-                        <Input
-                            placeholder="문서명 검색"
-                            value={keyword}
-                            onChange={(e) => setKeyword(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                        />
-                        <Button variant="outline" onClick={handleSearch}>
-                            <Search className="h-4 w-4" />
                         </Button>
                     </div>
-                </div>
 
-                <div className="flex flex-wrap items-center gap-2">
                     <div className="flex rounded-md border overflow-hidden text-sm w-fit">
                         {STATUS_FILTER_OPTIONS.map((option) => (
-                            <button
+                            <Button
                                 key={option.value}
+                                type="button"
+                                variant={statusFilter === option.value ? 'default' : 'ghost'}
                                 onClick={() => handleStatusFilterChange(option.value)}
-                                className={`px-3 py-1.5 transition-colors border-l first:border-l-0 ${
+                                className={`h-auto rounded-none border-l px-3 py-1.5 first:border-l-0 ${
                                     statusFilter === option.value
-                                        ? 'bg-primary text-primary-foreground'
+                                        ? ''
                                         : 'text-muted-foreground hover:bg-muted'
                                 }`}
                             >
                                 {option.label}
-                            </button>
+                            </Button>
                         ))}
                     </div>
 
                     <Select value={categoryFilter} onValueChange={handleCategoryFilterChange}>
-                        <SelectTrigger className="w-full sm:w-44">
+                        <SelectTrigger className="w-full sm:w-50.5">
                             <SelectValue placeholder="전체 카테고리" />
                         </SelectTrigger>
                         <SelectContent>
@@ -293,6 +313,15 @@ export default function DocumentsTab({ group }) {
                             ))}
                         </SelectContent>
                     </Select>
+
+                    <Button
+                        variant="outline"
+                        onClick={handleResetFilters}
+                        className="gap-2"
+                    >
+                        <RotateCcw className="h-4 w-4" />
+                        초기화
+                    </Button>
                 </div>
             </div>
 
@@ -347,11 +376,10 @@ export default function DocumentsTab({ group }) {
                                     )}
                                     <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                                         <span className="rounded-sm bg-muted px-2 py-0.5 text-foreground">
-                                            {doc.document_type || '유형 없음'}
-                                        </span>
-
+                                            카테고리 {doc.category || '미분류'}
+                                        </span>                                           
                                         <span className="rounded-sm bg-muted px-2 py-0.5 text-foreground">
-                                            {doc.category || '미분류'}
+                                            유형 {doc.document_type || '미분류'}
                                         </span>
 
                                         {APPROVAL_STATUS_LABEL[doc.approval_status] && (
