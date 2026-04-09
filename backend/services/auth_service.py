@@ -12,7 +12,6 @@ from models.model import (
     Group,
     GroupPendingReason,
     GroupStatus,
-    SocialAccount,
     Subscription,
     SubscriptionPlan,
     SubscriptionStatus,
@@ -76,12 +75,20 @@ class AuthService:
             verification_data = verification_data.decode("utf-8")
 
         if verification_data.startswith("social:"):
-            _, provider, provider_id = verification_data.split(":", 2)
-            social_account = SocialAccount(
-                user_id=user.id, provider=provider, provider_id=provider_id, email=email
-            )
-            db.add(social_account)
-            db.flush()
+            try:
+                from models.model import SocialAccount
+
+                _, provider, provider_id = verification_data.split(":", 2)
+                social_account = SocialAccount(
+                    user_id=user.id,
+                    provider=provider,
+                    provider_id=provider_id,
+                    email=email,
+                )
+                db.add(social_account)
+                db.flush()
+            except ImportError:
+                pass
 
         subscription = Subscription(
             user_id=user.id,
@@ -244,8 +251,6 @@ class AuthService:
         if not self.verify_password(payload.new_password, user.password):
             user.password = self.hash_password(payload.new_password)
             db.commit()
-        else:
-            pass
 
     def update_email(
         self,
@@ -326,8 +331,13 @@ class AuthService:
         subscription = self.get_effective_subscription(db, user.id)
 
         social_providers = []
-        if hasattr(user, "social_accounts") and user.social_accounts:
-            social_providers = [acc.provider for acc in user.social_accounts]
+        try:
+            from models.model import SocialAccount as _SA  # noqa: F401
+
+            if hasattr(user, "social_accounts") and user.social_accounts:
+                social_providers = [acc.provider for acc in user.social_accounts]
+        except ImportError:
+            pass
 
         return UserResponse(
             id=user.id,
@@ -399,10 +409,7 @@ class AuthService:
 
         return (
             subscription.status
-            in (
-                SubscriptionStatus.CANCELED,
-                SubscriptionStatus.EXPIRED,
-            )
+            in (SubscriptionStatus.CANCELED, SubscriptionStatus.EXPIRED)
             and subscription.ended_at is not None
             and subscription.ended_at > now
         )
@@ -487,10 +494,7 @@ class AuthService:
             and subscription.ended_at
             and subscription.ended_at > now
             and subscription.status
-            in (
-                SubscriptionStatus.ACTIVE,
-                SubscriptionStatus.CANCELED,
-            )
+            in (SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELED)
         ):
             subscription.status = SubscriptionStatus.ACTIVE
             subscription.auto_renew = True
