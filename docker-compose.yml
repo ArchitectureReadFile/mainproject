@@ -143,7 +143,7 @@ services:
   celery_worker:
     <<: *backend-common
     container_name: celery_worker_container
-    command: celery -A celery_app worker --loglevel=info --concurrency=1
+    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q chat_queue,document_queue,platform_queue
   celery_beat:
     <<: *backend-common
     container_name: celery_beat_container
