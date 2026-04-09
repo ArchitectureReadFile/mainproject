@@ -86,6 +86,25 @@ class ExportService:
         build_group_export.delay(job.id)
         return self._to_response(job)
 
+    def get_latest_job_for_group(
+        self,
+        *,
+        user_id: int,
+        group_id: int,
+    ) -> ExportJobResponse | None:
+        """현재 사용자/그룹의 최근 export job을 조회"""
+        self.group_service.assert_review_view_permission(user_id, group_id)
+
+        job = self.repository.get_latest_job_for_user_group(
+            user_id=user_id,
+            group_id=group_id,
+        )
+        if not job:
+            return None
+
+        self._expire_if_needed(job)
+        return self._to_response(job)
+
     def get_job(self, *, job_id: int, user_id: int) -> ExportJobResponse:
         """export job 상태를 조회"""
         job = self._get_owned_job(job_id=job_id, user_id=user_id)

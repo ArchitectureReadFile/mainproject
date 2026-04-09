@@ -1,6 +1,7 @@
+from typing import Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -20,6 +21,7 @@ def get_export_service(
     db: Session = Depends(get_db),
     group_service: GroupService = Depends(get_group_service),
 ) -> ExportService:
+    """ExportService 의존성을 생성"""
     return ExportService(
         repository=ExportRepository(db),
         group_service=group_service,
@@ -36,6 +38,19 @@ def create_export_job(
     return service.create_job(
         user_id=current_user.id,
         group_id=payload.group_id,
+    )
+
+
+@router.get("/latest", response_model=Optional[ExportJobResponse])
+def get_latest_export_job(
+    group_id: int = Query(...),
+    current_user: User = Depends(get_current_user),
+    service: ExportService = Depends(get_export_service),
+):
+    """현재 사용자/그룹의 최근 export job을 조회"""
+    return service.get_latest_job_for_group(
+        user_id=current_user.id,
+        group_id=group_id,
     )
 
 
@@ -83,6 +98,6 @@ def download_export_file(
         path=file_path,
         media_type="application/zip",
         headers={
-            "Content-Disposition": (f"attachment; filename*=UTF-8''{encoded_file_name}")
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_file_name}"
         },
     )

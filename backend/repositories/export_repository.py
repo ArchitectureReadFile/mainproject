@@ -188,3 +188,21 @@ class ExportRepository:
             .order_by(Document.created_at.asc(), Document.id.asc())
             .all()
         )
+
+    def get_latest_job_for_user_group(
+        self,
+        *,
+        user_id: int,
+        group_id: int,
+    ) -> ExportJob | None:
+        """특정 사용자/그룹의 가장 최근 export job을 조회"""
+        return (
+            self.db.query(ExportJob)
+            .options(joinedload(ExportJob.group))
+            .filter(
+                ExportJob.user_id == user_id,
+                ExportJob.group_id == group_id,
+            )
+            .order_by(ExportJob.created_at.desc(), ExportJob.id.desc())
+            .first()
+        )

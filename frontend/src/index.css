@@ -99,3 +99,12 @@
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+@keyframes export-progress {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
