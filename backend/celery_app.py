@@ -20,6 +20,7 @@ celery_app = Celery(
         "tasks.precedent_task",
         "tasks.platform_sync_task",
         "tasks.subscription_task",
+        "tasks.export_task",
     ],
 )
 
@@ -53,6 +54,10 @@ celery_app.conf.update(
         "reconcile-subscriptions-every-hour": {
             "task": "tasks.subscription_task.reconcile_subscriptions",
             "schedule": crontab(minute=0),
-        }
+        },
+        "cleanup-expired-exports-every-10-minutes": {
+            "task": "tasks.export_task.cleanup_expired_exports",
+            "schedule": crontab(minute="*/10"),
+        },
     },
 )

@@ -11,6 +11,7 @@ import UploadPage from './pages/Upload/index.jsx'
 import WorkspacePage from './pages/Workspace/index.jsx'
 import GroupDetailPage from './pages/Workspace/GroupDetailPage.jsx'
 import ChatWidget from './features/chat/components/ChatWidget.jsx'
+import ExportMonitor from './features/export/components/ExportMonitor.jsx'
 
 export default function App() {
   const location = useLocation()
@@ -41,10 +42,10 @@ export default function App() {
       <div className="fixed top-0 left-0 w-full z-50">
         <Header onMenuOpenChange={setIsMenuOpen} />
       </div>
+
       <main className="flex-1 pt-[72px]">
         <Routes>
           <Route path="/" element={<LandingPage />} />
-
           <Route
             path="/workspace"
             element={
@@ -95,6 +96,9 @@ export default function App() {
           />
         </Routes>
       </main>
+
+      <ExportMonitor />
+
       {!hideChatWidget && <ChatWidget />}
       <div className="snap-start">
         <Footer />
