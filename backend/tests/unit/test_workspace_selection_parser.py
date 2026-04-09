@@ -94,8 +94,11 @@ class TestChatProcessorWorkspaceReflection:
         redis.get.return_value = None
         db.query.return_value.filter.return_value.first.return_value = session
         db.query.return_value.filter.return_value.order_by.return_value.all.return_value = messages
+
+        processor.chat_repo.get_session_by_id_and_user.return_value = session
+        processor.chat_repo.get_unsummarized_messages.return_value = messages
+
         processor.process_chat(
-            db,
             redis,
             user_id=10,
             session_id=1,
@@ -113,7 +116,7 @@ class TestChatProcessorWorkspaceReflection:
             patch("services.chat.chat_processor.KnowledgeRetrievalService"),
             patch("services.chat.chat_processor.AnswerContextBuilder"),
         ):
-            p = ChatProcessor()
+            p = ChatProcessor(MagicMock(), MagicMock())
         p.llm_client = MagicMock()
         p.llm_client.stream_chat.return_value = []
         p.knowledge_retrieval = MagicMock()
