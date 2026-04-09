@@ -33,6 +33,13 @@ class DocumentDetailResponse(BaseModel):
     assignee_username: Optional[str] = None
     feedback: Optional[str] = None
     can_delete: bool = False
+
+    original_filename: Optional[str] = None
+    original_content_type: Optional[str] = None
+
+    preview_status: Optional[str] = None
+    preview_available: bool = False
+
     document_type: Optional[str] = None
     category: Optional[str] = None
     summary_text: Optional[str] = None

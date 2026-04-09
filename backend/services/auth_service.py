@@ -12,6 +12,7 @@ from models.model import (
     Group,
     GroupPendingReason,
     GroupStatus,
+    SocialAccount,
     Subscription,
     SubscriptionPlan,
     SubscriptionStatus,
@@ -75,20 +76,12 @@ class AuthService:
             verification_data = verification_data.decode("utf-8")
 
         if verification_data.startswith("social:"):
-            try:
-                from models.model import SocialAccount
-
-                _, provider, provider_id = verification_data.split(":", 2)
-                social_account = SocialAccount(
-                    user_id=user.id,
-                    provider=provider,
-                    provider_id=provider_id,
-                    email=email,
-                )
-                db.add(social_account)
-                db.flush()
-            except ImportError:
-                pass
+            _, provider, provider_id = verification_data.split(":", 2)
+            social_account = SocialAccount(
+                user_id=user.id, provider=provider, provider_id=provider_id, email=email
+            )
+            db.add(social_account)
+            db.flush()
 
         subscription = Subscription(
             user_id=user.id,
@@ -331,13 +324,8 @@ class AuthService:
         subscription = self.get_effective_subscription(db, user.id)
 
         social_providers = []
-        try:
-            from models.model import SocialAccount as _SA  # noqa: F401
-
-            if hasattr(user, "social_accounts") and user.social_accounts:
-                social_providers = [acc.provider for acc in user.social_accounts]
-        except ImportError:
-            pass
+        if hasattr(user, "social_accounts") and user.social_accounts:
+            social_providers = [acc.provider for acc in user.social_accounts]
 
         return UserResponse(
             id=user.id,

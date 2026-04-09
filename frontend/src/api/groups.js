@@ -19,12 +19,6 @@ export async function getMyGroups() {
 }
 
 
-// GET /groups/invitations — 내 초대 목록
-export async function getMyInvitations() {
-    const { data } = await client.get('/groups/invitations')
-    return data
-}
-
 
 // GET    /api/groups/:group_id 그룹 상세
 export async function getGroupDetail(groupId) {
@@ -134,8 +128,16 @@ export async function getGroupDocumentDetail(groupId, docId) {
 }
 
 
-export function getGroupDocumentOriginalUrl(groupId, docId) {
-    return `/api/groups/${groupId}/documents/${docId}/original`
+export function getGroupDocumentPreviewUrl(groupId, docId) {
+    return `/api/groups/${groupId}/documents/${docId}/preview`
+}
+
+
+/**
+ * 그룹 문서 원본 다운로드 URL을 반환
+ */
+export function getGroupDocumentDownloadUrl(groupId, docId) {
+    return `/api/groups/${groupId}/documents/${docId}/download`
 }
 
 
@@ -165,6 +167,8 @@ export async function getPendingDocuments(
     })
     return data
 }
+
+
 
 
 /**

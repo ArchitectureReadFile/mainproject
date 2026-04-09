@@ -6,11 +6,11 @@ import {
     getDocumentComments,
     getGroupDetail,
     getGroupDocumentDetail,
-    getGroupDocumentOriginalUrl,
+    getGroupDocumentDownloadUrl,
+    getGroupDocumentPreviewUrl,
     getMembers,
     rejectDocument,
 } from '@/api/groups'
-import { downloadSummaryPdf } from '@/api/documents'
 import { Avatar, AvatarFallback } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -375,12 +375,19 @@ export default function DocumentPage() {
     const pendingZoomCenterRef = useRef(null)
 
     const backToListUrl = `/workspace/${group_id}${location.search || '?tab=documents'}`
-    const originalPdfUrl = getGroupDocumentOriginalUrl(group_id, doc_id)
+    const previewPdfUrl = getGroupDocumentPreviewUrl(group_id, doc_id)
+    const downloadUrl = getGroupDocumentDownloadUrl(group_id, doc_id)
 
     const STATUS_MESSAGE = {
         PENDING: 'AI 요약 대기 중입니다. 잠시 후 다시 확인해주세요.',
         PROCESSING: 'AI가 문서를 분석하고 있습니다. 잠시 후 요약이 표시됩니다.',
         FAILED: '요약 생성에 실패했습니다. 다시 업로드하거나 관리자에게 문의해주세요.',
+    }
+
+    const PREVIEW_STATUS_MESSAGE = {
+        PENDING: '미리보기 PDF를 준비 중입니다. 잠시 후 다시 확인해주세요.',
+        PROCESSING: '문서 미리보기를 생성하고 있습니다. 잠시 후 다시 확인해주세요.',
+        FAILED: '미리보기 변환에 실패했습니다. 원본 파일을 다운로드해 확인해주세요.',
     }
 
     /**
@@ -681,6 +688,11 @@ export default function DocumentPage() {
     const s = doc
     const statusMessage = STATUS_MESSAGE[s?.status] ?? null
     const hasSummary = Boolean(s?.summary_text)
+
+    const previewStatus = s?.preview_status ?? null
+    const previewAvailable = Boolean(s?.preview_available)
+    const previewStatusMessage = PREVIEW_STATUS_MESSAGE[previewStatus] ?? null
+    const canRenderPreview = previewAvailable && previewStatus === 'READY'
 
     const isDeletedDocument = Boolean(doc?.delete_scheduled_at)
     const canDelete = Boolean(doc?.can_delete) && !isDeletedDocument
@@ -1127,13 +1139,15 @@ export default function DocumentPage() {
         }
     }
 
-    const handleDownload = async () => {
-        if (!s.summary_id) return
-        try {
-            await downloadSummaryPdf(s.summary_id, s.case_number, s.case_name)
-        } catch {
-            toast.error('다운로드에 실패했습니다.')
-        }
+    /**
+     * 원본 문서 다운로드
+     */
+    const handleDownload = () => {
+        const link = document.createElement('a')
+        link.href = downloadUrl
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
     }
 
     const handleDeleteConfirm = async () => {
@@ -1496,28 +1510,37 @@ export default function DocumentPage() {
                         </>
                     )}
 
-                    {doc.summary_id && (
+                    {doc && (
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button variant="outline" size="sm" onClick={handleDownload} className="gap-1.5">
                                     <Download size={14} />
-                                    PDF 다운로드
+                                    원본 다운로드
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>요약본 PDF를 다운로드합니다</TooltipContent>
+                            <TooltipContent>원본 파일을 다운로드합니다</TooltipContent>
                         </Tooltip>
                     )}
 
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button asChild variant="outline" size="sm" className="gap-1.5">
-                                <a href={originalPdfUrl} target="_blank" rel="noreferrer">
+                            {canRenderPreview ? (
+                                <Button asChild variant="outline" size="sm" className="gap-1.5">
+                                    <a href={previewPdfUrl} target="_blank" rel="noreferrer">
+                                        <ExternalLink size={14} />
+                                        새 탭으로 열기
+                                    </a>
+                                </Button>
+                            ) : (
+                                <Button variant="outline" size="sm" className="gap-1.5" disabled>
                                     <ExternalLink size={14} />
                                     새 탭으로 열기
-                                </a>
-                            </Button>
+                                </Button>
+                            )}
                         </TooltipTrigger>
-                        <TooltipContent>원본 PDF를 새 탭에서 엽니다</TooltipContent>
+                        <TooltipContent>
+                            {canRenderPreview ? '미리보기 PDF를 새 탭에서 엽니다' : '미리보기가 아직 준비되지 않았습니다'}
+                        </TooltipContent>
                     </Tooltip>
 
                     {canDelete && (
@@ -1818,10 +1841,21 @@ export default function DocumentPage() {
                             <div className="flex h-full items-center justify-center p-8 text-sm text-destructive">
                                 {pdfError}
                             </div>
+                        ) : !canRenderPreview ? (
+                            <div className="flex h-full items-center justify-center p-8">
+                                <div className="max-w-md rounded-xl border bg-background px-6 py-5 text-center">
+                                    <p className="text-sm font-medium">
+                                        {previewStatusMessage || '미리보기를 준비할 수 없습니다.'}
+                                    </p>
+                                    <p className="mt-2 text-xs text-muted-foreground">
+                                        원본 다운로드는 계속 사용할 수 있습니다.
+                                    </p>
+                                </div>
+                            </div>
                         ) : (
                             <div className="mx-auto flex w-fit min-w-full flex-col items-center gap-4 p-4">
                                 <PdfDocument
-                                    file={originalPdfUrl}
+                                    file={previewPdfUrl}
                                     options={PDF_OPTIONS}
                                     loading={
                                         <div className="flex items-center justify-center py-20 text-muted-foreground">

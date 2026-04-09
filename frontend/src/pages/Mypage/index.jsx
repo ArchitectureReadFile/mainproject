@@ -2,15 +2,25 @@ import { Button } from '@/components/ui/Button'
 import { Tabs, TabsContent } from '@/components/ui/Tabs'
 import { cn } from '@/lib/utils'
 import { Bell, ShieldCheck } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import EmailSection from './components/EmailSection'
 import NotificationSection from './components/NotificationSection'
 import ProfileSection from './components/ProfileSection'
 import SecuritySection from './components/SecuritySection'
+import SocialSection from './components/SocialSection'
 import SubscriptionSection from './components/SubscriptionSection'
 
 export default function Mypage() {
   const [activeTab, setActiveTab] = useState('account')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  useEffect(() => {
+    if (searchParams.get('social_link') === 'success') {
+      searchParams.delete('social_link')
+      setSearchParams(searchParams)
+    }
+  }, [searchParams, setSearchParams])
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-12">
@@ -56,6 +66,7 @@ export default function Mypage() {
                 </div>
 
                 <ProfileSection />
+                <SocialSection />
                 <SubscriptionSection />
                 <EmailSection />
                 <SecuritySection />

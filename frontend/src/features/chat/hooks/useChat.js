@@ -15,6 +15,8 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
     const [referenceGroup, setReferenceGroup] = useState(initialReferenceGroup || null);
     const [currentSessionId, setCurrentSessionId] = useState(null);
     const ws = useRef(null);
+    const intentionalClose = useRef(false);
+    const reconnectTimer = useRef(null);
 
     useEffect(() => {
         setReferenceTitle(initialReferenceTitle || null);
@@ -28,7 +30,7 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
         }
 
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-        const wsUrl = `${protocol}://${window.location.host}/api/ws/notifications/${user.id}`
+        const wsUrl = `${protocol}://${window.location.host}/api/ws/chat/${sessionId}/${user.id}`
         ws.current = new WebSocket(wsUrl);
 
         ws.current.onopen = () => {
@@ -94,7 +96,8 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
         };
 
         ws.current.onclose = () => {
-            setTimeout(() => {
+            if (intentionalClose.current) return;
+            reconnectTimer.current = setTimeout(() => {
                 connectWebSocket();
             }, 3000);
         };
@@ -138,8 +141,11 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
 
         return () => {
             setIsLoading(false);
+            intentionalClose.current = true;
+            clearTimeout(reconnectTimer.current);
             if (ws.current) {
                 ws.current.close();
+                ws.current = null;
             }
         };
     }, [sessionId, user, connectWebSocket]);
