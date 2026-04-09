@@ -68,7 +68,7 @@ def classify_annex_text(text: str) -> AnnexType:
     Returns:
         "plain_text" | "table" | "flowchart" | "diagram_like"
     """
-    if not text:
+    if not text or not text.strip():
         return "plain_text"
 
     # 1. box-drawing 문자 비율
@@ -155,6 +155,10 @@ def _normalize_table(text: str) -> str:
         seen.add(stripped)
         result_lines.append(stripped)
 
+    # 헤더만 남은 경우(실질 내용 없음) → 빈 문자열 반환
+    if len(result_lines) == 1:
+        return ""
+
     return "\n".join(result_lines).strip()
 
 
@@ -185,6 +189,10 @@ def _normalize_flowchart(text: str) -> str:
         result_lines.append(f"{step_no}. {stripped}")
         step_no += 1
 
+    # 헤더+절차: 만 남은 경우 → 빈 문자열 반환
+    if len(result_lines) <= 2:
+        return ""
+
     return "\n".join(result_lines).strip()
 
 
@@ -210,6 +218,10 @@ def _normalize_diagram_like(text: str) -> str:
         seen.add(stripped)
         result_lines.append(stripped)
 
+    # 헤더만 남은 경우 → 빈 문자열 반환
+    if len(result_lines) == 1:
+        return ""
+
     return "\n".join(result_lines).strip()
 
 
@@ -229,8 +241,9 @@ def normalize_annex_for_rag(text: str, annex_type: AnnexType) -> str:
     Returns:
         검색용 정규화 텍스트. 원문보다 짧거나 같다.
         레이아웃 노이즈는 제거, 의미 있는 내용은 보존.
+        빈 문자열이거나 공백만 있으면 "" 반환.
     """
-    if not text:
+    if not text or not text.strip():
         return ""
     if annex_type == "plain_text":
         return _normalize_plain_text(text)

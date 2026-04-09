@@ -17,9 +17,9 @@ mode="all":
     group_id 전체 범위 검색.
 
 mode="documents":
-    workspace_selection.document_ids whitelist 범위만 검색.
-    group_id + document_ids 이중 필터 (BM25/Qdrant 저장소 레벨 + Python 재검증).
-    전체 group 검색으로 fallback 없음 (fail-closed).
+    미구현 (11단계 예정). fail-closed 정책 — 빈 결과 반환.
+    전체 group 검색으로 fallback 없음.
+    retrieve_group_documents() 호출하지 않음.
 """
 
 from __future__ import annotations
@@ -45,22 +45,22 @@ class WorkspaceKnowledgeRetriever:
             return []
 
         selection = request.workspace_selection
-        document_ids: list[int] | None = None
 
-        if selection.mode == "documents":
-            if not selection.document_ids:
-                # 방어 코드: parser에서 이미 막히지만 도달 시 fail-closed
+        if selection is None or selection.mode == "documents":
+            # mode="documents" 는 Qdrant/BM25 document_ids 필터 미구현 (11단계 예정).
+            # 전체 group 검색으로 fallback하지 않는다 (fail-closed).
+            if selection is not None and selection.mode == "documents":
                 logger.warning(
-                    "[WorkspaceKnowledgeRetriever] mode='documents' + empty ids → 빈 결과"
+                    "[WorkspaceKnowledgeRetriever] mode='documents' → fail-closed, 빈 결과"
                 )
-                return []
-            document_ids = selection.document_ids
+            return []
 
+        # mode="all"
         grouped = retrieve_group_documents(
             query=request.query,
             group_id=request.group_id,
             top_k=request.top_k,
             search_mode=search_mode,
-            document_ids=document_ids,
+            document_ids=None,
         )
         return [workspace_grouped_to_item(g) for g in grouped]
