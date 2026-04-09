@@ -12,6 +12,7 @@ from models.model import (
     Group,
     GroupPendingReason,
     GroupStatus,
+    SocialAccount,
     Subscription,
     SubscriptionPlan,
     SubscriptionStatus,
@@ -33,7 +34,7 @@ from schemas.auth import (
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "test-secret-key-for-ci")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(
     os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30")
@@ -53,7 +54,8 @@ class AuthService:
     ) -> UserResponse:
         email = payload.email.strip().lower()
 
-        if not redis_client.get(f"email_verified:{email}"):
+        verification_data = redis_client.get(f"email_verified:{email}")
+        if not verification_data:
             raise AppException(ErrorCode.USER_EMAIL_NOT_VERIFIED)
 
         username = payload.username.strip()
@@ -69,6 +71,17 @@ class AuthService:
         )
         db.add(user)
         db.flush()
+
+        if isinstance(verification_data, bytes):
+            verification_data = verification_data.decode("utf-8")
+
+        if verification_data.startswith("social:"):
+            _, provider, provider_id = verification_data.split(":", 2)
+            social_account = SocialAccount(
+                user_id=user.id, provider=provider, provider_id=provider_id, email=email
+            )
+            db.add(social_account)
+            db.flush()
 
         subscription = Subscription(
             user_id=user.id,
@@ -199,7 +212,7 @@ class AuthService:
         self._clear_login_failures(redis_client, limit_key)
 
         access_token, refresh_token = self._issue_tokens(redis_client, email)
-        return self.to_user_response(user), access_token, refresh_token
+        return self.to_user_response(db, user), access_token, refresh_token
 
     def update_username(
         self, db: Session, user_id: int, new_username: str
@@ -216,7 +229,7 @@ class AuthService:
             user.username = new_username
             db.commit()
 
-        return self.to_user_response(user)
+        return self.to_user_response(db, user)
 
     def update_password(
         self, db: Session, user_id: int, payload: UpdatePasswordRequest
@@ -312,6 +325,10 @@ class AuthService:
     def to_user_response(self, db: Session, user: User) -> UserResponse:
         subscription = self.get_effective_subscription(db, user.id)
 
+        social_providers = []
+        if hasattr(user, "social_accounts") and user.social_accounts:
+            social_providers = [acc.provider for acc in user.social_accounts]
+
         return UserResponse(
             id=user.id,
             email=user.email,
@@ -330,6 +347,7 @@ class AuthService:
                 if subscription
                 else None
             ),
+            social_providers=social_providers,
         )
 
     def get_user_from_token(self, db: Session, token: str | None) -> User:
@@ -370,7 +388,6 @@ class AuthService:
         redis_client.delete(f"attempts:{key}", f"block:{key}")
 
     def has_full_workspace_access(self, db: Session, user_id: int) -> bool:
-        """워크스페이스의 전체 사용 권한이 있는지 반환"""
         subscription = self.get_effective_subscription(db, user_id)
         now = utc_now_naive()
 
@@ -393,7 +410,6 @@ class AuthService:
     def ensure_subscription_state(
         self, db: Session, subscription: Subscription | None
     ) -> Subscription | None:
-        """구독 상태 보정용 함수, 구독 상태를 현재 시각 기준으로 정규화"""
         if not subscription:
             return None
 
@@ -436,7 +452,6 @@ class AuthService:
     def get_subscription_or_create_free(
         self, db: Session, user_id: int
     ) -> Subscription:
-        """사용자의 구독 레코드 반환"""
         subscription = (
             db.query(Subscription).filter(Subscription.user_id == user_id).first()
         )
@@ -457,7 +472,6 @@ class AuthService:
     def subscribe_premium(
         self, db: Session, user_id: int, payload: SubscribePremiumRequest
     ) -> UserResponse:
-        """프리미엄 구독으로 변경"""
         if not payload.confirm:
             raise AppException(ErrorCode.AUTH_FORBIDDEN)
 
@@ -491,12 +505,7 @@ class AuthService:
             db.query(Group)
             .filter(
                 Group.owner_user_id == user_id,
-                Group.status.in_(
-                    [
-                        GroupStatus.DELETE_PENDING,
-                        GroupStatus.BLOCKED,
-                    ]
-                ),
+                Group.status.in_([GroupStatus.DELETE_PENDING, GroupStatus.BLOCKED]),
                 Group.pending_reason == GroupPendingReason.SUBSCRIPTION_EXPIRED,
             )
             .all()
@@ -516,12 +525,10 @@ class AuthService:
     def cancel_subscription(
         self, db: Session, user_id: int, payload: CancelSubscriptionRequest
     ) -> UserResponse:
-        """구독 해지(자동 갱신 해지)"""
         if not payload.confirm:
             raise AppException(ErrorCode.AUTH_FORBIDDEN)
 
         user = db.query(User).filter(User.id == user_id).first()
-
         if not user:
             raise AppException(ErrorCode.USER_NOT_FOUND)
 
@@ -542,14 +549,11 @@ class AuthService:
         return self.to_user_response(db, user)
 
     def get_effective_subscription(self, db: Session, user_id: int) -> Subscription:
-        """현재 시각 기준으로 유효한 구독 상태를 반환"""
         subscription = self.get_subscription_or_create_free(db, user_id)
         return self.ensure_subscription_state(db, subscription)
 
     def is_premium_active(self, db: Session, user_id: int) -> bool:
-        """사용자가 현재 프리미엄 권한을 사용할 수 있는지 반환"""
         subscription = self.get_effective_subscription(db, user_id)
-
         return (
             subscription.plan == SubscriptionPlan.PREMIUM
             and subscription.status == SubscriptionStatus.ACTIVE
