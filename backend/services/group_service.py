@@ -17,7 +17,6 @@ from models.model import (
     utc_now_naive,
 )
 from repositories.group_repository import GroupRepository
-from repositories.notification_repository import NotificationRepository
 from schemas.group import (
     GroupDetailResponse,
     GroupSummaryResponse,
@@ -32,14 +31,21 @@ from services.notification_service import NotificationService
 
 
 class GroupService:
-    def __init__(self, repository: GroupRepository, db: Session):
+    def __init__(
+        self,
+        repository: GroupRepository,
+        auth_service: AuthService,
+        notification_service: NotificationService,
+        db: Session,
+    ):
         self.repository = repository
+        self.auth_service = auth_service
+        self.notification_service = notification_service
         self.db = db
-        self.auth_service = AuthService()
 
     def _check_premium(self, user_id: int):
         """프리미엄 플랜 활성 여부를 검사"""
-        if not self.auth_service.has_full_workspace_access(self.db, user_id):
+        if not self.auth_service.has_full_workspace_access(user_id):
             raise AppException(ErrorCode.GROUP_NOT_PREMIUM)
 
     def _check_owner(self, user_id: int, group_id: int) -> Group:
@@ -128,7 +134,7 @@ class GroupService:
 
     def _get_workspace_access_state(self, user_id: int) -> tuple[bool, object | None]:
         """현재 시각 기준으로 사용자의 워크스페이스 전체 접근 가능 여부를 계산"""
-        subscription = self.auth_service.get_effective_subscription(self.db, user_id)
+        subscription = self.auth_service.get_effective_subscription(user_id)
         now = utc_now_naive()
 
         if not subscription or subscription.plan != SubscriptionPlan.PREMIUM:
@@ -390,15 +396,12 @@ class GroupService:
             reason=GroupPendingReason.OWNER_DELETE_REQUEST,
         )
 
-        notif_service = NotificationService()
-        notif_repo = NotificationRepository(self.repository.db)
         active_members = self.repository.get_members(group_id)
 
         for _, user in active_members:
             if user.id == user_id:
                 continue
-            notif_service.create_notification_sync(
-                repository=notif_repo,
+            self.notification_service.create_notification_sync(
                 user_id=user.id,
                 actor_user_id=user_id,
                 group_id=group_id,
@@ -457,9 +460,7 @@ class GroupService:
                 username=user.username,
                 role=member.role,
                 joined_at=member.joined_at,
-                is_premium=self.auth_service.has_full_workspace_access(
-                    self.db, user.id
-                ),
+                is_premium=self.auth_service.has_full_workspace_access(user.id),
                 has_owned_group=self._has_effective_owned_group(user.id),
                 is_active=user.is_active,
             )
@@ -538,10 +539,7 @@ class GroupService:
                 target.id, group_id, inviter_id, role
             )
 
-        notif_service = NotificationService()
-        notif_repo = NotificationRepository(self.repository.db)
-        notif_service.create_notification_sync(
-            repository=notif_repo,
+        self.notification_service.create_notification_sync(
             user_id=target.id,
             actor_user_id=inviter_id,
             group_id=group_id,
@@ -619,10 +617,7 @@ class GroupService:
 
         self.repository.remove_member(target_membership)
 
-        notif_service = NotificationService()
-        notif_repo = NotificationRepository(self.repository.db)
-        notif_service.create_notification_sync(
-            repository=notif_repo,
+        self.notification_service.create_notification_sync(
             user_id=target_id,
             actor_user_id=remover_id,
             group_id=group_id,
@@ -686,7 +681,7 @@ class GroupService:
         if self._has_effective_owned_group(target_id):
             raise AppException(ErrorCode.GROUP_TRANSFER_TARGET_ALREADY_OWNER)
 
-        if not self.auth_service.has_full_workspace_access(self.db, target_id):
+        if not self.auth_service.has_full_workspace_access(target_id):
             raise AppException(ErrorCode.GROUP_NOT_PREMIUM)
 
         self.repository.transfer_owner(group, user_id, target_id)

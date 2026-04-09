@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from database import get_db
+from dependencies import get_auth_service, get_notification_service
 from models.model import User
 from repositories.group_repository import GroupRepository
 from routers.auth import get_current_user
@@ -14,13 +15,19 @@ from schemas.group import (
     MemberRoleChangeRequest,
     MyGroupsResponse,
 )
+from services.auth_service import AuthService
 from services.group_service import GroupService
+from services.notification_service import NotificationService
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
 
-def get_group_service(db: Session = Depends(get_db)) -> GroupService:
-    return GroupService(GroupRepository(db), db)
+def get_group_service(
+    db: Session = Depends(get_db),
+    auth_service: AuthService = Depends(get_auth_service),
+    notification_service: NotificationService = Depends(get_notification_service),
+) -> GroupService:
+    return GroupService(GroupRepository(db), auth_service, notification_service, db)
 
 
 @router.post(

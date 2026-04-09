@@ -41,7 +41,7 @@ from models.platform_knowledge import PlatformSyncFailure, PlatformSyncRun
 from routers.auth import get_current_user
 from services.auth_service import AuthService
 
-auth_service = AuthService()
+auth_service = AuthService(None)
 
 # ── 픽스처 ────────────────────────────────────────────────────────────────────
 

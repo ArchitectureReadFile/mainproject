@@ -31,7 +31,7 @@ from tests.dummy_data import documents, groups, summaries, users
 
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
-auth_service = AuthService()
+auth_service = AuthService(None)
 
 engine = create_engine(
     os.environ["DATABASE_URL"],

@@ -15,7 +15,7 @@ import json
 from models.model import Document, DocumentApproval, ReviewStatus, Summary
 from services.auth_service import AuthService
 
-auth_service = AuthService()
+auth_service = AuthService(None)
 
 GROUP_ID = 1  # authenticated_client fixture seed 기준
 

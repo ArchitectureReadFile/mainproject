@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends
 from redis import Redis
-from sqlalchemy.orm import Session
 
-from dependencies import get_current_user_optional, get_db, get_email_service, get_redis
+from dependencies import get_current_user_optional, get_email_service, get_redis
 from models.model import User
 from schemas.email import EmailRequest, EmailVerifyRequest
 from services.email_service import EmailService
@@ -14,11 +13,10 @@ router = APIRouter(prefix="/email", tags=["email"])
 def send_verification_code(
     payload: EmailRequest,
     redis: Redis = Depends(get_redis),
-    db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
     email_service: EmailService = Depends(get_email_service),
 ):
-    email_service.send_verification_code(db, redis, payload.email, current_user)
+    email_service.send_verification_code(redis, payload.email, current_user)
 
 
 @router.post("/verify-code")

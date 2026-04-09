@@ -20,7 +20,7 @@ from models.model import Document, DocumentApproval, Group, GroupMember, ReviewS
 from services.auth_service import AuthService
 from tests.dummy_data import groups, users
 
-auth_service = AuthService()
+auth_service = AuthService(None)
 
 
 @pytest.fixture

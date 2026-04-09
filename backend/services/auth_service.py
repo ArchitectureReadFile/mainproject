@@ -4,12 +4,10 @@ from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from redis import Redis
-from sqlalchemy.orm import Session
 
 from errors.error_codes import ErrorCode
 from errors.exceptions import AppException
 from models.model import (
-    Group,
     GroupPendingReason,
     GroupStatus,
     SocialAccount,
@@ -19,6 +17,7 @@ from models.model import (
     User,
     utc_now_naive,
 )
+from repositories.auth_repository import AuthRepository
 from schemas.auth import (
     CancelSubscriptionRequest,
     ConfirmAccountRequest,
@@ -49,9 +48,10 @@ LOGIN_RATE_LIMIT_BLOCK_SECONDS = int(os.getenv("LOGIN_RATE_LIMIT_BLOCK_SECONDS",
 
 
 class AuthService:
-    def signup(
-        self, db: Session, redis_client: Redis, payload: SignupRequest
-    ) -> UserResponse:
+    def __init__(self, auth_repo: AuthRepository):
+        self.auth_repo = auth_repo
+
+    def signup(self, redis_client: Redis, payload: SignupRequest) -> UserResponse:
         email = payload.email.strip().lower()
 
         verification_data = redis_client.get(f"email_verified:{email}")
@@ -59,9 +59,9 @@ class AuthService:
             raise AppException(ErrorCode.USER_EMAIL_NOT_VERIFIED)
 
         username = payload.username.strip()
-        if db.query(User).filter(User.email == email).first():
+        if self.auth_repo.get_user_by_email(email):
             raise AppException(ErrorCode.USER_EMAIL_ALREADY_EXISTS)
-        if db.query(User).filter(User.username == username).first():
+        if self.auth_repo.get_user_by_username(username):
             raise AppException(ErrorCode.USER_USERNAME_ALREADY_EXISTS)
 
         user = User(
@@ -69,8 +69,7 @@ class AuthService:
             username=username,
             password=self.hash_password(payload.password),
         )
-        db.add(user)
-        db.flush()
+        self.auth_repo.create_user(user)
 
         if isinstance(verification_data, bytes):
             verification_data = verification_data.decode("utf-8")
@@ -80,8 +79,7 @@ class AuthService:
             social_account = SocialAccount(
                 user_id=user.id, provider=provider, provider_id=provider_id, email=email
             )
-            db.add(social_account)
-            db.flush()
+            self.auth_repo.create_social_account(social_account)
 
         subscription = Subscription(
             user_id=user.id,
@@ -89,21 +87,18 @@ class AuthService:
             status=SubscriptionStatus.ACTIVE,
             auto_renew=False,
         )
-        db.add(subscription)
-        db.commit()
+        self.auth_repo.create_subscription(subscription)
 
         redis_client.delete(f"email_verified:{email}")
-        return self.to_user_response(db, user)
+        return self.to_user_response(user)
 
-    def login(
-        self, db: Session, redis_client: Redis, payload: LoginRequest, client_ip: str
-    ):
+    def login(self, redis_client: Redis, payload: LoginRequest, client_ip: str):
         email = payload.email.strip().lower()
         limit_key = f"{client_ip}:{email}"
 
         self._check_login_rate_limit(redis_client, limit_key)
 
-        user = db.query(User).filter(User.email == email).first()
+        user = self.auth_repo.get_user_by_email(email)
         if not user or not self.verify_password(payload.password, user.password):
             self._record_login_failure(redis_client, limit_key)
             raise AppException(ErrorCode.USER_INVALID_CREDENTIALS)
@@ -117,9 +112,9 @@ class AuthService:
         self._clear_login_failures(redis_client, limit_key)
 
         access_token, refresh_token = self._issue_tokens(redis_client, email)
-        return self.to_user_response(db, user), access_token, refresh_token
+        return self.to_user_response(user), access_token, refresh_token
 
-    def refresh(self, db: Session, redis_client: Redis, refresh_token: str | None):
+    def refresh(self, redis_client: Redis, refresh_token: str | None):
         if not refresh_token:
             raise AppException(ErrorCode.AUTH_REFRESH_TOKEN_MISSING)
 
@@ -131,7 +126,7 @@ class AuthService:
             stored_email = stored_email.decode("utf-8")
 
         email = self.decode_refresh_token(refresh_token)
-        user = db.query(User).filter(User.email == email).first()
+        user = self.auth_repo.get_user_by_email(email)
 
         if not user or not user.is_active or user.email != stored_email:
             raise AppException(ErrorCode.AUTH_USER_INVALID)
@@ -141,45 +136,43 @@ class AuthService:
             redis_client, user.email
         )
 
-        return self.to_user_response(db, user), new_access_token, new_refresh_token
+        return self.to_user_response(user), new_access_token, new_refresh_token
 
     def logout(self, redis_client: Redis, refresh_token: str | None):
         if refresh_token:
             redis_client.delete(f"refresh_token:{refresh_token}")
 
     def confirm_account(
-        self, db: Session, redis_client: Redis, payload: ConfirmAccountRequest
+        self, redis_client: Redis, payload: ConfirmAccountRequest
     ) -> UserResponse:
         email = payload.email.strip().lower()
 
         if not redis_client.get(f"email_verified:{email}"):
             raise AppException(ErrorCode.USER_EMAIL_NOT_VERIFIED)
 
-        user = db.query(User).filter(User.email == email).first()
+        user = self.auth_repo.get_user_by_email(email)
         if not user:
             raise AppException(ErrorCode.USER_ACCOUNT_NOT_FOUND)
 
-        return self.to_user_response(db, user)
+        return self.to_user_response(user)
 
-    def reset_password(
-        self, db: Session, redis_client: Redis, payload: ResetPasswordRequest
-    ):
+    def reset_password(self, redis_client: Redis, payload: ResetPasswordRequest):
         email = payload.email.strip().lower()
 
         if not redis_client.get(f"email_verified:{email}"):
             raise AppException(ErrorCode.USER_EMAIL_NOT_VERIFIED)
 
-        user = db.query(User).filter(User.email == email).first()
+        user = self.auth_repo.get_user_by_email(email)
         if not user:
             raise AppException(ErrorCode.USER_NOT_FOUND)
 
         user.password = self.hash_password(payload.new_password)
-        db.commit()
+        self.auth_repo.commit()
 
         redis_client.delete(f"email_verified:{email}")
 
-    def deactivate_account(self, db: Session, redis_client: Redis, user_id: int):
-        user = db.query(User).filter(User.id == user_id).first()
+    def deactivate_account(self, redis_client: Redis, user_id: int):
+        user = self.auth_repo.get_user_by_id(user_id)
         if not user:
             raise AppException(ErrorCode.USER_NOT_FOUND)
 
@@ -188,53 +181,49 @@ class AuthService:
 
         user.is_active = False
         user.deactivated_at = datetime.now(timezone.utc).replace(tzinfo=None)
-        db.commit()
+        self.auth_repo.commit()
 
         redis_client.delete(f"email_verified:{user.email}")
 
     def reactivate_account(
-        self, db: Session, redis_client: Redis, payload: LoginRequest, client_ip: str
+        self, redis_client: Redis, payload: LoginRequest, client_ip: str
     ):
         email = payload.email.strip().lower()
         limit_key = f"{client_ip}:{email}"
 
         self._check_login_rate_limit(redis_client, limit_key)
 
-        user = db.query(User).filter(User.email == email).first()
+        user = self.auth_repo.get_user_by_email(email)
         if not user or not self.verify_password(payload.password, user.password):
             self._record_login_failure(redis_client, limit_key)
             raise AppException(ErrorCode.USER_INVALID_CREDENTIALS)
 
         user.is_active = True
         user.deactivated_at = None
-        db.commit()
+        self.auth_repo.commit()
 
         self._clear_login_failures(redis_client, limit_key)
 
         access_token, refresh_token = self._issue_tokens(redis_client, email)
-        return self.to_user_response(db, user), access_token, refresh_token
+        return self.to_user_response(user), access_token, refresh_token
 
-    def update_username(
-        self, db: Session, user_id: int, new_username: str
-    ) -> UserResponse:
-        user = db.query(User).filter(User.id == user_id).first()
+    def update_username(self, user_id: int, new_username: str) -> UserResponse:
+        user = self.auth_repo.get_user_by_id(user_id)
         if not user:
             raise AppException(ErrorCode.USER_NOT_FOUND)
 
         if new_username != user.username:
-            existing = db.query(User).filter(User.username == new_username).first()
+            existing = self.auth_repo.get_user_by_username(new_username)
             if existing:
                 raise AppException(ErrorCode.USER_USERNAME_ALREADY_EXISTS)
 
             user.username = new_username
-            db.commit()
+            self.auth_repo.commit()
 
-        return self.to_user_response(db, user)
+        return self.to_user_response(user)
 
-    def update_password(
-        self, db: Session, user_id: int, payload: UpdatePasswordRequest
-    ):
-        user = db.query(User).filter(User.id == user_id).first()
+    def update_password(self, user_id: int, payload: UpdatePasswordRequest):
+        user = self.auth_repo.get_user_by_id(user_id)
         if not user:
             raise AppException(ErrorCode.USER_NOT_FOUND)
 
@@ -243,18 +232,19 @@ class AuthService:
 
         if not self.verify_password(payload.new_password, user.password):
             user.password = self.hash_password(payload.new_password)
-            db.commit()
+            self.auth_repo.commit()
+        else:
+            pass
 
     def update_email(
         self,
-        db: Session,
         redis_client: Redis,
         user_id: int,
         payload: UpdateEmailRequest,
     ) -> tuple[UserResponse, str, str]:
         new_email = payload.new_email.strip().lower()
 
-        user = db.query(User).filter(User.id == user_id).first()
+        user = self.auth_repo.get_user_by_id(user_id)
         if not user:
             raise AppException(ErrorCode.USER_NOT_FOUND)
 
@@ -263,12 +253,12 @@ class AuthService:
                 raise AppException(ErrorCode.USER_EMAIL_NOT_VERIFIED)
 
             user.email = new_email
-            db.commit()
+            self.auth_repo.commit()
 
             redis_client.delete(f"email_verified:{new_email}")
 
         access_token, refresh_token = self._issue_tokens(redis_client, new_email)
-        return self.to_user_response(db, user), access_token, refresh_token
+        return self.to_user_response(user), access_token, refresh_token
 
     def hash_password(self, password: str) -> str:
         if len(password.encode("utf-8")) > 72:
@@ -320,8 +310,8 @@ class AuthService:
         except (JWTError, ValueError):
             raise AppException(ErrorCode.AUTH_REFRESH_TOKEN_INVALID)
 
-    def to_user_response(self, db: Session, user: User) -> UserResponse:
-        subscription = self.get_effective_subscription(db, user.id)
+    def to_user_response(self, user: User) -> UserResponse:
+        subscription = self.get_effective_subscription(user.id)
 
         social_providers = []
         if hasattr(user, "social_accounts") and user.social_accounts:
@@ -348,12 +338,12 @@ class AuthService:
             social_providers=social_providers,
         )
 
-    def get_user_from_token(self, db: Session, token: str | None) -> User:
+    def get_user_from_token(self, token: str | None) -> User:
         if not token:
             raise AppException(ErrorCode.AUTH_TOKEN_MISSING)
 
         email = self.decode_access_token(token)
-        user = db.query(User).filter(User.email == email).first()
+        user = self.auth_repo.get_user_by_email(email)
 
         if not user or not user.is_active:
             raise AppException(ErrorCode.AUTH_USER_INVALID)
@@ -385,8 +375,9 @@ class AuthService:
     def _clear_login_failures(self, redis_client: Redis, key: str):
         redis_client.delete(f"attempts:{key}", f"block:{key}")
 
-    def has_full_workspace_access(self, db: Session, user_id: int) -> bool:
-        subscription = self.get_effective_subscription(db, user_id)
+    def has_full_workspace_access(self, user_id: int) -> bool:
+        """워크스페이스의 전체 사용 권한이 있는지 반환"""
+        subscription = self.get_effective_subscription(user_id)
         now = utc_now_naive()
 
         if subscription.plan != SubscriptionPlan.PREMIUM:
@@ -403,7 +394,7 @@ class AuthService:
         )
 
     def ensure_subscription_state(
-        self, db: Session, subscription: Subscription | None
+        self, subscription: Subscription | None
     ) -> Subscription | None:
         if not subscription:
             return None
@@ -439,17 +430,14 @@ class AuthService:
                         changed = True
 
         if changed:
-            db.commit()
-            db.refresh(subscription)
+            self.auth_repo.commit()
+            self.auth_repo.refresh(subscription)
 
         return subscription
 
-    def get_subscription_or_create_free(
-        self, db: Session, user_id: int
-    ) -> Subscription:
-        subscription = (
-            db.query(Subscription).filter(Subscription.user_id == user_id).first()
-        )
+    def get_subscription_or_create_free(self, user_id: int) -> Subscription:
+        """사용자의 구독 레코드 반환"""
+        subscription = self.auth_repo.get_subscription_by_user_id(user_id)
         if subscription:
             return subscription
 
@@ -459,22 +447,22 @@ class AuthService:
             status=SubscriptionStatus.ACTIVE,
             auto_renew=False,
         )
-        db.add(subscription)
-        db.commit()
-        db.refresh(subscription)
+        self.auth_repo.add(subscription)
+        self.auth_repo.commit()
+        self.auth_repo.refresh(subscription)
         return subscription
 
     def subscribe_premium(
-        self, db: Session, user_id: int, payload: SubscribePremiumRequest
+        self, user_id: int, payload: SubscribePremiumRequest
     ) -> UserResponse:
         if not payload.confirm:
             raise AppException(ErrorCode.AUTH_FORBIDDEN)
 
-        user = db.query(User).filter(User.id == user_id).first()
+        user = self.auth_repo.get_user_by_id(user_id)
         if not user:
             raise AppException(ErrorCode.USER_NOT_FOUND)
 
-        subscription = self.get_subscription_or_create_free(db, user_id)
+        subscription = self.get_subscription_or_create_free(user_id)
         now = utc_now_naive()
 
         if (
@@ -493,14 +481,10 @@ class AuthService:
             subscription.started_at = now
             subscription.ended_at = now + timedelta(days=30)
 
-        pending_groups = (
-            db.query(Group)
-            .filter(
-                Group.owner_user_id == user_id,
-                Group.status.in_([GroupStatus.DELETE_PENDING, GroupStatus.BLOCKED]),
-                Group.pending_reason == GroupPendingReason.SUBSCRIPTION_EXPIRED,
-            )
-            .all()
+        pending_groups = self.auth_repo.get_pending_groups(
+            user_id,
+            [GroupStatus.DELETE_PENDING, GroupStatus.BLOCKED],
+            GroupPendingReason.SUBSCRIPTION_EXPIRED,
         )
 
         for group in pending_groups:
@@ -509,43 +493,47 @@ class AuthService:
             group.delete_requested_at = None
             group.delete_scheduled_at = None
 
-        db.commit()
-        db.refresh(user)
-        db.refresh(subscription)
-        return self.to_user_response(db, user)
+        self.auth_repo.commit()
+        self.auth_repo.refresh(user)
+        self.auth_repo.refresh(subscription)
+        return self.to_user_response(user)
 
     def cancel_subscription(
-        self, db: Session, user_id: int, payload: CancelSubscriptionRequest
+        self, user_id: int, payload: CancelSubscriptionRequest
     ) -> UserResponse:
         if not payload.confirm:
             raise AppException(ErrorCode.AUTH_FORBIDDEN)
 
-        user = db.query(User).filter(User.id == user_id).first()
+        user = self.auth_repo.get_user_by_id(user_id)
+
         if not user:
             raise AppException(ErrorCode.USER_NOT_FOUND)
 
-        subscription = self.get_subscription_or_create_free(db, user_id)
-        subscription = self.ensure_subscription_state(db, subscription)
+        subscription = self.get_subscription_or_create_free(user_id)
+        subscription = self.ensure_subscription_state(subscription)
 
         if subscription.plan == SubscriptionPlan.FREE:
-            return self.to_user_response(db, user)
+            return self.to_user_response(user)
 
         subscription.auto_renew = False
 
         if subscription.status == SubscriptionStatus.ACTIVE:
             subscription.status = SubscriptionStatus.CANCELED
 
-        db.commit()
-        db.refresh(user)
-        db.refresh(subscription)
-        return self.to_user_response(db, user)
+        self.auth_repo.commit()
+        self.auth_repo.refresh(user)
+        self.auth_repo.refresh(subscription)
+        return self.to_user_response(user)
 
-    def get_effective_subscription(self, db: Session, user_id: int) -> Subscription:
-        subscription = self.get_subscription_or_create_free(db, user_id)
-        return self.ensure_subscription_state(db, subscription)
+    def get_effective_subscription(self, user_id: int) -> Subscription:
+        """현재 시각 기준으로 유효한 구독 상태를 반환"""
+        subscription = self.get_subscription_or_create_free(user_id)
+        return self.ensure_subscription_state(subscription)
 
-    def is_premium_active(self, db: Session, user_id: int) -> bool:
-        subscription = self.get_effective_subscription(db, user_id)
+    def is_premium_active(self, user_id: int) -> bool:
+        """사용자가 현재 프리미엄 권한을 사용할 수 있는지 반환"""
+        subscription = self.get_effective_subscription(user_id)
+
         return (
             subscription.plan == SubscriptionPlan.PREMIUM
             and subscription.status == SubscriptionStatus.ACTIVE

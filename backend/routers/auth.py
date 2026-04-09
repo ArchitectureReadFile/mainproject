@@ -1,12 +1,10 @@
 from fastapi import APIRouter, Depends, Response, status
 from redis import Redis
-from sqlalchemy.orm import Session
 
 from dependencies import (
     get_auth_service,
     get_client_ip,
     get_current_user,
-    get_db,
     get_redis,
     get_refresh_token_cookie,
 )
@@ -34,24 +32,22 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 )
 def signup(
     payload: SignupRequest,
-    db: Session = Depends(get_db),
     redis: Redis = Depends(get_redis),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    return auth_service.signup(db, redis, payload)
+    return auth_service.signup(redis, payload)
 
 
 @router.post("/login", response_model=UserResponse)
 def login(
     payload: LoginRequest,
     response: Response,
-    db: Session = Depends(get_db),
     redis: Redis = Depends(get_redis),
     client_ip: str = Depends(get_client_ip),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     user_resp, access_token, refresh_token = auth_service.login(
-        db, redis, payload, client_ip
+        redis, payload, client_ip
     )
     CookieService.set_auth_cookies(response, access_token, refresh_token)
     return user_resp
@@ -60,14 +56,11 @@ def login(
 @router.post("/refresh", response_model=UserResponse)
 def refresh(
     response: Response,
-    db: Session = Depends(get_db),
     redis: Redis = Depends(get_redis),
     refresh_token: str | None = Depends(get_refresh_token_cookie),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    user_resp, access_token, refresh_token = auth_service.refresh(
-        db, redis, refresh_token
-    )
+    user_resp, access_token, refresh_token = auth_service.refresh(redis, refresh_token)
     CookieService.set_auth_cookies(response, access_token, refresh_token)
     return user_resp
 
@@ -85,43 +78,39 @@ def logout(
 
 @router.get("/me", response_model=UserResponse)
 def me(
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    return auth_service.to_user_response(db, current_user)
+    return auth_service.to_user_response(current_user)
 
 
 @router.post("/confirm-account", response_model=UserResponse)
 def confirm_account(
     payload: ConfirmAccountRequest,
-    db: Session = Depends(get_db),
     redis: Redis = Depends(get_redis),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    return auth_service.confirm_account(db, redis, payload)
+    return auth_service.confirm_account(redis, payload)
 
 
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
 def reset_password(
     payload: ResetPasswordRequest,
-    db: Session = Depends(get_db),
     redis: Redis = Depends(get_redis),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    auth_service.reset_password(db, redis, payload)
+    auth_service.reset_password(redis, payload)
 
 
 @router.delete("/deactivate", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate_account(
     response: Response,
-    db: Session = Depends(get_db),
     redis: Redis = Depends(get_redis),
     refresh_token: str | None = Depends(get_refresh_token_cookie),
     current_user: User = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    auth_service.deactivate_account(db, redis, current_user.id)
+    auth_service.deactivate_account(redis, current_user.id)
     auth_service.logout(redis, refresh_token)
     CookieService.delete_auth_cookies(response)
 
@@ -130,13 +119,12 @@ def deactivate_account(
 def reactivate_account_route(
     payload: LoginRequest,
     response: Response,
-    db: Session = Depends(get_db),
     redis: Redis = Depends(get_redis),
     client_ip: str = Depends(get_client_ip),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     user_resp, access_token, refresh_token = auth_service.reactivate_account(
-        db, redis, payload, client_ip
+        redis, payload, client_ip
     )
     CookieService.set_auth_cookies(response, access_token, refresh_token)
     return user_resp
@@ -145,34 +133,31 @@ def reactivate_account_route(
 @router.patch("/username", response_model=UserResponse)
 def update_username(
     payload: UpdateUsernameRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    return auth_service.update_username(db, current_user.id, payload.new_username)
+    return auth_service.update_username(current_user.id, payload.new_username)
 
 
 @router.patch("/password", status_code=status.HTTP_204_NO_CONTENT)
 def update_password(
     payload: UpdatePasswordRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    auth_service.update_password(db, current_user.id, payload)
+    auth_service.update_password(current_user.id, payload)
 
 
 @router.patch("/email", response_model=UserResponse)
 def update_email(
     payload: UpdateEmailRequest,
     response: Response,
-    db: Session = Depends(get_db),
     redis: Redis = Depends(get_redis),
     current_user: User = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     user_resp, access_token, refresh_token = auth_service.update_email(
-        db, redis, current_user.id, payload
+        redis, current_user.id, payload
     )
     CookieService.set_auth_cookies(response, access_token, refresh_token)
     return user_resp
@@ -181,18 +166,16 @@ def update_email(
 @router.post("/subscription/subscribe", response_model=UserResponse)
 def subscribe_premium(
     payload: SubscribePremiumRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    return auth_service.subscribe_premium(db, current_user.id, payload)
+    return auth_service.subscribe_premium(current_user.id, payload)
 
 
 @router.post("/subscription/cancel", response_model=UserResponse)
 def cancel_subscription(
     payload: CancelSubscriptionRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    return auth_service.cancel_subscription(db, current_user.id, payload)
+    return auth_service.cancel_subscription(current_user.id, payload)

@@ -1,14 +1,7 @@
 from unittest.mock import patch
 
 from errors import ErrorCode
-from services.email_service import EmailService
 from tests.dummy_data import email_verification_data
-
-email_service = EmailService()
-
-# -------------------------------------------------------------------
-# TC-005: 이메일 인증 코드 발송
-# -------------------------------------------------------------------
 
 
 def test_send_verification_code_success(client, fake_redis):
@@ -26,11 +19,10 @@ def test_send_verification_code_success(client, fake_redis):
         if isinstance(stored_code, bytes):
             stored_code = stored_code.decode("utf-8")
         assert len(stored_code) == 6
-
         mock_send.assert_called_once()
 
 
-def test_send_verification_code_failure_smtp_error_A(client, fake_redis):
+def test_send_verification_code_failure_smtp_error(client, fake_redis):
     email = email_verification_data["payload"]["valid_email"]
 
     with patch(
@@ -43,13 +35,7 @@ def test_send_verification_code_failure_smtp_error_A(client, fake_redis):
 
         assert response.status_code == 500
         assert response.json()["code"] == ErrorCode.EMAIL_SEND_FAILED.code
-
         assert fake_redis.get(f"email_verify:{email}") is None
-
-
-# -------------------------------------------------------------------
-# TC-006: 이메일 인증 코드 검증
-# -------------------------------------------------------------------
 
 
 def test_verify_code_success(client, fake_redis):
@@ -67,7 +53,7 @@ def test_verify_code_success(client, fake_redis):
     assert fake_redis.get(f"email_verified:{email}") is not None
 
 
-def test_verify_code_failure_not_found_A(client, fake_redis):
+def test_verify_code_failure_not_found(client, fake_redis):
     email = email_verification_data["payload"]["valid_email"]
     code = email_verification_data["payload"]["valid_code"]
 
@@ -79,7 +65,7 @@ def test_verify_code_failure_not_found_A(client, fake_redis):
     assert response.json()["code"] == ErrorCode.EMAIL_CODE_NOT_FOUND.code
 
 
-def test_verify_code_failure_mismatch_B(client, fake_redis):
+def test_verify_code_failure_mismatch(client, fake_redis):
     email = email_verification_data["payload"]["valid_email"]
     valid_code = email_verification_data["payload"]["valid_code"]
     invalid_code = email_verification_data["payload"]["invalid_code"]
