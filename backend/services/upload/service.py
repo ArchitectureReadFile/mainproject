@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import unicodedata
 from datetime import datetime
 from typing import Optional
 
@@ -19,6 +20,11 @@ class UploadService:
         self.repository = repository
         self.group_service = group_service
         os.makedirs(self.UPLOAD_DIR, exist_ok=True)
+
+    @staticmethod
+    def _normalize_filename(filename: str) -> str:
+        """파일명을 NFC 기준으로 정규화"""
+        return unicodedata.normalize("NFC", filename or "").strip()
 
     def handle_upload(
         self,
@@ -43,7 +49,7 @@ class UploadService:
             self.group_service.assert_reviewer_assignable(assignee_user_id, group_id)
 
         for file in files:
-            filename = file.filename or "unknown"
+            filename = self._normalize_filename(file.filename or "unknown")
             safe_name = re.sub(r"[^\w\-_. ]", "_", filename)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             unique_name = f"{timestamp}_u{user_id}_g{group_id}_{safe_name}"
