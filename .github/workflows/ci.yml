@@ -27,6 +27,8 @@ jobs:
     name: Backend Tests
     runs-on: ubuntu-latest
     needs: lint-backend
+    env:
+      DATABASE_URL: sqlite:///:memory:
     steps:
       - uses: actions/checkout@v4
 
