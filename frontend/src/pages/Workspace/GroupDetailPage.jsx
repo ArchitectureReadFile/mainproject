@@ -836,6 +836,9 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
                         <p className="text-base text-muted-foreground">
                             워크스페이스 내 모든 문서를 ZIP 파일로 다운로드합니다.
                         </p>
+                        <p className="text-sm text-muted-foreground">
+                            백업 파일은 생성 시점의 문서 기준으로 만들어집니다. 이후 변경 사항을 반영하려면 새로 백업을 생성해주세요.
+                        </p>
                     </div>
 
                     {exportJob && (
