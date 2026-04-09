@@ -1,16 +1,23 @@
 """
 tests/unit/test_workspace_documents_mode.py
 
-WorkspaceSelection(mode="documents") 실제 retrieval 지원 테스트.
+WorkspaceSelection(mode="documents") retrieval 계층별 테스트.
 
-검증 목표:
-1. mode="documents" → 선택된 document_ids만 결과에 포함
-2. whitelist 밖 document_id는 결과에 없음
-3. mode="all" → 기존 group_id 전체 검색 유지
-4. BM25 search_documents: document_ids intersection 적용
-5. dense 결과 whitelist 재검증 (Python 레벨)
-6. hybrid 결과 whitelist 밖 문서 차단
-7. WorkspaceKnowledgeRetriever end-to-end (mock retrieval service)
+테스트 계층 분리:
+    A. BM25 store 레벨: document_ids whitelist 필터 구현 검증
+       → bm25_store.search_documents()가 document_ids를 올바르게 처리하는지
+
+    B. group_document_retrieval_service 레벨: Python 재검증 + Qdrant 필터 검증
+       → retrieve_group_documents()가 document_ids whitelist를 올바르게 처리하는지
+
+    C. WorkspaceKnowledgeRetriever 레벨: 현재 정책 검증
+       → mode="documents" 는 fail-closed (빈 결과, retrieve 호출 안 함)
+       → mode="all" 은 정상 retrieve 호출
+
+정책 메모:
+    WorkspaceKnowledgeRetriever.mode="documents" 는 11단계 이전까지 fail-closed.
+    BM25/Qdrant document_ids 필터 구현(B계층)은 완료되어 있으나,
+    Retriever 계층(C)에서 아직 호출하지 않는다.
 """
 
 from __future__ import annotations
@@ -21,7 +28,7 @@ import pytest
 
 from schemas.knowledge import KnowledgeRetrievalRequest, WorkspaceSelection
 
-# ── BM25 document_ids 필터 ────────────────────────────────────────────────────
+# ── A. BM25 document_ids 필터 ────────────────────────────────────────────────
 
 
 class TestBM25DocumentsFilter:
@@ -87,7 +94,7 @@ class TestBM25DocumentsFilter:
         assert results == []
 
 
-# ── group_document_retrieval_service Python 재검증 ────────────────────────────
+# ── B. group_document_retrieval_service Python 재검증 ────────────────────────
 
 
 class TestRetrievalServiceWhitelist:
@@ -206,29 +213,20 @@ class TestRetrievalServiceWhitelist:
         assert set(match_any_conditions[0].match.any) == {10, 20}
 
 
-# ── WorkspaceKnowledgeRetriever end-to-end ───────────────────────────────────
+# ── C. WorkspaceKnowledgeRetriever — 현재 정책 (fail-closed) ─────────────────
 
 
 class TestWorkspaceKnowledgeRetrieverDocumentsMode:
-    def _make_grouped(self, document_id):
-        return {
-            "document_id": document_id,
-            "group_id": 1,
-            "file_name": f"doc{document_id}.pdf",
-            "score": 0.8,
-            "chunks": [
-                {
-                    "chunk_id": f"gdoc:{document_id}:chunk:0",
-                    "text": "내용",
-                    "chunk_type": "body",
-                    "section_title": None,
-                    "order_index": 0,
-                    "score": 0.8,
-                }
-            ],
-        }
+    """
+    현재 정책: mode="documents" → fail-closed (빈 결과, retrieve 호출 안 함)
+    11단계에서 실제 document_ids 필터 retrieval로 전환 예정.
+    """
 
-    def test_documents_mode_calls_retrieve_with_document_ids(self):
+    def test_documents_mode_returns_empty_without_retrieve(self):
+        """
+        mode="documents" + document_ids 있음 → 현재 fail-closed.
+        retrieve_group_documents 호출하지 않고 빈 결과 반환.
+        """
         from schemas.search import SearchMode
         from services.knowledge.workspace_knowledge_retriever import (
             WorkspaceKnowledgeRetriever,
@@ -245,17 +243,15 @@ class TestWorkspaceKnowledgeRetrieverDocumentsMode:
         )
 
         with patch(
-            "services.knowledge.workspace_knowledge_retriever.retrieve_group_documents",
-            return_value=[self._make_grouped(10)],
+            "services.knowledge.workspace_knowledge_retriever.retrieve_group_documents"
         ) as mock_retrieve:
             results = retriever.retrieve(req, search_mode=SearchMode.dense)
 
-        call_kwargs = mock_retrieve.call_args[1]
-        assert call_kwargs["document_ids"] == [10, 20]
-        assert len(results) == 1
-        assert results[0].source_id == 10
+        assert results == []
+        mock_retrieve.assert_not_called()
 
     def test_all_mode_calls_retrieve_with_no_document_ids(self):
+        """mode="all" → retrieve_group_documents 호출, document_ids=None."""
         from schemas.search import SearchMode
         from services.knowledge.workspace_knowledge_retriever import (
             WorkspaceKnowledgeRetriever,
@@ -275,11 +271,12 @@ class TestWorkspaceKnowledgeRetrieverDocumentsMode:
         ) as mock_retrieve:
             retriever.retrieve(req, search_mode=SearchMode.dense)
 
+        mock_retrieve.assert_called_once()
         call_kwargs = mock_retrieve.call_args[1]
         assert call_kwargs["document_ids"] is None
 
     def test_documents_mode_empty_ids_returns_empty_without_retrieve(self):
-        """빈 document_ids는 retrieve_group_documents를 호출하지 않고 빈 결과."""
+        """빈 document_ids도 retrieve_group_documents를 호출하지 않고 빈 결과."""
         from services.knowledge.workspace_knowledge_retriever import (
             WorkspaceKnowledgeRetriever,
         )
