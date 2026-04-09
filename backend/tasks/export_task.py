@@ -29,59 +29,75 @@ def _delete_file_if_exists(file_path: str | None) -> None:
 
 
 def _sanitize_file_name(file_name: str) -> str:
-    """ZIP 엔트리와 다운로드 파일명에 사용할 안전한 파일명을 생성"""
+    """ZIP 경로와 파일명에 사용할 안전한 파일명을 생성"""
     safe_name = re.sub(r'[\\/:*?"<>|]+', "_", (file_name or "").strip())
+    safe_name = re.sub(r"\s+", "_", safe_name)
     return safe_name or "document"
 
 
-def _build_unique_entry_name(
-    original_file_name: str,
-    document_id: int,
-    used_names: set[str],
-) -> str:
-    """ZIP 내부 파일명이 겹치지 않도록 유일한 이름을 생성"""
-    safe_name = _sanitize_file_name(original_file_name)
-    if safe_name not in used_names:
-        used_names.add(safe_name)
-        return safe_name
+def _normalize_category(category: str | None) -> str:
+    """카테고리 값을 ZIP 경로용 이름으로 정규화"""
+    normalized = (category or "").strip()
+    return normalized or "미분류"
 
-    stem, ext = os.path.splitext(safe_name)
-    candidate = f"{stem}_{document_id}{ext}"
-    suffix = 1
 
-    while candidate in used_names:
-        candidate = f"{stem}_{document_id}_{suffix}{ext}"
-        suffix += 1
+def _normalize_approval_status(document) -> str:
+    """승인 상태를 ZIP 상위 폴더명으로 정규화"""
+    approval = getattr(document, "approval", None)
+    if not approval or not getattr(approval, "status", None):
+        return "UNKNOWN"
+    return approval.status.value
 
-    used_names.add(candidate)
-    return candidate
+
+def _build_document_entry_name(document) -> str:
+    """ZIP 내부 파일명을 {문서ID}_{원본파일명} 형식으로 생성"""
+    original_file_name = document.original_filename or f"document_{document.id}"
+    safe_file_name = _sanitize_file_name(original_file_name)
+    return f"{document.id}_{safe_file_name}"
+
+
+def _build_document_arcname(document) -> str:
+    """ZIP 내부 경로를 승인상태/카테고리/파일명 구조로 생성"""
+    approval_status = _normalize_approval_status(document)
+    category = _normalize_category(getattr(document, "category", None))
+    entry_name = _build_document_entry_name(document)
+    return f"{approval_status}/{category}/{entry_name}"
 
 
 def _build_missing_files_content(
     *,
+    group_id: int,
     missing_files: list[str],
     total_candidates: int,
+    exported_file_count: int,
 ) -> str:
-    """missing_files.txt 내용을 생성"""
+    """ZIP 루트에 넣을 missing_files.txt 내용을 생성"""
+    lines = [
+        "전체 다운로드 결과",
+        "",
+        f"group_id: {group_id}",
+        f"total_file_count: {total_candidates}",
+        f"exported_file_count: {exported_file_count}",
+        f"missing_file_count: {len(missing_files)}",
+        "",
+    ]
+
     if missing_files:
-        return (
-            "다음 파일은 원본을 찾을 수 없어 ZIP에 포함되지 않았습니다.\n\n"
-            + "\n".join(f"- {file_name}" for file_name in missing_files)
-            + "\n"
-        )
+        lines.append("누락 파일 목록")
+        lines.append("")
+        lines.extend(f"- {file_name}" for file_name in missing_files)
+    else:
+        lines.append("누락 파일 없음")
 
-    if total_candidates == 0:
-        return "다운로드 가능한 파일이 없습니다.\n"
-
-    return ""
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _build_export_file_name(job) -> str:
     """사용자 다운로드용 ZIP 파일명을 생성"""
     group_name = getattr(job.group, "name", None) or f"group_{job.group_id}"
     safe_group_name = _sanitize_file_name(group_name)
-    timestamp = utc_now_naive().strftime("%Y%m%d_%H%M%S")
-    return f"{safe_group_name}_전체다운로드_{timestamp}.zip"
+    return f"{safe_group_name}_documents.zip"
 
 
 def run_group_export_job(export_job_id: int) -> dict:
@@ -132,7 +148,6 @@ def run_group_export_job(export_job_id: int) -> dict:
 
         documents = repository.get_group_documents_for_export(group_id=job.group_id)
 
-        used_names: set[str] = set()
         missing_files: list[str] = []
         exported_file_count = 0
 
@@ -145,30 +160,27 @@ def run_group_export_job(export_job_id: int) -> dict:
                     raise ExportJobCancelledError()
 
                 stored_path = (document.stored_path or "").strip()
-                original_file_name = (
-                    document.original_filename or f"document_{document.id}"
-                )
+                entry_name = _build_document_entry_name(document)
 
                 if not stored_path or not os.path.exists(stored_path):
-                    missing_files.append(original_file_name)
+                    missing_files.append(entry_name)
                     continue
 
                 archive.write(
                     stored_path,
-                    arcname=_build_unique_entry_name(
-                        original_file_name,
-                        document.id,
-                        used_names,
-                    ),
+                    arcname=_build_document_arcname(document),
                 )
                 exported_file_count += 1
 
-            missing_files_content = _build_missing_files_content(
-                missing_files=missing_files,
-                total_candidates=len(documents),
+            archive.writestr(
+                "missing_files.txt",
+                _build_missing_files_content(
+                    group_id=job.group_id,
+                    missing_files=missing_files,
+                    total_candidates=len(documents),
+                    exported_file_count=exported_file_count,
+                ),
             )
-            if missing_files_content:
-                archive.writestr("missing_files.txt", missing_files_content)
 
         db.refresh(job)
         if job.status == ExportJobStatus.CANCELLED:
