@@ -199,8 +199,7 @@ class AuthService:
         self._clear_login_failures(redis_client, limit_key)
 
         access_token, refresh_token = self._issue_tokens(redis_client, email)
-        # 버그 수정: to_user_response(user) → to_user_response(db, user)
-        return self.to_user_response(db, user), access_token, refresh_token
+        return self.to_user_response(user), access_token, refresh_token
 
     def update_username(
         self, db: Session, user_id: int, new_username: str
@@ -217,8 +216,7 @@ class AuthService:
             user.username = new_username
             db.commit()
 
-        # 버그 수정: to_user_response(user) → to_user_response(db, user)
-        return self.to_user_response(db, user)
+        return self.to_user_response(user)
 
     def update_password(
         self, db: Session, user_id: int, payload: UpdatePasswordRequest
