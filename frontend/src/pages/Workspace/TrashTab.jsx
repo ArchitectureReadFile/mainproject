@@ -2,15 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArchiveRestore, Loader2, Trash2 } from 'lucide-react'
 import { getDeletedGroupDocuments, restoreGroupDocument } from '@/api/groups'
+import { calcKoreanDday, formatKoreanDate } from '@/lib/datetime'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 
 const LIMIT = 5
 
 function calcDday(isoDate) {
-  if (!isoDate) return '-'
-  const diff = Math.ceil((new Date(isoDate) - new Date()) / (1000 * 60 * 60 * 24))
-  return diff <= 0 ? 'D-0' : `D-${diff}`
+  return calcKoreanDday(isoDate) ?? '-'
 }
 
 export default function TrashTab({ group }) {
@@ -162,13 +161,13 @@ export default function TrashTab({ group }) {
                   <span>
                     삭제 요청{' '}
                     {doc.delete_requested_at
-                      ? new Date(doc.delete_requested_at).toLocaleDateString('ko-KR')
+                      ? formatKoreanDate(doc.delete_requested_at)
                       : '-'}
                   </span>
                   <span>
                     삭제 예정{' '}
                     {doc.delete_scheduled_at
-                      ? new Date(doc.delete_scheduled_at).toLocaleDateString('ko-KR')
+                      ? formatKoreanDate(doc.delete_scheduled_at)
                       : '-'}
                   </span>
                   <span className="font-medium text-destructive">

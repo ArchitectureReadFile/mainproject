@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Inbox, Loader2, Search, RotateCcw } from 'lucide-react'
 
+import { formatKoreanDate } from '@/lib/datetime'
 import { getGroupDocuments } from '@/api/groups'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -394,7 +395,7 @@ export default function DocumentsTab({ group }) {
 
                                         <span>업로더 {doc.uploader}</span>
                                         <span>댓글 {doc.comment_count ?? 0}개</span>
-                                        <span>업로드 {new Date(doc.created_at).toLocaleDateString('ko-KR')}</span>
+                                        <span>업로드 {formatKoreanDate(doc.created_at)}</span>
                                     </div>
                                 </div>
                                 <span className={`text-xs font-medium shrink-0 ${status.color}`}>

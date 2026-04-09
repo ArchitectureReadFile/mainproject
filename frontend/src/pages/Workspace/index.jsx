@@ -25,6 +25,7 @@ import {
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createGroup, getMyGroups } from '../../api/groups'
+import { calcKoreanDday, formatKoreanDate } from '@/lib/datetime'
 
 const ROLE_STYLE = {
   OWNER: { label: 'OWNER', variant: 'default' },
@@ -37,9 +38,7 @@ const ROLE_STYLE = {
  * D-Day를 계산한다.
  */
 function calcDday(isoDate) {
-  if (!isoDate) return null
-  const diff = Math.ceil((new Date(isoDate) - new Date()) / (1000 * 60 * 60 * 24))
-  return diff <= 0 ? 'D-0' : `D-${diff}`
+  return calcKoreanDday(isoDate)
 }
 
 function RoleBadge({ role }) {
@@ -126,7 +125,7 @@ function GroupCard({ group, onClick }) {
         </span>
         <span className="flex items-center gap-1 ml-auto">
           <Calendar className="h-3.5 w-3.5" />
-          {new Date(group.created_at).toLocaleDateString('ko-KR')}
+          {formatKoreanDate(group.created_at)}
         </span>
       </CardFooter>
     </Card>

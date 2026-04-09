@@ -13,6 +13,7 @@ import {
     getRejectedUploaders,
     rejectDocument,
 } from '@/api/groups'
+import { formatKoreanDateTime } from '@/lib/datetime'
 import { Button } from '@/components/ui/Button'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import {
@@ -47,18 +48,13 @@ const PROCESSING_STATUS_META = {
 
 const LIMIT = 10
 
+/**
+ * UTC naive 시간을 한국 시간 문자열로 변환한다.
+ */
 function formatDateTime(value) {
-    if (!value) return '-'
-
-    return new Date(value).toLocaleString('ko-KR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-    })
+    return formatKoreanDateTime(value)
 }
+
 
 function getProcessingStatusMeta(status) {
     return PROCESSING_STATUS_META[status] ?? {
