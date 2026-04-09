@@ -34,7 +34,7 @@ export default function ExportStatusToast({
     const isError = ['FAILED', 'EXPIRED', 'CANCELLED'].includes(exportJob.status)
 
     return (
-        <div className="fixed bottom-6 right-6 z-[70] w-[380px] overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl">
+        <div className="fixed bottom-6 right-6 z-[10010] w-[380px] overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl">
             <div className="overflow-hidden rounded-t-2xl">
                 {isRunning ? (
                     <div className="h-1.5 w-full bg-blue-100">
