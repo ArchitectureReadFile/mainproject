@@ -4,6 +4,8 @@ import redis
 
 from celery_app import celery_app
 from database import SessionLocal
+from repositories.chat_repository import ChatRepository
+from repositories.notification_repository import NotificationRepository
 from schemas.knowledge import WorkspaceSelection
 from services.chat.chat_processor import ChatProcessor
 
@@ -28,9 +30,11 @@ def process_chat_message(payload: dict):
     db = SessionLocal()
 
     try:
-        processor = ChatProcessor()
+        chat_repo = ChatRepository(db)
+        notification_repo = NotificationRepository(db)
+
+        processor = ChatProcessor(chat_repo, notification_repo)
         processor.process_chat(
-            db=db,
             redis_client=redis_client,
             user_id=user_id,
             session_id=session_id,

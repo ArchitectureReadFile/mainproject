@@ -2,12 +2,12 @@ import json
 import logging
 
 from redis import Redis
-from sqlalchemy.orm import Session
 
 from errors.error_codes import ErrorCode
 from errors.exceptions import AppException
-from models.model import ChatMessage, ChatMessageRole, ChatSession, NotificationType
+from models.model import ChatMessage, ChatMessageRole, NotificationType
 from prompts.chat_prompt import CHAT_SUMMARY_PROMPT, CHAT_SYSTEM_PROMPT
+from repositories.chat_repository import ChatRepository
 from repositories.notification_repository import NotificationRepository
 from schemas.knowledge import KnowledgeRetrievalRequest, WorkspaceSelection
 from services.knowledge.answer_context_builder import AnswerContextBuilder
@@ -20,35 +20,30 @@ logger = logging.getLogger(__name__)
 
 
 class ChatProcessor:
-    def __init__(self):
+    def __init__(
+        self, chat_repo: ChatRepository, notification_repo: NotificationRepository
+    ):
+        self.chat_repo = chat_repo
+        self.notification_repo = notification_repo
         self.llm_client = LLMClient()
         self.knowledge_retrieval = KnowledgeRetrievalService()
         self.answer_context_builder = AnswerContextBuilder()
+        self.notification_service = NotificationService(notification_repo)
 
     def process_chat(
         self,
-        db: Session,
         redis_client: Redis,
         user_id: int,
         session_id: int,
         group_id: int | None = None,
         workspace_selection: WorkspaceSelection | None = None,
     ):
-        """
-        주의: WorkspaceKnowledgeRetriever의 mode="documents"를 지원하게 된다면
-             front에서 각 문서들을 DB에서 조회하여 해당 group_id에 맞는 문서들을 반환해 선택 후 백엔드에서 처리하는 로직을
-             구현해야 하므로 많이 복잡해질 수 있음. 따라서 임시로 workspace_selection의 mode는 "all"로 고정
-        """
         self._publish_status(
             redis_client, session_id, user_id, "processing", "답변을 생성중입니다..."
         )
 
         try:
-            session = (
-                db.query(ChatSession)
-                .filter(ChatSession.id == session_id, ChatSession.user_id == user_id)
-                .first()
-            )
+            session = self.chat_repo.get_session_by_id_and_user(session_id, user_id)
 
             if not session:
                 raise AppException(ErrorCode.CHAT_ROOM_NOT_FOUND)
@@ -66,11 +61,8 @@ class ChatProcessor:
             last_id_str = redis_client.get(last_msg_key)
             last_id = int(last_id_str) if last_id_str else 0
 
-            unsummarized_msgs = (
-                db.query(ChatMessage)
-                .filter(ChatMessage.session_id == session_id, ChatMessage.id > last_id)
-                .order_by(ChatMessage.id.asc())
-                .all()
+            unsummarized_msgs = self.chat_repo.get_unsummarized_messages(
+                session_id, last_id
             )
 
             if len(unsummarized_msgs) > 15:
@@ -150,17 +142,15 @@ class ChatProcessor:
                     role=ChatMessageRole.ASSISTANT,
                     content=full_answer,
                 )
-                db.add(ai_msg)
-                db.commit()
+                self.chat_repo.add_message(ai_msg)
+                self.chat_repo.commit()
 
-                notification_repo = NotificationRepository(db)
-                notification_service = NotificationService()
                 preview = full_answer.strip()
                 if len(preview) > 150:
                     preview = preview[:150] + "..."
 
-                notification_service.create_notification_sync(
-                    notification_repo,
+                self.notification_service.create_notification_sync(
+                    self.notification_repo,
                     user_id=user_id,
                     type=NotificationType.AI_ANSWER_COMPLETE,
                     title="AI 답변이 완료되었습니다.",

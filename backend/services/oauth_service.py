@@ -3,7 +3,6 @@ import urllib.parse
 
 import httpx
 from redis import Redis
-from sqlalchemy.orm import Session
 
 from errors.error_codes import ErrorCode
 from errors.exceptions import AppException
@@ -17,8 +16,9 @@ GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET")
 
 
 class OAuthService:
-    def __init__(self):
-        self.auth_service = AuthService()
+    def __init__(self, oauth_repo: OAuthRepository, auth_service: AuthService):
+        self.oauth_repo = oauth_repo
+        self.auth_service = auth_service
         self.backend_url = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
         self.frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip(
             "/"
@@ -91,8 +91,6 @@ class OAuthService:
                 headers={"Accept": "application/json"},
             )
 
-            print(f"GitHub Token Response: {token_res.status_code} {token_res.text}")
-
             if token_res.status_code != 200:
                 return None
 
@@ -108,7 +106,6 @@ class OAuthService:
                 "https://api.github.com/user",
                 headers={"Authorization": f"Bearer {access_token}"},
             )
-            print(f"GitHub User Response: {user_res.status_code} {user_res.text}")
             if user_res.status_code != 200:
                 return None
             user_data = user_res.json()
@@ -118,9 +115,6 @@ class OAuthService:
                 email_res = await client.get(
                     "https://api.github.com/user/emails",
                     headers={"Authorization": f"Bearer {access_token}"},
-                )
-                print(
-                    f"GitHub Emails Response: {email_res.status_code} {email_res.text}"
                 )
                 if email_res.status_code == 200:
                     emails = email_res.json()
@@ -136,7 +130,6 @@ class OAuthService:
 
     async def process_social_callback(
         self,
-        db: Session,
         redis_client: Redis,
         provider: str,
         code: str,
@@ -144,8 +137,6 @@ class OAuthService:
         current_user_token: str | None,
         frontend_url: str,
     ) -> dict:
-        repository = OAuthRepository(db)
-
         profile = None
         if provider == "google":
             profile = await self.get_google_profile(code, redirect_uri)
@@ -165,7 +156,7 @@ class OAuthService:
         if current_user_token:
             try:
                 token_email = self.auth_service.decode_access_token(current_user_token)
-                current_user = repository.get_user_by_email(token_email)
+                current_user = self.oauth_repo.get_user_by_email(token_email)
             except Exception:
                 pass
 
@@ -179,7 +170,7 @@ class OAuthService:
                     "url": f"{frontend_url}/mypage?social_error={error_message}&provider={provider}",
                 }
 
-            existing_social = repository.get_social_account(provider, provider_id)
+            existing_social = self.oauth_repo.get_social_account(provider, provider_id)
             if existing_social and existing_social.user_id != current_user.id:
                 error_message = urllib.parse.quote(
                     "해당 소셜 계정은 이미 다른 사용자와 연동되어 있습니다."
@@ -189,11 +180,11 @@ class OAuthService:
                     "url": f"{frontend_url}/mypage?social_error={error_message}&provider={provider}",
                 }
 
-            user_existing_social = repository.get_social_account_by_user(
+            user_existing_social = self.oauth_repo.get_social_account_by_user(
                 current_user.id, provider
             )
             if not user_existing_social:
-                repository.create_social_account(
+                self.oauth_repo.create_social_account(
                     current_user.id, provider, provider_id, email
                 )
             return {
@@ -201,10 +192,10 @@ class OAuthService:
                 "url": f"{frontend_url}/mypage?social_link=success",
             }
 
-        social_account = repository.get_social_account(provider, provider_id)
+        social_account = self.oauth_repo.get_social_account(provider, provider_id)
 
         if social_account:
-            user = repository.get_user_by_id(social_account.user_id)
+            user = self.oauth_repo.get_user_by_id(social_account.user_id)
             if user and user.is_active:
                 access_token, refresh_token = self.auth_service._issue_tokens(
                     redis_client, user.email
@@ -221,7 +212,7 @@ class OAuthService:
                     "url": f"{frontend_url}/?error=account_inactive",
                 }
 
-        user = repository.get_user_by_email(email)
+        user = self.oauth_repo.get_user_by_email(email)
         if user:
             if not user.is_active:
                 return {
@@ -229,7 +220,7 @@ class OAuthService:
                     "url": f"{frontend_url}/?error=account_inactive",
                 }
 
-            repository.create_social_account(user.id, provider, provider_id, email)
+            self.oauth_repo.create_social_account(user.id, provider, provider_id, email)
             access_token, refresh_token = self.auth_service._issue_tokens(
                 redis_client, user.email
             )
@@ -249,9 +240,8 @@ class OAuthService:
                 "url": f"{frontend_url}/?error=not_registered&email={urllib.parse.quote(email)}&provider={provider}",
             }
 
-    def unlink_social_account(self, db: Session, user_id: int, provider: str):
-        repository = OAuthRepository(db)
-        social_account = repository.get_social_account_by_user(user_id, provider)
+    def unlink_social_account(self, user_id: int, provider: str):
+        social_account = self.oauth_repo.get_social_account_by_user(user_id, provider)
         if not social_account:
             raise AppException(ErrorCode.AUTH_FORBIDDEN)
-        repository.delete_social_account(social_account)
+        self.oauth_repo.delete_social_account(social_account)
