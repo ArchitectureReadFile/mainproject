@@ -18,7 +18,7 @@ from models.model import (
 from tests.dummy_data import users
 
 
-# TC-GROUP-001-01 프리미엄 사용자는 정상적으로 워크스페이스를 생성한다
+# UT-GRP-001-01 프리미엄 사용자는 정상적으로 워크스페이스를 생성한다.
 @pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
 def test_create_workspace_success(client, db_session, logged_in_user):
     """프리미엄 사용자가 정상 payload로 워크스페이스를 생성하면 OWNER 멤버십이 함께 생성된다."""
@@ -77,7 +77,7 @@ def test_create_workspace_success(client, db_session, logged_in_user):
     assert membership.status == MembershipStatus.ACTIVE
 
 
-# TC-GROUP-001-02 프리미엄 구독이 없는 사용자는 워크스페이스를 생성할 수 없다
+# UT-GRP-001-02 프리미엄 구독이 없는 사용자는 워크스페이스를 생성할 수 없다.
 @pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
 def test_create_workspace_forbidden_without_premium(client, logged_in_user):
     """무료 사용자는 워크스페이스를 생성할 수 없다."""
@@ -91,7 +91,7 @@ def test_create_workspace_forbidden_without_premium(client, logged_in_user):
     assert res.json()["code"] == ErrorCode.GROUP_NOT_PREMIUM.code
 
 
-# TC-GROUP-001-03 이미 활성 워크스페이스를 소유한 사용자는 새 워크스페이스를 생성할 수 없다
+# UT-GRP-001-03 이미 활성 워크스페이스를 소유한 사용자는 새 워크스페이스를 생성할 수 없다.
 @pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
 def test_create_workspace_conflict_when_owner_already_has_active_group(
     client, db_session, logged_in_user
@@ -138,7 +138,7 @@ def test_create_workspace_conflict_when_owner_already_has_active_group(
     assert res.json()["code"] == ErrorCode.GROUP_OWNER_LIMIT.code
 
 
-# TC-GROUP-001-04 삭제 대기 중인 워크스페이스만 소유한 사용자는 새 워크스페이스를 생성할 수 있다
+# UT-GRP-001-04 삭제 대기 중인 워크스페이스만 소유한 사용자는 새 워크스페이스를 생성할 수 있다.
 @pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
 def test_create_workspace_success_when_owner_has_only_delete_pending_group(
     client, db_session, logged_in_user
@@ -193,7 +193,7 @@ def test_create_workspace_success_when_owner_has_only_delete_pending_group(
     assert data["owner_id"] == logged_in_user.id
 
 
-# TC-GROUP-001-05 이름 앞뒤 공백이 포함된 경우 trim 후 생성된다
+# UT-GRP-001-05 이름 앞뒤 공백이 포함된 경우 trim 후 생성된다.
 @pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
 def test_create_workspace_success_with_trimmed_name(client, db_session, logged_in_user):
     """워크스페이스 이름의 앞뒤 공백은 제거된 뒤 저장된다."""
@@ -232,7 +232,7 @@ def test_create_workspace_success_with_trimmed_name(client, db_session, logged_i
     assert group.name == "테스트 워크스페이스"
 
 
-# TC-GROUP-001-06 이름이 공백뿐이면 생성할 수 없다
+# UT-GRP-001-06 이름이 공백뿐이면 생성할 수 없다.
 @pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
 def test_create_workspace_validation_error_with_blank_name(client, logged_in_user):
     payload = {
@@ -244,7 +244,7 @@ def test_create_workspace_validation_error_with_blank_name(client, logged_in_use
     assert res.status_code == 422
 
 
-# TC-GROUP-001-07 이름 길이 제한을 초과하면 생성할 수 없다
+# UT-GRP-001-07 이름 길이 제한을 초과하면 생성할 수 없다.
 @pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
 def test_create_workspace_validation_error_with_too_long_name(client, logged_in_user):
     payload = {
@@ -256,7 +256,7 @@ def test_create_workspace_validation_error_with_too_long_name(client, logged_in_
     assert res.status_code == 422
 
 
-# TC-GROUP-001-08 설명 길이 제한을 초과하면 생성할 수 없다
+# UT-GRP-001-08 설명 길이 제한을 초과하면 생성할 수 없다.
 @pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
 def test_create_workspace_validation_error_with_too_long_description(
     client, logged_in_user
@@ -270,7 +270,7 @@ def test_create_workspace_validation_error_with_too_long_description(
     assert res.status_code == 422
 
 
-# TC-GROUP-001-09 비로그인 사용자는 워크스페이스를 생성할 수 없다
+# UT-GRP-001-09 비로그인 사용자는 워크스페이스를 생성할 수 없다.
 def test_create_workspace_unauthenticated(client):
     payload = {
         "name": "테스트 워크스페이스",
