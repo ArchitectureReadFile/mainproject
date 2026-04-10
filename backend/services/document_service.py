@@ -392,6 +392,7 @@ class DocumentService:
         return preview_path, preview_filename
 
     def delete_document(self, doc_id: int, user_id: int, group_id: int) -> None:
+        """문서를 삭제 대기 상태로 전환하고 필요 시 RAG 제거를 큐에 적재한다."""
         doc = self.repository.get_detail(doc_id)
 
         if not doc:
@@ -409,7 +410,14 @@ class DocumentService:
         if not (is_uploader or is_group_admin):
             raise AppException(ErrorCode.AUTH_FORBIDDEN)
 
+        approval_status = getattr(doc.approval, "status", None)
+
         self.repository.delete_document(doc, user_id)
+
+        if approval_status == ReviewStatus.APPROVED:
+            from tasks.group_document_task import deindex_document
+
+            deindex_document.delay(doc.id)
 
         if not is_uploader and doc.uploader_user_id:
             from models.model import NotificationType
@@ -431,6 +439,7 @@ class DocumentService:
             )
 
     def restore_document(self, doc_id: int, user_id: int, group_id: int) -> None:
+        """삭제 대기 문서를 복구하고 필요 시 재인덱싱을 큐에 적재한다."""
         doc = self.repository.get_detail(doc_id)
 
         if not doc:
@@ -448,7 +457,14 @@ class DocumentService:
         if not (is_uploader or is_group_admin):
             raise AppException(ErrorCode.AUTH_FORBIDDEN)
 
+        approval_status = getattr(doc.approval, "status", None)
+
         self.repository.restore_document(doc)
+
+        if approval_status == ReviewStatus.APPROVED:
+            from tasks.group_document_task import index_approved_document
+
+            index_approved_document.delay(doc.id)
 
     def get_deleted_list(
         self,

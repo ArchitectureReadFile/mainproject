@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 from typing import Optional
 
@@ -16,6 +17,7 @@ from models.model import (
     SubscriptionStatus,
     utc_now_naive,
 )
+from redis_client import redis_client
 from repositories.group_repository import GroupRepository
 from schemas.group import (
     GroupDetailResponse,
@@ -28,6 +30,8 @@ from schemas.group import (
 )
 from services.auth_service import AuthService
 from services.notification_service import NotificationService
+
+logger = logging.getLogger(__name__)
 
 
 class GroupService:
@@ -42,6 +46,31 @@ class GroupService:
         self.auth_service = auth_service
         self.notification_service = notification_service
         self.db = db
+        self._pending_group_rag_actions: list[tuple[int, str]] = []
+
+    def _finalize_group_state_sync(
+        self, original_error: Exception | None = None
+    ) -> None:
+        """접근 시 동기화된 그룹 상태를 확정하고, 원래 예외를 덮어쓰지 않는다."""
+        try:
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+
+            if original_error is not None:
+                logger.exception(
+                    "[group state sync] 상태 동기화 commit 실패. 원래 예외를 유지합니다."
+                )
+                return
+
+            raise
+
+        try:
+            self._flush_group_rag_actions()
+        except Exception:
+            logger.exception(
+                "[group state sync] RAG 후처리 enqueue 실패. 다음 요청 또는 배치에서 재시도합니다."
+            )
 
     def _check_premium(self, user_id: int):
         """프리미엄 플랜 활성 여부를 검사"""
@@ -104,14 +133,22 @@ class GroupService:
     def assert_view_permission(
         self, user_id: int, group_id: int
     ) -> tuple[Group, MembershipRole]:
-        """사용자의 그룹 조회 권한을 검사하고 그룹과 역할을 반환"""
+        """사용자의 그룹 조회 권한을 검사하고 그룹과 역할을 반환한다."""
         result = self.repository.get_group_with_role(user_id, group_id)
         if not result:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
         group, role = result
-        self._assert_group_readable(group)
-        return group, role
+        original_error: Exception | None = None
+
+        try:
+            self._assert_group_readable(group)
+            return group, role
+        except Exception as exc:
+            original_error = exc
+            raise
+        finally:
+            self._finalize_group_state_sync(original_error)
 
     def assert_reviewer_assignable(
         self, assignee_user_id: int, group_id: int
@@ -122,15 +159,22 @@ class GroupService:
     def assert_review_view_permission(
         self, user_id: int, group_id: int
     ) -> tuple[Group, GroupMember]:
-        """사용자가 승인 탭 목록을 조회할 수 있는지 확인"""
+        """사용자가 승인 탭 목록을 조회할 수 있는지 확인한다."""
         group = self.repository.get_group_by_id(group_id)
         if not group:
             raise AppException(ErrorCode.GROUP_NOT_FOUND)
 
-        self._assert_group_readable(group)
+        original_error: Exception | None = None
 
-        member = self._assert_owner_or_admin_member(user_id, group_id)
-        return group, member
+        try:
+            self._assert_group_readable(group)
+            member = self._assert_owner_or_admin_member(user_id, group_id)
+            return group, member
+        except Exception as exc:
+            original_error = exc
+            raise
+        finally:
+            self._finalize_group_state_sync(original_error)
 
     def _get_workspace_access_state(self, user_id: int) -> tuple[bool, object | None]:
         """현재 시각 기준으로 사용자의 워크스페이스 전체 접근 가능 여부를 계산"""
@@ -151,37 +195,66 @@ class GroupService:
         )
         return has_access, subscription
 
+    def _queue_group_rag_action(self, group_id: int, action: str) -> None:
+        """요청 중 발생한 워크스페이스 RAG 후처리를 메모리에 적재한다."""
+        item = (group_id, action)
+        if item not in self._pending_group_rag_actions:
+            self._pending_group_rag_actions.append(item)
+
+    def _flush_group_rag_actions(self) -> None:
+        """commit 이후 중복 방지된 RAG 후처리를 비동기 큐에 적재한다."""
+        if not self._pending_group_rag_actions:
+            return
+
+        pending = self._pending_group_rag_actions[:]
+        handled_count = 0
+
+        try:
+            for group_id, action in pending:
+                dedupe_key = f"group_rag:{action}:{group_id}"
+                acquired = redis_client.set(dedupe_key, "1", nx=True, ex=600)
+                if not acquired:
+                    handled_count += 1
+                    continue
+
+                try:
+                    if action == "deindex":
+                        self._enqueue_group_rag_deindex(group_id)
+                    elif action == "reindex":
+                        self._enqueue_group_rag_reindex(group_id)
+                except Exception:
+                    redis_client.delete(dedupe_key)
+                    raise
+
+                handled_count += 1
+        finally:
+            if handled_count > 0:
+                self._pending_group_rag_actions = self._pending_group_rag_actions[
+                    handled_count:
+                ]
+
     def _sync_group_state_if_needed(self, group: Group) -> Group:
-        """저장 상태와 현재 시각 기준 상태가 다르면 그룹 상태를 즉시 보정"""
+        """구독 만료 기반 상태만 즉시 보정하고, RAG 후처리는 분리한다."""
         now = utc_now_naive()
 
         if group.status == GroupStatus.DELETED:
             return group
 
         if group.pending_reason == GroupPendingReason.OWNER_DELETE_REQUEST:
-            if (
-                group.status == GroupStatus.DELETE_PENDING
-                and group.delete_scheduled_at is not None
-                and group.delete_scheduled_at <= now
-            ):
-                group.status = GroupStatus.BLOCKED
             return group
 
         has_access, subscription = self._get_workspace_access_state(group.owner_user_id)
 
         if has_access:
             if (
-                group.status
-                in (
-                    GroupStatus.DELETE_PENDING,
-                    GroupStatus.BLOCKED,
-                )
+                group.status in (GroupStatus.DELETE_PENDING, GroupStatus.BLOCKED)
                 and group.pending_reason == GroupPendingReason.SUBSCRIPTION_EXPIRED
             ):
                 group.status = GroupStatus.ACTIVE
                 group.pending_reason = None
                 group.delete_requested_at = None
                 group.delete_scheduled_at = None
+                self._queue_group_rag_action(group.id, "reindex")
             return group
 
         if not subscription or subscription.ended_at is None:
@@ -191,26 +264,53 @@ class GroupService:
         delete_scheduled_at = subscription.ended_at + timedelta(days=30)
 
         if delete_scheduled_at <= now:
-            group.status = GroupStatus.BLOCKED
+            changed = not (
+                group.status == GroupStatus.BLOCKED
+                and group.pending_reason == GroupPendingReason.SUBSCRIPTION_EXPIRED
+                and group.delete_requested_at == delete_requested_at
+                and group.delete_scheduled_at == delete_scheduled_at
+            )
+            if changed:
+                group.status = GroupStatus.BLOCKED
+                group.pending_reason = GroupPendingReason.SUBSCRIPTION_EXPIRED
+                group.delete_requested_at = delete_requested_at
+                group.delete_scheduled_at = delete_scheduled_at
+                self._queue_group_rag_action(group.id, "deindex")
+            return group
+
+        changed = not (
+            group.status == GroupStatus.DELETE_PENDING
+            and group.pending_reason == GroupPendingReason.SUBSCRIPTION_EXPIRED
+            and group.delete_requested_at == delete_requested_at
+            and group.delete_scheduled_at == delete_scheduled_at
+        )
+        if changed:
+            group.status = GroupStatus.DELETE_PENDING
             group.pending_reason = GroupPendingReason.SUBSCRIPTION_EXPIRED
             group.delete_requested_at = delete_requested_at
             group.delete_scheduled_at = delete_scheduled_at
-            return group
+            self._queue_group_rag_action(group.id, "deindex")
 
-        group.status = GroupStatus.DELETE_PENDING
-        group.pending_reason = GroupPendingReason.SUBSCRIPTION_EXPIRED
-        group.delete_requested_at = delete_requested_at
-        group.delete_scheduled_at = delete_scheduled_at
         return group
 
     def _get_effective_group_state(self, group: Group):
-        """저장된 그룹 상태를 화면에 사용할 최종 상태로 정리"""
+        """저장 상태를 현재 시각 기준 최종 상태로 정리한다."""
+        now = utc_now_naive()
         group = self._sync_group_state_if_needed(group)
 
-        if group.status in (
-            GroupStatus.DELETE_PENDING,
-            GroupStatus.BLOCKED,
+        if (
+            group.status == GroupStatus.DELETE_PENDING
+            and group.pending_reason == GroupPendingReason.OWNER_DELETE_REQUEST
+            and group.delete_scheduled_at is not None
+            and group.delete_scheduled_at <= now
         ):
+            return (
+                GroupStatus.DELETED,
+                GroupPendingReason.OWNER_DELETE_REQUEST,
+                group.delete_scheduled_at,
+            )
+
+        if group.status in (GroupStatus.DELETE_PENDING, GroupStatus.BLOCKED):
             return (
                 group.status,
                 group.pending_reason or GroupPendingReason.OWNER_DELETE_REQUEST,
@@ -220,12 +320,20 @@ class GroupService:
         return group.status, None, group.delete_scheduled_at
 
     def _has_effective_owned_group(self, user_id: int) -> bool:
-        """사용자가 현재 시각 기준 ACTIVE 워크스페이스를 소유하는지 확인"""
-        owned_groups = self.repository.get_owned_groups(user_id)
-        return any(
-            self._get_effective_group_state(group)[0] == GroupStatus.ACTIVE
-            for group in owned_groups
-        )
+        """사용자가 현재 시각 기준 ACTIVE 워크스페이스를 소유하는지 확인한다."""
+        original_error: Exception | None = None
+
+        try:
+            owned_groups = self.repository.get_owned_groups(user_id)
+            return any(
+                self._get_effective_group_state(group)[0] == GroupStatus.ACTIVE
+                for group in owned_groups
+            )
+        except Exception as exc:
+            original_error = exc
+            raise
+        finally:
+            self._finalize_group_state_sync(original_error)
 
     def assert_review_permission(self, user_id: int, group_id: int) -> GroupMember:
         """사용자가 해당 그룹에서 문서 승인/반려를 수행할 수 있는지 확인"""
@@ -294,28 +402,60 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
 
     def assert_group_writable(self, group: Group) -> None:
-        """그룹 쓰기 가능 여부를 현재 시각 기준 상태로 검사"""
-        status, _, _ = self._get_effective_group_state(group)
-        if status != GroupStatus.ACTIVE:
-            raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
+        """그룹 쓰기 가능 여부를 현재 시각 기준 상태로 검사한다."""
+        original_error: Exception | None = None
+
+        try:
+            status, _, _ = self._get_effective_group_state(group)
+            if status != GroupStatus.ACTIVE:
+                raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
+        except Exception as exc:
+            original_error = exc
+            raise
+        finally:
+            self._finalize_group_state_sync(original_error)
 
     def _assert_group_recoverable(self, group: Group) -> None:
-        """그룹 복구 및 오너 양도 가능 여부를 현재 시각 기준 상태로 검사"""
-        status, pending_reason, _ = self._get_effective_group_state(group)
+        """그룹 복구 및 오너 양도 가능 여부를 현재 시각 기준 상태로 검사한다."""
+        original_error: Exception | None = None
 
-        if status == GroupStatus.ACTIVE:
-            return
+        try:
+            status, pending_reason, _ = self._get_effective_group_state(group)
 
-        if status == GroupStatus.DELETE_PENDING:
-            return
+            if status == GroupStatus.ACTIVE:
+                return
 
-        if (
-            status == GroupStatus.BLOCKED
-            and pending_reason == GroupPendingReason.SUBSCRIPTION_EXPIRED
-        ):
-            return
+            if status == GroupStatus.DELETE_PENDING:
+                return
 
-        raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
+            if (
+                status == GroupStatus.BLOCKED
+                and pending_reason == GroupPendingReason.SUBSCRIPTION_EXPIRED
+            ):
+                return
+
+            raise AppException(ErrorCode.GROUP_NOT_ACTIVE)
+        except Exception as exc:
+            original_error = exc
+            raise
+        finally:
+            self._finalize_group_state_sync(original_error)
+
+    def _enqueue_group_rag_deindex(self, group_id: int) -> None:
+        """워크스페이스의 활성 승인 문서를 RAG 제거 큐에 적재한다."""
+        from tasks.group_document_task import deindex_document
+
+        document_ids = self.repository.get_active_approved_document_ids(group_id)
+        for document_id in document_ids:
+            deindex_document.delay(document_id)
+
+    def _enqueue_group_rag_reindex(self, group_id: int) -> None:
+        """복구된 워크스페이스의 활성 승인 문서를 재인덱싱 큐에 적재한다."""
+        from tasks.group_document_task import index_approved_document
+
+        document_ids = self.repository.get_active_approved_document_ids(group_id)
+        for document_id in document_ids:
+            index_approved_document.delay(document_id)
 
     def create_group(
         self, owner_user_id: int, name: str, description: Optional[str]
@@ -337,7 +477,7 @@ class GroupService:
         )
 
     def get_my_groups(self, user_id: int) -> MyGroupsResponse:
-        """내가 속한 그룹 목록을 현재 시각 기준 상태로 반환"""
+        """내가 속한 그룹 목록을 현재 시각 기준 상태로 반환한다."""
         rows = self.repository.get_my_groups(user_id)
         result: list[GroupSummaryResponse] = []
         has_blocked_owned_group = False
@@ -359,7 +499,7 @@ class GroupService:
                 )
             )
 
-        self.db.commit()
+        self._finalize_group_state_sync()
 
         return MyGroupsResponse(
             groups=result,
@@ -368,28 +508,29 @@ class GroupService:
         )
 
     def get_group_detail(self, user_id: int, group_id: int) -> GroupDetailResponse:
-        """그룹 상세 정보를 반환"""
-        result = self.repository.get_group_with_role(user_id, group_id)
-        if not result:
-            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+        """그룹 상세 정보를 반환한다."""
+        group, role = self.assert_view_permission(user_id, group_id)
 
-        group, role = result
-        self._assert_group_readable(group)
-
-        response = self._to_group_detail_response(
+        return self._to_group_detail_response(
             group=group,
             role=role,
         )
-        self.db.commit()
-        return response
 
     def request_delete_group(self, user_id: int, group_id: int):
-        """그룹 삭제를 요청"""
+        """그룹 삭제를 요청한다."""
         group = self._check_owner(user_id, group_id)
-        status, _, _ = self._get_effective_group_state(group)
+        original_error: Exception | None = None
 
-        if status != GroupStatus.ACTIVE:
-            raise AppException(ErrorCode.GROUP_ALREADY_DELETE_PENDING)
+        try:
+            status, _, _ = self._get_effective_group_state(group)
+
+            if status != GroupStatus.ACTIVE:
+                raise AppException(ErrorCode.GROUP_ALREADY_DELETE_PENDING)
+        except Exception as exc:
+            original_error = exc
+            raise
+        finally:
+            self._finalize_group_state_sync(original_error)
 
         group = self.repository.request_delete_group(
             group,
@@ -412,29 +553,39 @@ class GroupService:
                 target_id=group_id,
             )
 
-        response = self._to_group_detail_response(
+        self._queue_group_rag_action(group_id, "deindex")
+        self._finalize_group_state_sync()
+
+        return self._to_group_detail_response(
             group=group,
             role=MembershipRole.OWNER,
         )
-        self.db.commit()
-        return response
 
     def cancel_delete_group(self, user_id: int, group_id: int) -> GroupDetailResponse:
-        """그룹 삭제 요청을 취소"""
+        """그룹 삭제 요청을 취소한다."""
         group = self._check_owner(user_id, group_id)
-        status, pending_reason, _ = self._get_effective_group_state(group)
+        original_error: Exception | None = None
 
-        if status != GroupStatus.DELETE_PENDING or pending_reason not in (
-            None,
-            GroupPendingReason.OWNER_DELETE_REQUEST,
-        ):
-            raise AppException(ErrorCode.GROUP_NOT_DELETE_PENDING)
+        try:
+            status, pending_reason, _ = self._get_effective_group_state(group)
 
-        if self._has_effective_owned_group(user_id):
-            raise AppException(ErrorCode.GROUP_RESTORE_OWNER_LIMIT)
+            if status != GroupStatus.DELETE_PENDING or pending_reason not in (
+                None,
+                GroupPendingReason.OWNER_DELETE_REQUEST,
+            ):
+                raise AppException(ErrorCode.GROUP_NOT_DELETE_PENDING)
+
+            if self._has_effective_owned_group(user_id):
+                raise AppException(ErrorCode.GROUP_RESTORE_OWNER_LIMIT)
+        except Exception as exc:
+            original_error = exc
+            raise
+        finally:
+            self._finalize_group_state_sync(original_error)
 
         group = self.repository.cancel_delete_group(group)
-        self.db.commit()
+        self._queue_group_rag_action(group_id, "reindex")
+        self._finalize_group_state_sync()
 
         return self._to_group_detail_response(
             group=group,
@@ -443,12 +594,7 @@ class GroupService:
 
     def get_members(self, user_id: int, group_id: int) -> MemberListResponse:
         """멤버 목록 조회"""
-        result = self.repository.get_group_with_role(user_id, group_id)
-        if not result:
-            raise AppException(ErrorCode.GROUP_NOT_FOUND)
-
-        group, _ = result
-        self._assert_group_readable(group)
+        group, _ = self.assert_view_permission(user_id, group_id)
 
         active_rows = self.repository.get_members(group_id)
         invited_rows = self.repository.get_invited_members(group_id)
@@ -477,12 +623,10 @@ class GroupService:
             for member, user in invited_rows
         ]
 
-        response = MemberListResponse(members=members, invited=invited)
-        self.db.commit()
-
-        return response
+        return MemberListResponse(members=members, invited=invited)
 
     def get_my_invitations(self, user_id: int) -> list[InvitationResponse]:
+        """내 초대 목록 조회"""
         rows = self.repository.get_my_invitations(user_id)
 
         return [
@@ -695,12 +839,7 @@ class GroupService:
 
     def leave_group(self, user_id: int, group_id: int) -> None:
         """현재 사용자가 OWNER가 아닌 경우 워크스페이스를 탈퇴"""
-        result = self.repository.get_group_with_role(user_id, group_id)
-        if not result:
-            raise AppException(ErrorCode.GROUP_NOT_FOUND)
-
-        group, role = result
-        self._assert_group_readable(group)
+        _, role = self.assert_view_permission(user_id, group_id)
 
         if role == MembershipRole.OWNER:
             raise AppException(ErrorCode.GROUP_OWNER_CANNOT_LEAVE)

@@ -382,3 +382,21 @@ class GroupRepository:
             .first()
             is not None
         )
+
+    def get_active_approved_document_ids(self, group_id: int) -> list[int]:
+        """워크스페이스의 ACTIVE + APPROVED 문서 id 목록을 반환한다."""
+        rows = (
+            self.db.query(Document.id)
+            .join(
+                DocumentApproval,
+                DocumentApproval.document_id == Document.id,
+            )
+            .filter(
+                Document.group_id == group_id,
+                Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE,
+                DocumentApproval.status == ReviewStatus.APPROVED,
+            )
+            .all()
+        )
+
+        return [document_id for (document_id,) in rows]
