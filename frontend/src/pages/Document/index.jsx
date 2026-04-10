@@ -11,6 +11,11 @@ import {
     getMembers,
     rejectDocument,
 } from '@/api/groups'
+import {
+    calcKoreanDday,
+    formatKoreanDate,
+    formatKoreanDateTime,
+} from '@/lib/datetime'
 import { Avatar, AvatarFallback } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -73,16 +78,7 @@ const PDF_OPTIONS = {
  * 댓글 시간 표시 문자열을 만든다.
  */
 function formatCommentDate(value) {
-    if (!value) return '-'
-
-    return new Date(value).toLocaleString('ko-KR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-    })
+    return formatKoreanDateTime(value)
 }
 
 /**
@@ -746,9 +742,7 @@ export default function DocumentPage() {
     }, [comments, replyParentId])
 
     const calcDday = (isoDate) => {
-        if (!isoDate) return null
-        const diff = Math.ceil((new Date(isoDate) - new Date()) / (1000 * 60 * 60 * 24))
-        return diff <= 0 ? 'D-0' : `D-${diff}`
+        return calcKoreanDday(isoDate)
     }
 
     const deletedDday = calcDday(doc?.delete_scheduled_at)
@@ -1633,7 +1627,7 @@ export default function DocumentPage() {
                     <p className="font-medium">휴지통에 있는 문서입니다.</p>
                     <p className="mt-1 text-xs">
                         {doc.delete_scheduled_at
-                            ? `${new Date(doc.delete_scheduled_at).toLocaleDateString('ko-KR')} 삭제 예정 (${deletedDday})`
+                            ? `${formatKoreanDate(doc.delete_scheduled_at)} 삭제 예정 (${deletedDday})`
                             : '삭제 예정 문서입니다.'}
                         {doc.deleted_by_username ? ` · 삭제자 ${doc.deleted_by_username}` : ''}
                     </p>
