@@ -53,11 +53,11 @@ export default function ProfileSection() {
   }
 
   return (
-    <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-none rounded-xl overflow-hidden">
-     <CardHeader className="py-3 px-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50">
-        <CardTitle className="text-sm font-bold flex items-center gap-3 text-zinc-700 dark:text-zinc-300 uppercase tracking-tight">
-          <div className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
-            <User2 size={14} className="text-zinc-600 dark:text-zinc-400" />
+    <Card className="border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-none rounded-xl overflow-hidden">
+     <CardHeader className="py-3 px-5 border-b border-zinc-100 dark:border-slate-900 bg-zinc-50/50 dark:bg-slate-900/50">
+        <CardTitle className="text-sm font-bold flex items-center gap-3 text-zinc-700 dark:text-slate-300 uppercase tracking-tight">
+          <div className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+            <User2 size={14} className="text-zinc-600 dark:text-slate-400" />
           </div>
           기본
         </CardTitle>
@@ -67,12 +67,12 @@ export default function ProfileSection() {
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <p className="text-[11px] font-bold text-zinc-400 uppercase ml-1">유저명</p>
-              <p className="text-sm font-black text-zinc-800 dark:text-zinc-200 ml-1">{user?.username}</p>
+              <p className="text-sm font-black text-zinc-800 dark:text-slate-200 ml-1">{user?.username}</p>
             </div>
             <Button
               variant="outline"
               onClick={() => setIsEditing(true)}
-              className="h-9 px-4 text-xs font-bold border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 active:scale-95"
+              className="h-9 px-4 text-xs font-bold border-zinc-200 dark:border-slate-800 hover:bg-zinc-50 dark:bg-slate-900 dark:hover:bg-slate-800 active:scale-95"
             >
               변경
             </Button>
@@ -88,7 +88,7 @@ export default function ProfileSection() {
                   if (errorMsg) setErrorMsg('')
                 }}
                 autoFocus
-                className="h-9 text-sm rounded-lg border-zinc-200 dark:border-zinc-800 dark:bg-zinc-900 focus-visible:ring-zinc-100"
+                className="h-9 text-sm rounded-lg border-zinc-200 dark:border-slate-800 dark:bg-slate-900 focus-visible:ring-zinc-100"
               />
               {errorMsg && (
                 <p className="text-[11px] text-red-500 font-medium absolute mt-1 ml-1">
@@ -100,7 +100,7 @@ export default function ProfileSection() {
               <Button
                 variant="ghost"
                 onClick={handleCancel}
-                className="h-9 px-4 text-xs font-bold text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all active:scale-95"
+                className="h-9 px-4 text-xs font-bold text-zinc-400 hover:text-zinc-900 dark:hover:text-slate-100 transition-all active:scale-95"
               >
                 취소
               </Button>
@@ -108,7 +108,7 @@ export default function ProfileSection() {
                 variant="outline"
                 onClick={handleUsernameUpdate}
                 disabled={isUpdating}
-                className="h-9 px-4 text-xs font-bold border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 active:scale-95"
+                className="h-9 px-4 text-xs font-bold border-zinc-200 dark:border-slate-800 hover:bg-zinc-50 dark:bg-slate-900 dark:hover:bg-slate-800 active:scale-95"
               >
                 {isUpdating ? '저장 중' : '저장'}
               </Button>

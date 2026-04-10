@@ -405,7 +405,7 @@ function MiniBarLineChart({ data, barKey, lineKey, labelKey }) {
               <span className="h-[22px]" />
             )}
             <span className="whitespace-nowrap rounded-full bg-background/95 px-2 py-0.5 text-[10px] font-semibold text-foreground shadow-sm ring-1 ring-border">
-              실패율 {d[lineKey]}%
+              {d[lineKey]}%
             </span>
           </div>
         ))}

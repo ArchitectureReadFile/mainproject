@@ -108,9 +108,9 @@ export default function SubscriptionSection() {
   }
 
   return (
-    <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-none rounded-xl overflow-hidden">
-      <CardHeader className="py-4 px-6 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50">
-        <CardTitle className="text-sm font-bold flex items-center gap-2 text-zinc-700 dark:text-zinc-300 uppercase tracking-tight">
+    <Card className="border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-none rounded-xl overflow-hidden">
+      <CardHeader className="py-4 px-6 border-b border-zinc-100 dark:border-slate-900 bg-zinc-50/50 dark:bg-slate-900/50">
+        <CardTitle className="text-sm font-bold flex items-center gap-2 text-zinc-700 dark:text-slate-300 uppercase tracking-tight">
           <CreditCard size={16} className="text-blue-500" /> 구독 플랜
         </CardTitle>
       </CardHeader>
@@ -119,7 +119,7 @@ export default function SubscriptionSection() {
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <p className="text-lg font-black text-zinc-800 dark:text-zinc-100">
+              <p className="text-lg font-black text-zinc-800 dark:text-slate-100">
                 {viewModel.planLabel}
               </p>
               <Badge
@@ -127,28 +127,28 @@ export default function SubscriptionSection() {
                 className={
                   subscription?.plan === 'PREMIUM' && subscription?.status === 'ACTIVE'
                     ? 'border-blue-500/20 text-blue-600 bg-blue-50/40 dark:bg-blue-500/10'
-                    : 'border-zinc-300 text-zinc-600 bg-zinc-50 dark:bg-zinc-900'
+                    : 'border-zinc-300 text-zinc-600 bg-zinc-50 dark:bg-slate-900'
                 }
               >
                 {viewModel.statusLabel}
               </Badge>
             </div>
 
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="text-sm text-zinc-500 dark:text-slate-400">
               {viewModel.description}
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 px-4 py-3">
+              <div className="rounded-xl border border-zinc-200 dark:border-slate-800 px-4 py-3">
                 <p className="text-[11px] font-bold text-zinc-400 uppercase">시작일</p>
-                <p className="mt-1 text-sm font-bold text-zinc-700 dark:text-zinc-200">
+                <p className="mt-1 text-sm font-bold text-zinc-700 dark:text-slate-200">
                   {subscription?.started_at ? formatDate(subscription.started_at) : '-'}
                 </p>
               </div>
 
-              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 px-4 py-3">
+              <div className="rounded-xl border border-zinc-200 dark:border-slate-800 px-4 py-3">
                 <p className="text-[11px] font-bold text-zinc-400 uppercase">종료일</p>
-                <p className="mt-1 text-sm font-bold text-zinc-700 dark:text-zinc-200">
+                <p className="mt-1 text-sm font-bold text-zinc-700 dark:text-slate-200">
                   {subscription?.ended_at ? formatDate(subscription.ended_at) : '-'}
                 </p>
               </div>
@@ -171,7 +171,7 @@ export default function SubscriptionSection() {
                 variant="outline"
                 onClick={handleCancel}
                 disabled={isSubmitting}
-                className="h-9 px-4 text-xs font-bold border-zinc-200 dark:border-zinc-800"
+                className="h-9 px-4 text-xs font-bold border-zinc-200 dark:border-slate-800"
               >
                 {isSubmitting ? '처리 중' : '자동 갱신 해지'}
               </Button>

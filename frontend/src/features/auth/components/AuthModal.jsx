@@ -12,18 +12,21 @@ export default function AuthModal({ mode, open, onClose }) {
   }, [open, mode])
 
   const titles = {
-    login:          '로그인',
-    signup:         '회원가입',
-    confirmAccount: '가입 정보 확인',
-    resetPassword:  '비밀번호 재설정',
+    login:          '로그인하여 스마트한 법률 상담의 시작해보세요.',
+    signup:         '지금 가입하고 더 편리한 분석을 경험하세요.',
+    confirmAccount: '가입하신 정보를 확인하여 계정을 찾아드릴게요.',
+    resetPassword:  '본인 인증 후 비밀번호를 재설정해 주세요.',
   }
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{titles[view]}</DialogTitle>
+      <DialogContent className="max-w-[400px] p-8 sm:rounded-[24px] border-none shadow-2xl overflow-hidden bg-background">
+        <DialogHeader className="space-y-1 mb-4">
+          <DialogTitle>
+            {titles[view]}
+          </DialogTitle>
         </DialogHeader>
+
 
         {(view === 'login' || view === 'signup') && (
           <LoginSignupForm view={view} setView={setView} onClose={onClose} />

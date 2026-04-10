@@ -56,11 +56,11 @@ export default function EmailSection() {
   }
 
   return (
-    <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-none rounded-xl overflow-hidden">
-     <CardHeader className="py-3 px-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50">
-        <CardTitle className="text-sm font-bold flex items-center gap-3 text-zinc-700 dark:text-zinc-300 uppercase tracking-tight">
-          <div className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
-            <Mail size={14} className="text-zinc-600 dark:text-zinc-400" />
+    <Card className="border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-none rounded-xl overflow-hidden">
+     <CardHeader className="py-3 px-5 border-b border-zinc-100 dark:border-slate-900 bg-zinc-50/50 dark:bg-slate-900/50">
+        <CardTitle className="text-sm font-bold flex items-center gap-3 text-zinc-700 dark:text-slate-300 uppercase tracking-tight">
+          <div className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+            <Mail size={14} className="text-zinc-600 dark:text-slate-400" />
           </div>
           이메일
         </CardTitle>
@@ -69,13 +69,13 @@ export default function EmailSection() {
         {step === 1 ? (
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <p className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase">현재 계정</p>
+              <p className="text-[11px] font-bold text-zinc-400 dark:text-slate-500 uppercase">현재 계정</p>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-black text-zinc-800 dark:text-zinc-200">{user?.email}</span>
+                <span className="text-sm font-black text-zinc-800 dark:text-slate-200">{user?.email}</span>
                 <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-emerald-500/20 text-emerald-600 bg-emerald-50/30 dark:bg-emerald-500/10 uppercase">인증됨</Badge>
               </div>
             </div>
-            <Button variant="outline" onClick={() => setStep(2)} className="h-9 px-4 text-xs font-bold border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 active:scale-95">변경</Button>
+            <Button variant="outline" onClick={() => setStep(2)} className="h-9 px-4 text-xs font-bold border-zinc-200 dark:border-slate-800 hover:bg-zinc-50 dark:bg-slate-900 dark:hover:bg-slate-800 active:scale-95">변경</Button>
           </div>
         ) : step === 2 ? (
           <div className="space-y-1 animate-in fade-in duration-300">
@@ -89,7 +89,7 @@ export default function EmailSection() {
                     if (errorMsg) setErrorMsg('')
                   }}
                   placeholder="example@email.com"
-                  className="h-10 rounded-lg dark:bg-zinc-900 shadow-none border-zinc-200 dark:border-zinc-800 focus-visible:ring-zinc-200"
+                  className="h-10 rounded-lg dark:bg-slate-900 shadow-none border-zinc-200 dark:border-slate-800 focus-visible:ring-zinc-200"
                 />
                 {errorMsg && (
                   <p className="text-[11px] text-red-500 font-medium absolute mt-1 ml-1">
@@ -98,10 +98,10 @@ export default function EmailSection() {
                 )}
               </div>
               <div className="flex gap-2 shrink-0 pt-0.5">
-                <Button variant="ghost" onClick={handleCancel} className="h-9 px-4 text-xs font-bold text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all active:scale-95">
+                <Button variant="ghost" onClick={handleCancel} className="h-9 px-4 text-xs font-bold text-zinc-400 hover:text-zinc-900 dark:hover:text-slate-100 transition-all active:scale-95">
                   취소
                 </Button>
-                <Button variant="outline" onClick={handleSendCode} disabled={loading} className="h-9 px-4 text-xs font-bold border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all active:scale-95">
+                <Button variant="outline" onClick={handleSendCode} disabled={loading} className="h-9 px-4 text-xs font-bold border-zinc-200 dark:border-slate-800 hover:bg-zinc-50 dark:bg-slate-900 dark:hover:bg-slate-800 transition-all active:scale-95">
                   {loading ? '전송 중' : '전송'}
                 </Button>
               </div>
@@ -121,7 +121,7 @@ export default function EmailSection() {
                   }}
                   placeholder="전송된 6자리 인증코드를 입력하여 검증해주세요"
                   maxLength={6}
-                  className="h-10 rounded-lg dark:bg-zinc-900 shadow-none border-zinc-200 dark:border-zinc-800 text-center font-bold tracking-widest"
+                  className="h-10 rounded-lg dark:bg-slate-900 shadow-none border-zinc-200 dark:border-slate-800 text-center font-bold tracking-widest"
                 />
                 {errorMsg && (
                   <p className="text-[11px] text-red-500 font-medium absolute mt-1 ml-1">
@@ -130,10 +130,10 @@ export default function EmailSection() {
                 )}
               </div>
               <div className="flex gap-2 shrink-0 pt-0.5">
-                <Button variant="ghost" onClick={handleCancel} className="h-10 px-4 font-bold text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all active:scale-95">
+                <Button variant="ghost" onClick={handleCancel} className="h-10 px-4 font-bold text-zinc-400 hover:text-zinc-900 dark:hover:text-slate-100 transition-all active:scale-95">
                   취소
                 </Button>
-                <Button variant="outline" onClick={handleFinalUpdate} disabled={loading} className="h-10 rounded-lg border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 font-bold px-5 transition-all active:scale-95">
+                <Button variant="outline" onClick={handleFinalUpdate} disabled={loading} className="h-10 rounded-lg border-zinc-200 dark:border-slate-800 hover:bg-zinc-50 dark:bg-slate-900 dark:hover:bg-slate-800 font-bold px-5 transition-all active:scale-95">
                   {loading ? '확인 중' : '확인'}
                 </Button>
               </div>
