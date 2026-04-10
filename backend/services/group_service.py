@@ -566,6 +566,12 @@ class GroupService:
         if not membership:
             raise AppException(ErrorCode.GROUP_MEMBER_NOT_FOUND)
 
+        group = self.repository.get_group_by_id(group_id)
+        if not group:
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+
+        self.assert_group_writable(group)
+
         self.repository.accept_invite(membership)
         self.db.commit()
 
