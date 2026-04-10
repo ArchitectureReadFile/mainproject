@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, contains_eager
 
 from models.model import (
     Document,
+    DocumentApproval,
     DocumentLifecycleStatus,
     Group,
     GroupMember,
@@ -13,6 +14,7 @@ from models.model import (
     GroupStatus,
     MembershipRole,
     MembershipStatus,
+    ReviewStatus,
     Subscription,
     SubscriptionPlan,
     SubscriptionStatus,
@@ -145,9 +147,14 @@ class GroupRepository:
     def count_document(self, group_id: int) -> int:
         return (
             self.db.query(func.count(Document.id))
+            .join(
+                DocumentApproval,
+                DocumentApproval.document_id == Document.id,
+            )
             .filter(
                 Document.group_id == group_id,
                 Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE,
+                DocumentApproval.status == ReviewStatus.APPROVED,
             )
             .scalar()
             or 0

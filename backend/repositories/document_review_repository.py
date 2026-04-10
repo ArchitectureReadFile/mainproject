@@ -1,6 +1,7 @@
+import unicodedata
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from models.model import (
@@ -12,6 +13,7 @@ from models.model import (
     GroupMember,
     MembershipStatus,
     ReviewStatus,
+    Summary,
     User,
 )
 
@@ -19,6 +21,28 @@ from models.model import (
 class DocumentReviewRepository:
     def __init__(self, db: Session):
         self.db = db
+
+    @staticmethod
+    def _normalize_keyword(keyword: str) -> str:
+        """검색어를 NFC 기준으로 정규화"""
+        return unicodedata.normalize("NFC", keyword or "").strip()
+
+    def _apply_keyword_filter(self, query, keyword: str):
+        """
+        승인 문서 목록 검색 조건을 적용
+        파일명과 summary metadata(case_number, case_name)를 부분 검색
+        """
+        normalized = self._normalize_keyword(keyword)
+        if not normalized:
+            return query
+
+        pattern = f"%{normalized}%"
+        return query.filter(
+            or_(
+                Document.original_filename.ilike(pattern),
+                Summary.metadata_json.ilike(pattern),
+            )
+        )
 
     def get_member_status_map(
         self,
@@ -88,6 +112,7 @@ class DocumentReviewRepository:
                 joinedload(Document.summary),
                 joinedload(Document.approval).joinedload(DocumentApproval.assignee),
             )
+            .outerjoin(Document.summary)
             .outerjoin(
                 comment_count_subquery,
                 comment_count_subquery.c.document_id == Document.id,
@@ -99,8 +124,7 @@ class DocumentReviewRepository:
             )
         )
 
-        if keyword:
-            query = query.filter(Document.original_filename.contains(keyword))
+        query = self._apply_keyword_filter(query, keyword)
 
         if uploader:
             query = query.join(Document.owner).filter(User.username == uploader)
@@ -199,6 +223,7 @@ class DocumentReviewRepository:
                 joinedload(Document.approval).joinedload(DocumentApproval.assignee),
                 joinedload(Document.approval).joinedload(DocumentApproval.reviewer),
             )
+            .outerjoin(Document.summary)
             .outerjoin(
                 comment_count_subquery,
                 comment_count_subquery.c.document_id == Document.id,
@@ -211,8 +236,7 @@ class DocumentReviewRepository:
             )
         )
 
-        if keyword:
-            query = query.filter(Document.original_filename.contains(keyword))
+        query = self._apply_keyword_filter(query, keyword)
 
         if uploader:
             query = query.join(Document.owner).filter(User.username == uploader)
@@ -277,6 +301,7 @@ class DocumentReviewRepository:
                 joinedload(Document.approval).joinedload(DocumentApproval.assignee),
                 joinedload(Document.approval).joinedload(DocumentApproval.reviewer),
             )
+            .outerjoin(Document.summary)
             .outerjoin(
                 comment_count_subquery,
                 comment_count_subquery.c.document_id == Document.id,
@@ -289,8 +314,7 @@ class DocumentReviewRepository:
             )
         )
 
-        if keyword:
-            query = query.filter(Document.original_filename.contains(keyword))
+        query = self._apply_keyword_filter(query, keyword)
 
         if uploader:
             query = query.join(Document.owner).filter(User.username == uploader)

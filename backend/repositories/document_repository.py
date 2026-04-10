@@ -1,4 +1,5 @@
 import logging
+import unicodedata
 from datetime import timedelta
 from typing import Optional
 
@@ -27,6 +28,11 @@ logger = logging.getLogger(__name__)
 class DocumentRepository:
     def __init__(self, db: Session):
         self.db = db
+
+    @staticmethod
+    def _normalize_keyword(keyword: str) -> str:
+        """검색어를 NFC 기준으로 정규화"""
+        return unicodedata.normalize("NFC", keyword or "").strip()
 
     def get_member_status_map(
         self,
@@ -200,9 +206,10 @@ class DocumentRepository:
         group_id=None,
     ):
         """
-        문서 목록을 조회하고 카드 표시용 일반 댓글 수를 함께 집계.
-        삭제된 댓글과 REVIEW 범위 댓글은 제외.
-        category 필터는 Document.category 컬럼 직접 비교.
+        문서 목록을 조회하고 카드 표시용 일반 댓글 수를 함께 집계
+        삭제된 댓글과 REVIEW 범위 댓글은 제외
+        category 필터는 Document.category 컬럼 직접 비교
+        keyword 검색은 original_filename + summary metadata 기준으로 동작
         """
         comment_count_subquery = (
             self.db.query(
@@ -250,11 +257,13 @@ class DocumentRepository:
         if category and category != "전체":
             query = query.filter(Document.category == category)
 
-        if keyword:
+        normalized_keyword = self._normalize_keyword(keyword)
+        if normalized_keyword:
+            pattern = f"%{normalized_keyword}%"
             query = query.filter(
                 or_(
-                    Document.original_filename.contains(keyword),
-                    Summary.summary_text.contains(keyword),
+                    Document.original_filename.ilike(pattern),
+                    Summary.metadata_json.ilike(pattern),
                 )
             )
 

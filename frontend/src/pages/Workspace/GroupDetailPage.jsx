@@ -3,6 +3,11 @@ import {
     removeMember, changeMemberRole, transferOwner, leaveGroup, getGroupDocuments,
 } from '@/api/groups'
 import {
+    calcKoreanDday,
+    formatKoreanDate,
+    formatKoreanDateTime,
+} from '@/lib/datetime'
+import {
     createExportJob,
     getExportDownloadUrl,
     getExportJob,
@@ -67,7 +72,7 @@ function triggerExportDownload(jobId, fileName) {
  */
 function formatExportExpiresAt(isoDate) {
     if (!isoDate) return null
-    return new Date(isoDate).toLocaleString('ko-KR')
+    return formatKoreanDateTime(isoDate)
 }
 
 
@@ -87,9 +92,7 @@ async function getApprovedDocumentCount(groupId) {
  * D-Day를 계산한다.
  */
 function calcDday(isoDate) {
-    if (!isoDate) return null
-    const diff = Math.ceil((new Date(isoDate) - new Date()) / (1000 * 60 * 60 * 24))
-    return diff <= 0 ? 'D-0' : `D-${diff}`
+    return calcKoreanDday(isoDate)
 }
 
 /**
@@ -164,7 +167,7 @@ function DeletePendingBanner({ scheduledAt, pendingReason }) {
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span>
                 <span className="font-semibold">
-                    {dday}({new Date(scheduledAt).toLocaleDateString('ko-KR')} 삭제 예정)
+                    {dday}({formatKoreanDate(scheduledAt)} 삭제 예정)
                 </span>
             </span>
         </div>
@@ -603,7 +606,7 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
                                     <div>
                                         <p className="text-sm font-medium">{m.username}</p>
                                         <p className="text-xs text-muted-foreground">
-                                            초대일: {new Date(m.invited_at).toLocaleDateString('ko-KR')}
+                                            초대일: {formatKoreanDate(m.invited_at)}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -813,7 +816,7 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
                     <div className="flex items-center">
                         <span className="text-muted-foreground w-24 shrink-0 pb-3">생성일</span>
                         <span className="font-medium text-slate-900">
-                            {new Date(group.created_at).toLocaleDateString('ko-KR')}
+                            {formatKoreanDate(group.created_at)}
                         </span>
                     </div>
                     <div className="flex items-center border-t pt-3">
@@ -834,7 +837,7 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
                     <h3 className="text-base font-semibold">데이터 관리 / 백업</h3>
                     <div className="space-y-1">
                         <p className="text-base text-muted-foreground">
-                            워크스페이스 내 모든 문서를 ZIP 파일로 다운로드합니다.
+                            워크스페이스 내 모든 문서(승인 대기 및 반려 문서 포함)를 ZIP 파일로 다운로드합니다.
                         </p>
                         <p className="text-sm text-muted-foreground">
                             백업 파일은 생성 시점의 문서 기준으로 만들어집니다. 이후 변경 사항을 반영하려면 새로 백업을 생성해주세요.
@@ -914,7 +917,7 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
                         {!isPending
                             ? '삭제 요청 후 30일 동안 읽기 전용 상태로 유지되며, 이후 접근이 제한됩니다.'
                             : group.delete_scheduled_at
-                                ? `${new Date(group.delete_scheduled_at).toLocaleDateString('ko-KR')}까지 읽기 전용 상태로 유지됩니다.`
+                                ? `${formatKoreanDate(group.delete_scheduled_at)}까지 읽기 전용 상태로 유지됩니다.`
                                 : '삭제 예정 상태입니다.'
                         }
                     </p>
