@@ -13,8 +13,11 @@ class ErrorCode(Enum):
       LLM       : LLM 요약 처리
       SUM       : 요약 결과 조회
       FILE      : 파일 다운로드
-      PRECEDENT : RAG 판례 관리
+      PLATFORM  : 플랫폼 동기화
       CHAT      : 채팅 세션 및 메시지 처리
+      GROUP     : 워크스페이스 처리
+      COMMENT   : 댓글 처리
+      EXPORT    : 전체 다운로드 export job 처리
     """
 
     @property
@@ -248,3 +251,17 @@ class ErrorCode(Enum):
         422,
         "멘션할 수 없는 사용자입니다.",
     )
+
+    # ── Export (EXPORT) ─────────────────────────────────────────────────────
+    EXPORT_NOT_FOUND = ("EXPORT_001", 404, "내보내기 작업을 찾을 수 없습니다.")
+    EXPORT_NOT_READY = (
+        "EXPORT_002",
+        409,
+        "아직 다운로드할 수 없는 내보내기 작업입니다.",
+    )
+    EXPORT_EXPIRED = (
+        "EXPORT_003",
+        410,
+        "내보내기 파일 보관 기간이 만료되었습니다. 다시 요청해주세요.",
+    )
+    EXPORT_CANCELLED = ("EXPORT_004", 409, "취소된 내보내기 작업입니다.")

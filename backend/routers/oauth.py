@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from redis import Redis
-from sqlalchemy.orm import Session
 
-from dependencies import get_current_user, get_db, get_oauth_service, get_redis
+from dependencies import get_current_user, get_oauth_service, get_redis
 from models.model import User
 from services.cookie_service import CookieService
 from services.oauth_service import OAuthService
@@ -31,7 +30,6 @@ async def social_callback(
     provider: str,
     code: str,
     request: Request,
-    db: Session = Depends(get_db),
     redis: Redis = Depends(get_redis),
     oauth_service: OAuthService = Depends(get_oauth_service),
 ):
@@ -40,7 +38,6 @@ async def social_callback(
     current_user_token = request.cookies.get("access_token")
 
     result = await oauth_service.process_social_callback(
-        db=db,
         redis_client=redis,
         provider=provider,
         code=code,
@@ -60,9 +57,8 @@ async def social_callback(
 @router.delete("/{provider}/unlink")
 def unlink_social_account(
     provider: str,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     oauth_service: OAuthService = Depends(get_oauth_service),
 ):
-    oauth_service.unlink_social_account(db, current_user.id, provider)
-    return {"message": f"{provider} 연동이 해제되었습니다."}
+    oauth_service.unlink_social_account(current_user.id, provider)
+    return {"message": f"{provider} 연동해제되었습니다."}

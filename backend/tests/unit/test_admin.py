@@ -30,6 +30,8 @@ from models.model import (
     Group,
     GroupMember,
     GroupStatus,
+    MembershipRole,
+    MembershipStatus,
     Subscription,
     SubscriptionPlan,
     SubscriptionStatus,
@@ -39,7 +41,7 @@ from models.platform_knowledge import PlatformSyncFailure, PlatformSyncRun
 from routers.auth import get_current_user
 from services.auth_service import AuthService
 
-auth_service = AuthService()
+auth_service = AuthService(None)
 
 # ── 픽스처 ────────────────────────────────────────────────────────────────────
 
@@ -171,7 +173,9 @@ class TestAdminStats:
 
     def test_stats_active_groups(self, admin_client, db_session, admin_user):
         group = Group(
-            name="테스트그룹", owner_id=admin_user.id, status=GroupStatus.ACTIVE
+            name="테스트그룹",
+            owner_user_id=admin_user.id,
+            status=GroupStatus.ACTIVE,
         )
         db_session.add(group)
         db_session.commit()
@@ -421,23 +425,15 @@ class TestAdminPlatformSyncFailureType:
     """
     execute_platform_source_sync item-level 실패 시 error_type이
     올바르게 기록되는지 검증한다.
-
-    실제 Celery/API 호출 없이 SessionLocal + client/ingestion_service를
-    mock으로 교체해 단위 테스트한다.
     """
 
     def _run_sync(self, db_session, run, *, patch_client, patch_ingestion=None):
-        """
-        execute_platform_source_sync를 실제 DB session으로 실행한다.
-        SessionLocal을 mock해서 db_session을 재사용한다.
-        """
         from services.admin_platform_service import execute_platform_source_sync
 
         with patch(
             "services.admin_platform_service.SessionLocal",
             return_value=db_session,
         ):
-            # db.close()가 session을 닫지 않도록 noop 처리
             db_session.close = lambda: None
 
             patches = [
@@ -465,7 +461,6 @@ class TestAdminPlatformSyncFailureType:
                     p.stop()
 
     def _make_client(self, *, extract_detail_link=None, fetch_detail=None):
-        """KoreaLawOpenApiClient mock 생성 헬퍼."""
         c = MagicMock()
         c.search_page.return_value = (
             [{"id": "LAW-001", "title": "테스트 법령"}],
@@ -578,7 +573,7 @@ class TestAdminPlatformSyncFailureType:
         assert len(f.error_message) > 0
 
     def test_cancelled_run_no_failure_saved(self, db_session):
-        """cancelled run은 failure row 저장 후 progress update가 running으로 바꾸지 않는다."""
+        """cancelled run은 progress update가 running으로 바꾸지 않는다."""
         run = _make_sync_run(db_session, "law", "cancelled")
         mock_client = self._make_client(
             extract_detail_link=RuntimeError("링크 추출 실패")
@@ -604,7 +599,6 @@ class TestAdminUsers:
     def test_list_excludes_admin(self, admin_client, db_session):
         _make_user(db_session, "g@example.com", "일반유저")
         res = admin_client.get("/api/admin/users")
-        # ADMIN 유저(admin_user fixture)는 제외되어야 함
         for item in res.json()["items"]:
             assert item["role"] == "GENERAL"
 
@@ -625,11 +619,22 @@ class TestAdminUsers:
 
     def test_list_active_group_count(self, admin_client, db_session, admin_user):
         user = _make_user(db_session, "gc@example.com", "그룹유저")
-        group = Group(name="그룹", owner_id=admin_user.id, status=GroupStatus.ACTIVE)
+        group = Group(
+            name="그룹",
+            owner_user_id=admin_user.id,
+            status=GroupStatus.ACTIVE,
+        )
         db_session.add(group)
         db_session.commit()
         db_session.refresh(group)
-        db_session.add(GroupMember(group_id=group.id, user_id=user.id))
+        db_session.add(
+            GroupMember(
+                group_id=group.id,
+                user_id=user.id,
+                role=MembershipRole.VIEWER,
+                status=MembershipStatus.ACTIVE,
+            )
+        )
         db_session.commit()
 
         res = admin_client.get("/api/admin/users")
@@ -671,7 +676,6 @@ class TestAdminUserUpdate:
         assert res.status_code == 403
 
     def test_cannot_deactivate_self(self, client, db_session):
-        # admin_user fixture 대신 직접 생성해서 자기 자신 테스트
         self_admin = _make_user(
             db_session, "self@example.com", "셀프관리자", role="ADMIN"
         )

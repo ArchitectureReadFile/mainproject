@@ -77,12 +77,12 @@ export default function WithdrawalSection() {
     <>
       <div className="space-y-6 pt-24">
         <div className="flex items-center gap-2 px-2">
-          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+          <div className="h-px flex-1 bg-zinc-200 dark:bg-slate-800" />
           <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">위험 구역</span>
-          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+          <div className="h-px flex-1 bg-zinc-200 dark:bg-slate-800" />
         </div>
 
-        <Card className="border-red-200 dark:border-red-900/20 rounded-2xl shadow-sm overflow-hidden border bg-white dark:bg-zinc-900">
+        <Card className="border-red-200 dark:border-red-900/20 rounded-2xl shadow-sm overflow-hidden border bg-white dark:bg-slate-900">
           <div className="p-6 bg-red-50/30 dark:bg-red-900/10 flex flex-col items-center text-center gap-4 w-full">
             <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center shrink-0">
               <AlertTriangle size={24} className="text-red-600 dark:text-red-500" />
@@ -118,25 +118,25 @@ export default function WithdrawalSection() {
 
       <Dialog open={isWithdrawDialogOpen} onOpenChange={handleModalOpenChange}>
         <DialogContent
-          className="sm:max-w-[440px] p-0 overflow-hidden border-zinc-200 dark:border-zinc-800"
+          className="sm:max-w-[440px] p-0 overflow-hidden border-zinc-200 dark:border-slate-800"
           onInteractOutside={(e) => e.preventDefault()}
         >
           {step > 1 && (
             <button
               onClick={() => setStep(step - 1)}
-              className="absolute left-4 top-4 z-50 opacity-70 transition-opacity hover:opacity-100 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 focus:outline-none"
+              className="absolute left-4 top-4 z-50 opacity-70 transition-opacity hover:opacity-100 text-zinc-500 hover:text-zinc-900 dark:text-slate-400 dark:hover:text-slate-100 focus:outline-none"
             >
               <ArrowLeft className="h-4 w-4" strokeWidth={2.5} />
             </button>
           )}
 
-          <div className="px-8 pt-8 pb-6 bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-100 dark:border-zinc-800">
+          <div className="px-8 pt-8 pb-6 bg-zinc-50 dark:bg-slate-900/50 border-b border-zinc-100 dark:border-slate-800">
             <div className="flex items-center justify-between max-w-[280px] mx-auto relative">
               <div className="flex flex-col items-center relative z-10">
                 <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300",
                   step > 1 ? "bg-blue-600 text-white" :
                     step === 1 ? "bg-blue-600 text-white ring-4 ring-blue-100 dark:ring-blue-900/30" :
-                      "bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                      "bg-zinc-200 text-zinc-500 dark:bg-slate-800 dark:text-slate-400"
                 )}>
                   {step > 1 ? <Check size={18} strokeWidth={3} /> : "1"}
                 </div>
@@ -148,14 +148,14 @@ export default function WithdrawalSection() {
               </div>
 
               <div className={cn("flex-1 h-1 mx-2 rounded-full transition-colors duration-300",
-                step >= 2 ? "bg-blue-600" : "bg-zinc-200 dark:bg-zinc-800"
+                step >= 2 ? "bg-blue-600" : "bg-zinc-200 dark:bg-slate-800"
               )} />
 
               <div className="flex flex-col items-center relative z-10">
                 <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300",
                   step > 2 ? "bg-blue-600 text-white" :
                     step === 2 ? "bg-blue-600 text-white ring-4 ring-blue-100 dark:ring-blue-900/30" :
-                      "bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                      "bg-zinc-200 text-zinc-500 dark:bg-slate-800 dark:text-slate-400"
                 )}>
                   {step > 2 ? <Check size={18} strokeWidth={3} /> : "2"}
                 </div>
@@ -167,13 +167,13 @@ export default function WithdrawalSection() {
               </div>
 
               <div className={cn("flex-1 h-1 mx-2 rounded-full transition-colors duration-300",
-                step >= 3 ? "bg-red-500" : "bg-zinc-200 dark:bg-zinc-800"
+                step >= 3 ? "bg-red-500" : "bg-zinc-200 dark:bg-slate-800"
               )} />
 
               <div className="flex flex-col items-center relative z-10">
                 <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300",
                   step === 3 ? "bg-red-500 text-white ring-4 ring-red-100 dark:ring-red-900/30" :
-                    "bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                    "bg-zinc-200 text-zinc-500 dark:bg-slate-800 dark:text-slate-400"
                 )}>
                   3
                 </div>
@@ -190,18 +190,18 @@ export default function WithdrawalSection() {
             {step === 1 && (
               <div className="flex flex-col animate-in fade-in zoom-in-95 duration-200">
                 <div className="text-center mb-6">
-                  <DialogDescription className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                  <DialogDescription className="text-sm font-medium text-zinc-500 dark:text-slate-400">
                     안전한 탈퇴 처리를 위해 가입하신 이메일로<br />본인 확인을 진행합니다.
                   </DialogDescription>
                 </div>
 
                 <div className="px-6 pb-6 space-y-6">
                   <div className="space-y-2.5">
-                    <label className="text-xs font-bold text-zinc-500 dark:text-zinc-400 pl-1">계정 이메일</label>
+                    <label className="text-xs font-bold text-zinc-500 dark:text-slate-400 pl-1">계정 이메일</label>
                     <Input
                       value={user?.email || ''}
                       disabled
-                      className="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 h-12 rounded-xl text-center font-medium"
+                      className="bg-zinc-50 dark:bg-slate-800/50 text-zinc-500 h-12 rounded-xl text-center font-medium"
                     />
                   </div>
 
@@ -225,7 +225,7 @@ export default function WithdrawalSection() {
             {step === 2 && (
               <div className="flex flex-col animate-in slide-in-from-right-8 duration-300 relative">
                 <div className="text-center mb-6">
-                  <DialogDescription className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                  <DialogDescription className="text-sm font-medium text-zinc-500 dark:text-slate-400">
                     이메일로 발송된 6자리 인증번호를 입력해주세요.
                   </DialogDescription>
                 </div>
@@ -236,7 +236,7 @@ export default function WithdrawalSection() {
                     onChange={(e) => setEmailVerify((prev) => ({ ...prev, code: e.target.value.replace(/[^0-9]/g, ''), error: '' }))}
                     placeholder="000000"
                     maxLength={6}
-                    className="h-16 rounded-xl text-center tracking-[1em] text-2xl font-black bg-zinc-50 dark:bg-zinc-800/50 focus-visible:ring-blue-500 border-zinc-200 dark:border-zinc-700 placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
+                    className="h-16 rounded-xl text-center tracking-[1em] text-2xl font-black bg-zinc-50 dark:bg-slate-800/50 focus-visible:ring-blue-500 border-zinc-200 dark:border-slate-700 placeholder:text-zinc-300 dark:placeholder:text-slate-700"
                   />
 
                   {emailVerify.error && (
@@ -277,13 +277,13 @@ export default function WithdrawalSection() {
                 </div>
 
                 <div className="px-6 pb-6 space-y-8">
-                  <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl p-5 text-left shadow-sm">
-                    <h5 className="font-bold text-zinc-800 dark:text-zinc-200 mb-3 flex items-center gap-2">
+                  <div className="bg-zinc-50 dark:bg-slate-800/50 border border-zinc-200 dark:border-slate-700 rounded-xl p-5 text-left shadow-sm">
+                    <h5 className="font-bold text-zinc-800 dark:text-slate-200 mb-3 flex items-center gap-2">
                       <AlertTriangle size={18} className="text-amber-500" /> 꼭 알아두세요
                     </h5>
-                    <ul className="list-disc list-inside text-sm text-zinc-600 dark:text-zinc-400 space-y-2.5">
-                      <li>탈퇴 승인 즉시 계정은 <strong className="font-bold text-zinc-900 dark:text-zinc-100">비활성화 상태</strong>로 전환됩니다.</li>
-                      <li>비활성화 시점으로부터 <strong className="font-bold text-zinc-900 dark:text-zinc-100">7일간의 유예 기간</strong>이 주어집니다.</li>
+                    <ul className="list-disc list-inside text-sm text-zinc-600 dark:text-slate-400 space-y-2.5">
+                      <li>탈퇴 승인 즉시 계정은 <strong className="font-bold text-zinc-900 dark:text-slate-100">비활성화 상태</strong>로 전환됩니다.</li>
+                      <li>비활성화 시점으로부터 <strong className="font-bold text-zinc-900 dark:text-slate-100">7일간의 유예 기간</strong>이 주어집니다.</li>
                       <li>유예 기간 내에 다시 로그인하시면 탈퇴가 자동 취소됩니다.</li>
                       <li>7일 경과 후에는 모든 데이터가 영구 삭제되어 <strong className="font-bold underline">절대 복구할 수 없습니다.</strong></li>
                     </ul>

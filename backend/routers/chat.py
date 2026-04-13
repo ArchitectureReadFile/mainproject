@@ -1,9 +1,8 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from sqlalchemy.orm import Session
 
-from dependencies import get_chat_service, get_current_user, get_db
+from dependencies import get_chat_service, get_current_user
 from models.model import User
 from schemas.chat import (
     ChatMessagesResponse,
@@ -18,54 +17,47 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 @router.get("/sessions", response_model=List[ChatSessionResponse])
 def get_sessions(
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
-    return chat_service.get_sessions(db, current_user.id)
+    return chat_service.get_sessions(current_user.id)
 
 
 @router.post("/sessions", response_model=ChatSessionResponse)
 def create_session(
     session_data: ChatSessionRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
-    return chat_service.create_session(db, current_user.id, session_data.title)
+    return chat_service.create_session(current_user.id, session_data.title)
 
 
 @router.put("/sessions/{session_id}", response_model=ChatSessionResponse)
 def update_session(
     session_id: int,
     session_data: ChatSessionRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
-    return chat_service.update_session(
-        db, current_user.id, session_id, session_data.title
-    )
+    return chat_service.update_session(current_user.id, session_id, session_data.title)
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_session(
     session_id: int,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
-    chat_service.delete_session(db, current_user.id, session_id)
+    chat_service.delete_session(current_user.id, session_id)
 
 
 @router.get("/sessions/{session_id}/messages", response_model=ChatMessagesResponse)
 def get_messages(
     session_id: int,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
-    return chat_service.get_messages(db, current_user.id, session_id)
+    return chat_service.get_messages(current_user.id, session_id)
 
 
 @router.post("/sessions/{session_id}/messages")
@@ -76,7 +68,6 @@ async def send_message(
     file: UploadFile = File(None),
     workspace_selection_json: str | None = Form(None),
     group_id: int | None = Form(None),
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
@@ -88,7 +79,7 @@ async def send_message(
     if workspace_selection is not None and group_id is None:
         raise HTTPException(
             status_code=422,
-            detail="workspace_selection 전달 시 group_id는 필수입니다.",
+            detail="workspace_selection 사용 시 group_id가 필요합니다.",
         )
 
     file_bytes = None
@@ -98,7 +89,6 @@ async def send_message(
         file_name = file.filename
 
     return chat_service.send_message(
-        db=db,
         user_id=current_user.id,
         session_id=session_id,
         text=text,
@@ -121,12 +111,10 @@ def stop_message(
 @router.delete("/sessions/{session_id}/reference", response_model=ChatSessionResponse)
 def delete_reference_document(
     session_id: int,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
     return chat_service.delete_reference_document(
-        db=db,
         user_id=current_user.id,
         session_id=session_id,
     )
@@ -137,12 +125,10 @@ def delete_reference_document(
 )
 def delete_reference_group(
     session_id: int,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
     return chat_service.delete_reference_group(
-        db=db,
         user_id=current_user.id,
         session_id=session_id,
     )

@@ -11,6 +11,7 @@ from routers.admin import router as admin_router
 from routers.auth import router as auth_router
 from routers.chat import router as chat_router
 from routers.email import router as email_router
+from routers.export import router as export_router
 from routers.group import router as group_router
 from routers.group_document import router as group_document_router
 from routers.notification import router as notification_router
@@ -66,3 +67,4 @@ app.include_router(ws_router, prefix="/api")
 app.include_router(group_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 app.include_router(notification_router, prefix="/api")
+app.include_router(export_router, prefix="/api")

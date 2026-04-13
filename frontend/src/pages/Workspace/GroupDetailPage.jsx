@@ -2,9 +2,21 @@ import {
     getGroupDetail, requestDeleteGroup, cancelDeleteGroup, getMembers, inviteMember,
     removeMember, changeMemberRole, transferOwner, leaveGroup, getGroupDocuments,
 } from '@/api/groups'
+import {
+    calcKoreanDday,
+    formatKoreanDate,
+    formatKoreanDateTime,
+} from '@/lib/datetime'
+import {
+    createExportJob,
+    getExportDownloadUrl,
+    getExportJob,
+    getLatestExportJob,
+} from '@/api/exports'
+import { setStoredExportIntent } from '@/features/export/utils/exportIntent'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import {
-    AlertTriangle, FileText, Home, Loader2,
+    AlertTriangle, Download, FileText, Home, Loader2,
     Trash2, Undo2, Users, ArrowLeft, Lock,
 } from 'lucide-react'
 import { useEffect, useState, useMemo, useCallback } from 'react'
@@ -32,6 +44,37 @@ const TABS = [
 ]
 
 const GROUP_POLLING_INTERVAL = 5000
+const EXPORT_POLLING_INTERVAL = 3000
+
+const EXPORT_STATUS_LABEL = {
+    PENDING: '요청됨',
+    PROCESSING: '압축 파일 생성 중',
+    READY: '다운로드 가능',
+    FAILED: '생성 실패',
+    EXPIRED: '보관 기간 만료',
+    CANCELLED: '취소됨',
+}
+
+/**
+ * export ZIP 다운로드를 시작한다.
+ */
+function triggerExportDownload(jobId, fileName) {
+    const link = document.createElement('a')
+    link.href = getExportDownloadUrl(jobId)
+    link.download = fileName || 'workspace_documents.zip'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+}
+
+/**
+ * export 만료 시각을 화면용 문자열로 변환한다.
+ */
+function formatExportExpiresAt(isoDate) {
+    if (!isoDate) return null
+    return formatKoreanDateTime(isoDate)
+}
+
 
 /**
  * 승인된 문서 수를 조회한다.
@@ -49,9 +92,7 @@ async function getApprovedDocumentCount(groupId) {
  * D-Day를 계산한다.
  */
 function calcDday(isoDate) {
-    if (!isoDate) return null
-    const diff = Math.ceil((new Date(isoDate) - new Date()) / (1000 * 60 * 60 * 24))
-    return diff <= 0 ? 'D-0' : `D-${diff}`
+    return calcKoreanDday(isoDate)
 }
 
 /**
@@ -126,7 +167,7 @@ function DeletePendingBanner({ scheduledAt, pendingReason }) {
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span>
                 <span className="font-semibold">
-                    {dday}({new Date(scheduledAt).toLocaleDateString('ko-KR')} 삭제 예정)
+                    {dday}({formatKoreanDate(scheduledAt)} 삭제 예정)
                 </span>
             </span>
         </div>
@@ -565,7 +606,7 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
                                     <div>
                                         <p className="text-sm font-medium">{m.username}</p>
                                         <p className="text-xs text-muted-foreground">
-                                            초대일: {new Date(m.invited_at).toLocaleDateString('ko-KR')}
+                                            초대일: {formatKoreanDate(m.invited_at)}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -628,6 +669,7 @@ function MembersTab({ group, setGroup, isWriteRestricted }) {
 function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
     const navigate = useNavigate()
     const isOwner = group.my_role === 'OWNER'
+    const isAdmin = group.my_role === 'ADMIN'
     const isPending = group.status === 'DELETE_PENDING'
     const isOwnerDeletePending =
         isPending && group.pending_reason === 'OWNER_DELETE_REQUEST'
@@ -638,8 +680,44 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
         group.my_role !== 'OWNER' &&
         (group.status === 'ACTIVE' || group.status === 'DELETE_PENDING')
 
+    const canBackup =
+        (isOwner || isAdmin) &&
+        (group.status === 'ACTIVE' || group.status === 'DELETE_PENDING')
+
     const [confirmType, setConfirmType] = useState(null)
     const [loading, setLoading] = useState(false)
+    const [exportJob, setExportJob] = useState(null)
+    const [exportLoading, setExportLoading] = useState(false)
+
+    /**
+     * READY 상태의 기존 백업 ZIP을 다시 다운로드한다.
+     */
+    const handleDownloadExport = () => {
+        if (!exportJob?.id) return
+        triggerExportDownload(exportJob.id, exportJob.export_file_name)
+    }
+
+    /**
+     * 새로운 워크스페이스 백업 export job을 생성한다.
+     */
+    const handleCreateNewExport = async () => {
+        setExportLoading(true)
+        try {
+            const nextJob = await createExportJob(group.id)
+
+            setStoredExportIntent({
+                jobId: nextJob.id,
+                groupId: group.id,
+                autoDownload: true,
+            })
+
+            setExportJob(nextJob)
+        } catch (e) {
+            toast.error(e.message || '전체 다운로드 요청에 실패했습니다.')
+        } finally {
+            setExportLoading(false)
+        }
+    }
 
     const handleConfirm = async () => {
         setLoading(true)
@@ -664,6 +742,41 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
             setConfirmType(null)
         }
     }
+
+    useEffect(() => {
+        if (!canBackup) {
+            setExportJob(null)
+            return
+        }
+
+        setExportJob(null)
+
+        getLatestExportJob(group.id)
+            .then((job) => {
+                if (!job) return
+                setExportJob(job)
+            })
+            .catch((e) => {
+                console.error('최근 export job 조회 실패:', e)
+            })
+    }, [group.id, canBackup])
+
+    useEffect(() => {
+        if (!exportJob || !['PENDING', 'PROCESSING'].includes(exportJob.status)) return
+
+        const timerId = window.setInterval(() => {
+            getExportJob(exportJob.id)
+                .then((nextJob) => {
+                    setExportJob(nextJob)
+                })
+                .catch((e) => {
+                    console.error('export polling 실패:', e)
+                })
+        }, EXPORT_POLLING_INTERVAL)
+
+        return () => window.clearInterval(timerId)
+    }, [exportJob])
+
 
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
@@ -703,7 +816,7 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
                     <div className="flex items-center">
                         <span className="text-muted-foreground w-24 shrink-0 pb-3">생성일</span>
                         <span className="font-medium text-slate-900">
-                            {new Date(group.created_at).toLocaleDateString('ko-KR')}
+                            {formatKoreanDate(group.created_at)}
                         </span>
                     </div>
                     <div className="flex items-center border-t pt-3">
@@ -719,6 +832,84 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
                 </div>
             </div>
 
+            {canBackup && (
+                <div className="rounded-lg border p-5 space-y-3">
+                    <h3 className="text-base font-semibold">데이터 관리 / 백업</h3>
+                    <div className="space-y-1">
+                        <p className="text-base text-muted-foreground">
+                            워크스페이스 내 모든 문서(승인 대기 및 반려 문서 포함)를 ZIP 파일로 다운로드합니다.
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                            백업 파일은 생성 시점의 문서 기준으로 만들어집니다. 이후 변경 사항을 반영하려면 새로 백업을 생성해주세요.
+                        </p>
+                    </div>
+
+                    {exportJob && (
+                        <div className="rounded-md bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                            <p>현재 상태: {EXPORT_STATUS_LABEL[exportJob.status] ?? exportJob.status}</p>
+                            <p>
+                                총 {exportJob.total_file_count}건 중 {exportJob.exported_file_count}건 포함
+                                {exportJob.missing_file_count > 0
+                                    ? ` · 누락 ${exportJob.missing_file_count}건`
+                                    : ''}
+                            </p>
+                            {exportJob.status === 'READY' && exportJob.expires_at && (
+                                <p>{formatExportExpiresAt(exportJob.expires_at)}까지 다시 다운로드할 수 있습니다.</p>
+                            )}
+                            {exportJob.status === 'FAILED' && exportJob.error_message && (
+                                <p className="text-destructive">{exportJob.error_message}</p>
+                            )}
+                            {exportJob.status === 'EXPIRED' && (
+                                <p>기존 백업 파일의 보관 기간이 만료되었습니다. 다시 생성해주세요.</p>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        {exportJob?.status === 'READY' ? (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={handleDownloadExport}
+                                    className="flex items-center gap-2 border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                                >
+                                    <Download className="h-4 w-4" />
+                                    다시 다운로드
+                                </Button>
+
+                                <Button
+                                    variant="outline"
+                                    onClick={handleCreateNewExport}
+                                    disabled={exportLoading}
+                                    className="flex items-center gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 disabled:border-slate-200 disabled:text-slate-400"
+                                >
+                                    {exportLoading ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Download className="h-4 w-4" />
+                                    )}
+                                    새로 백업 생성
+                                </Button>
+                            </>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                onClick={handleCreateNewExport}
+                                disabled={exportLoading || ['PENDING', 'PROCESSING'].includes(exportJob?.status)}
+                                className="flex items-center gap-2 border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-slate-900 disabled:border-slate-200 disabled:text-slate-400"
+                            >
+                                {exportLoading || ['PENDING', 'PROCESSING'].includes(exportJob?.status) ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Download className="h-4 w-4" />
+                                )}
+                                전체 다운로드
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {(canDelete || canCancelDelete) && (
                 <div className="rounded-lg border border-destructive/30 p-5 space-y-3">
                     <h3 className="text-base font-semibold text-destructive">워크스페이스 삭제</h3>
@@ -726,7 +917,7 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
                         {!isPending
                             ? '삭제 요청 후 30일 동안 읽기 전용 상태로 유지되며, 이후 접근이 제한됩니다.'
                             : group.delete_scheduled_at
-                                ? `${new Date(group.delete_scheduled_at).toLocaleDateString('ko-KR')}까지 읽기 전용 상태로 유지됩니다.`
+                                ? `${formatKoreanDate(group.delete_scheduled_at)}까지 읽기 전용 상태로 유지됩니다.`
                                 : '삭제 예정 상태입니다.'
                         }
                     </p>
@@ -794,6 +985,7 @@ function WorkspaceTab({ group, onUpdated, isWriteRestricted }) {
         </div>
     )
 }
+
 
 export default function GroupDetailPage() {
     const { group_id } = useParams()

@@ -5,10 +5,10 @@ import string
 from email.message import EmailMessage
 
 from redis import Redis
-from sqlalchemy.orm import Session
 
 from errors import AppException, ErrorCode
 from models.model import User
+from repositories.email_repository import EmailRepository
 
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
@@ -17,13 +17,16 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 
 
 class EmailService:
+    def __init__(self, email_repo: EmailRepository):
+        self.email_repo = email_repo
+
     def send_verification_code(
-        self, db: Session, redis_client: Redis, email: str, current_user: User | None
+        self, redis_client: Redis, email: str, current_user: User | None
     ):
         email = email.strip().lower()
 
         if current_user and email != current_user.email:
-            if db.query(User).filter(User.email == email).first():
+            if self.email_repo.get_user_by_email(email):
                 raise AppException(ErrorCode.USER_EMAIL_ALREADY_EXISTS)
 
         code = "".join(random.choices(string.digits, k=6))

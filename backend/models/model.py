@@ -8,6 +8,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -70,6 +71,15 @@ class DocumentPreviewStatus(enum.Enum):
     PROCESSING = "PROCESSING"
     READY = "READY"
     FAILED = "FAILED"
+
+
+class ExportJobStatus(enum.Enum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    READY = "READY"
+    FAILED = "FAILED"
+    EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
 
 
 class ReviewStatus(enum.Enum):
@@ -188,6 +198,12 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
+    export_jobs = relationship(
+        "ExportJob",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
     sent_notifications = relationship(
         "Notification",
         foreign_keys="Notification.actor_user_id",
@@ -292,6 +308,12 @@ class Group(Base):
 
     notifications = relationship(
         "Notification",
+        back_populates="group",
+        cascade="all, delete-orphan",
+    )
+
+    export_jobs = relationship(
+        "ExportJob",
         back_populates="group",
         cascade="all, delete-orphan",
     )
@@ -491,6 +513,63 @@ class Summary(Base):
     )
 
     document = relationship("Document", back_populates="summary")
+
+
+class ExportJob(Base):
+    __tablename__ = "export_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    group_id = Column(
+        Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    requester_role = Column(
+        Enum(MembershipRole, native_enum=False),
+        nullable=False,
+    )
+
+    status = Column(
+        Enum(ExportJobStatus, native_enum=False),
+        default=ExportJobStatus.PENDING,
+        nullable=False,
+        index=True,
+    )
+
+    file_path = Column(String(1024), nullable=True)
+    export_file_name = Column(String(255), nullable=True)
+
+    error_message = Column(Text, nullable=True)
+
+    total_file_count = Column(Integer, default=0, nullable=False)
+    exported_file_count = Column(Integer, default=0, nullable=False)
+    missing_file_count = Column(Integer, default=0, nullable=False)
+
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+    cancelled_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True, index=True)
+
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_export_jobs_user_group_status",
+            "user_id",
+            "group_id",
+            "status",
+        ),
+    )
+
+    user = relationship("User", back_populates="export_jobs")
+    group = relationship("Group", back_populates="export_jobs")
 
 
 class DocumentComment(Base):
@@ -765,17 +844,4 @@ class NotificationSetting(Base):
             "user_id", "notification_type", name="uq_user_notification_type"
         ),
     )
-
-    user = relationship("User", backref="notification_preferences")
-    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
-    updated_at = Column(
-        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            "user_id", "notification_type", name="uq_user_notification_type"
-        ),
-    )
-
     user = relationship("User", backref="notification_preferences")

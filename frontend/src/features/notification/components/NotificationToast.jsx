@@ -75,7 +75,7 @@ export default function NotificationToast({ notification, onNavigate, onClose })
     green: { border: 'bg-green-500', bg: 'bg-green-50 dark:bg-green-900/30', text: 'text-green-500' },
     orange: { border: 'bg-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/30', text: 'text-orange-500' },
     red: { border: 'bg-red-500', bg: 'bg-red-50 dark:bg-red-900/30', text: 'text-red-500' },
-    zinc: { border: 'bg-zinc-500', bg: 'bg-zinc-50 dark:bg-zinc-800/30', text: 'text-zinc-500' },
+    zinc: { border: 'bg-zinc-500', bg: 'bg-zinc-50 dark:bg-slate-800/30', text: 'text-zinc-500' },
     purple: { border: 'bg-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/30', text: 'text-purple-500' }
   }
 
@@ -84,7 +84,7 @@ export default function NotificationToast({ notification, onNavigate, onClose })
   return (
     <div 
       className={cn(
-        "flex w-[380px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden transition-all",
+        "flex w-[380px] bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden transition-all",
         (isInvite && status !== 'accepted') ? "cursor-default" : "cursor-pointer hover:scale-[1.01]"
       )}
       onClick={handleClick}
@@ -95,11 +95,11 @@ export default function NotificationToast({ notification, onNavigate, onClose })
           <div className={cn("flex items-center justify-center w-6 h-6 rounded-full", style.bg)}>
             <Icon size={12} className={style.text} />
           </div>
-          <span className="text-xs font-black text-zinc-900 dark:text-zinc-100">
+          <span className="text-xs font-black text-zinc-900 dark:text-slate-100">
             {theme.label}
           </span>
           <button 
-            className="ml-auto text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1"
+            className="ml-auto text-zinc-400 hover:text-zinc-600 dark:hover:text-slate-200 p-1"
             onClick={(e) => {
               e.stopPropagation()
               onClose()
@@ -109,7 +109,7 @@ export default function NotificationToast({ notification, onNavigate, onClose })
           </button>
         </div>
         
-        <div className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed opacity-80">
+        <div className="text-[11px] text-zinc-500 dark:text-slate-400 line-clamp-2 leading-relaxed opacity-80">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {notification.body}
           </ReactMarkdown>
@@ -120,7 +120,7 @@ export default function NotificationToast({ notification, onNavigate, onClose })
             <Button size="sm" className="h-7 text-[10px] bg-blue-600 hover:bg-blue-700 text-white font-black px-4 rounded-lg shadow-sm" onClick={handleAccept} disabled={isLoading}>
               {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : '승인'}
             </Button>
-            <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-zinc-200 dark:border-zinc-700 px-4 rounded-lg" onClick={handleReject} disabled={isLoading}>거절</Button>
+            <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-zinc-200 dark:border-slate-700 px-4 rounded-lg" onClick={handleReject} disabled={isLoading}>거절</Button>
           </div>
         )}
         
@@ -135,7 +135,7 @@ export default function NotificationToast({ notification, onNavigate, onClose })
           <p className="text-[10px] text-red-500 font-black mt-2">✕ 거절됨</p>
         )}
 
-        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2 font-medium">
+        <p className="text-[10px] text-zinc-400 dark:text-slate-500 mt-2 font-medium">
           {notification.displayTime}
         </p>
       </div>

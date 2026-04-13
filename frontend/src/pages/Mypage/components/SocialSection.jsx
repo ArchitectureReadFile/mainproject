@@ -51,11 +51,11 @@ export default function SocialSection() {
   const isGithubLinked = user?.social_providers?.includes('github')
 
   return (
-    <Card className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-none rounded-xl overflow-hidden mt-6">
-      <CardHeader className="py-3 px-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50">
-        <CardTitle className="text-sm font-bold flex items-center gap-3 text-zinc-700 dark:text-zinc-300 uppercase tracking-tight">
-          <div className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
-            <LinkIcon size={14} className="text-zinc-600 dark:text-zinc-400" />
+    <Card className="border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-none rounded-xl overflow-hidden mt-6">
+      <CardHeader className="py-3 px-5 border-b border-zinc-100 dark:border-slate-900 bg-zinc-50/50 dark:bg-slate-900/50">
+        <CardTitle className="text-sm font-bold flex items-center gap-3 text-zinc-700 dark:text-slate-300 uppercase tracking-tight">
+          <div className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+            <LinkIcon size={14} className="text-zinc-600 dark:text-slate-400" />
           </div>
           소셜 연동
         </CardTitle>
@@ -73,7 +73,7 @@ export default function SocialSection() {
                 </svg>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Google</p>
+                <p className="text-sm font-bold text-zinc-800 dark:text-slate-200">Google</p>
                 <p className="text-[11px] font-medium text-zinc-500">
                   {isGoogleLinked ? 'Google 계정과 연동되어 있습니다.' : 'Google 계정을 연동하여 간편하게 로그인하세요.'}
                 </p>
@@ -93,18 +93,18 @@ export default function SocialSection() {
           )}
         </div>
 
-        <div className="h-px bg-zinc-100 dark:bg-zinc-800/50" />
+        <div className="h-px bg-zinc-100 dark:bg-slate-800/50" />
 
         <div className="flex flex-col py-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded bg-white border shadow-sm flex items-center justify-center shrink-0">
-                <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+                <svg width="18" height="18" viewBox="0 0 16 16" fill="#181717">
                   <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
                 </svg>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">GitHub</p>
+                <p className="text-sm font-bold text-zinc-800 dark:text-slate-200">GitHub</p>
                 <p className="text-[11px] font-medium text-zinc-500">
                   {isGithubLinked ? 'GitHub 계정과 연동되어 있습니다.' : 'GitHub 계정을 연동하여 간편하게 로그인하세요.'}
                 </p>

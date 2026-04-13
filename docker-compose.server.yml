@@ -44,12 +44,39 @@ services:
       - app-network
 
   # ───────────────────────────────────────────
-  # Celery: 동일한 외부 env 경로 참조
+  # Celery workers: 역할별 queue 분리
+  # chat      → 병렬 처리
+  # document  → 한 번에 1개
+  # platform  → 한 번에 1개
   # ───────────────────────────────────────────
-  celery_worker:
+  chat_worker:
     image: ${DOCKER_HUB_USER}/jiyun-backend:latest
-    container_name: celery_worker_container
-    command: celery -A celery_app worker --loglevel=info --concurrency=1
+    container_name: chat_worker_container
+    command: celery -A celery_app worker --loglevel=info --concurrency=4 -Q chat_queue
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - TZ=UTC
+    volumes: []
+    networks:
+      - app-network
+
+  document_worker:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: document_worker_container
+    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q document_queue
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - TZ=UTC
+    volumes: []
+    networks:
+      - app-network
+
+  platform_worker:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: platform_worker_container
+    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q platform_queue
     env_file: !override
       - D:/jiyun-env/backend.env
     environment: !override

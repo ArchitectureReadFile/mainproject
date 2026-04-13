@@ -33,7 +33,7 @@ export default function Mypage() {
               'w-full justify-start gap-3 rounded-xl font-bold h-11 transition-all',
               activeTab === 'account'
                 ? 'text-blue-500 bg-blue-50/50 dark:bg-blue-900/20'
-                : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-900',
+                : 'text-zinc-500 hover:bg-zinc-50 dark:bg-slate-900 dark:hover:bg-slate-800',
             )}
           >
             <ShieldCheck size={18} /> 계정 및 보안
@@ -45,7 +45,7 @@ export default function Mypage() {
               'w-full justify-start gap-3 rounded-xl font-bold h-11 transition-all',
               activeTab === 'notification'
                 ? 'text-blue-500 bg-blue-50/50 dark:bg-blue-900/20'
-                : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-900',
+                : 'text-zinc-500 hover:bg-zinc-50 dark:bg-slate-900 dark:hover:bg-slate-800',
             )}
           >
             <Bell size={18} /> 알림 설정
@@ -58,9 +58,9 @@ export default function Mypage() {
               <div className="space-y-6">
                 <div className="relative flex items-center justify-center">
                   <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-zinc-200 dark:border-zinc-800" />
+                    <span className="w-full border-t border-zinc-200 dark:border-slate-800" />
                   </div>
-                  <span className="relative bg-white dark:bg-zinc-950 px-4 text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.3em]">
+                  <span className="relative bg-white dark:bg-background px-4 text-[11px] font-black text-zinc-400 dark:text-slate-500 uppercase tracking-[0.3em]">
                     일반 설정
                   </span>
                 </div>

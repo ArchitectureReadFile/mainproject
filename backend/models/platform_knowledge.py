@@ -14,6 +14,13 @@ source_type 값:
     "precedent"      판례
     "interpretation" 법령해석례
     "admin_rule"     행정규칙
+
+raw_payload / body_text 타입 노트:
+    ORM 레벨은 SQLAlchemy 기본 Text를 사용한다.
+    SQLite(테스트)에서는 TEXT, MySQL/MariaDB 프로덕션에서는
+    Alembic migration에서 LONGTEXT로 ALTER한다.
+    sqlalchemy.dialects.mysql.LONGTEXT는 SQLite dialect 컴파일 불가이므로
+    ORM 모델에서는 사용하지 않는다.
 """
 
 from datetime import datetime, timezone
@@ -28,7 +35,6 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -63,7 +69,7 @@ class PlatformRawSource(Base):
     )  # "eflaw" | "prec" | "expc" | "admrul"
     external_id = Column(String(128), nullable=False)
     raw_format = Column(String(8), nullable=False)  # "json" | "xml"
-    raw_payload = Column(LONGTEXT, nullable=False)
+    raw_payload = Column(Text, nullable=False)
     fetched_at = Column(DateTime, nullable=False)
     checksum = Column(String(64), nullable=False)
     status = Column(String(16), nullable=False, default="active")
@@ -92,18 +98,12 @@ class PlatformDocument(Base):
     """
     서비스가 공통으로 다루는 platform knowledge 문서 단위.
 
-    precedent를 대체하는 상위 공통 문서 모델.
-    기존 Precedent 모델은 유지하되, source_type="precedent"로 이 모델에 흡수.
-
     body_text:
         원문 기반 정규화 텍스트. 요약 아님.
         소비처(chunk builder / summary / chat)가 실제로 읽는 텍스트.
 
     metadata_json:
         JSON 문자열. source_type별 부가 필드 + 관계 링크.
-        - topic_tags, issue_tags
-        - related_law_refs, related_case_refs, related_interpretation_refs
-        - source_type별 고유 필드 (case_no, judgment_type 등)
 
     status: "active" | "archived"
     """
@@ -122,7 +122,7 @@ class PlatformDocument(Base):
 
     title = Column(String(512), nullable=True)
     display_title = Column(String(768), nullable=True)
-    body_text = Column(LONGTEXT, nullable=True)
+    body_text = Column(Text, nullable=True)
     source_url = Column(String(2048), nullable=True)
     issued_at = Column(DateTime, nullable=True)
     agency = Column(String(255), nullable=True)
@@ -154,9 +154,6 @@ class PlatformDocumentChunk(Base):
     """
     Platform RAG 검색용 chunk source of truth.
 
-    BM25 / Qdrant 적재 전 기준 문서.
-    retrieval 저장소는 이 테이블 기반으로 적재한다.
-
     chunk_type:
         law:            "article"
         precedent:      "holding" | "summary" | "body" | "meta"
@@ -166,10 +163,6 @@ class PlatformDocumentChunk(Base):
     chunk_id_str:
         BM25/Qdrant 저장 시 사용하는 외부 식별자.
         형식: "{source_type}:pd:{platform_document_id}:chunk:{chunk_order}"
-
-    metadata_json:
-        JSON 문자열. chunk 단위 부가 정보.
-        - article_no, section_title, related_law_refs 등
     """
 
     __tablename__ = "platform_document_chunks"
@@ -206,9 +199,6 @@ class PlatformSyncRun(Base):
 
     status:
         "queued" | "running" | "success" | "no_changes" | "failed" | "cancelled"
-
-    message:
-        UI에 바로 노출할 수 있는 실행 요약 문구.
     """
 
     __tablename__ = "platform_sync_runs"
@@ -244,17 +234,11 @@ class PlatformSyncFailure(Base):
     """
     platform sync 중 item 단위 실패 추적.
 
-    실패 문서를 run 단위로 조회하거나 재시도 여부를 관리하기 위한 테이블.
-
     error_type:
-        주 사용값은 "fetch_error" | "normalize_error" | "index_error".
-        기본값 "unknown"은 예외적/수동 입력 대비용 fallback이다.
+        "fetch_error" | "normalize_error" | "index_error" | "unknown"
 
     payload_snippet:
-        raw_payload의 앞 500자. 디버깅용. 전체 저장 과함.
-
-    retried_at / resolved_at:
-        재시도 / 해소 시점 기록용. nullable.
+        raw_payload의 앞 500자. 디버깅용.
     """
 
     __tablename__ = "platform_sync_failures"
