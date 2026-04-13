@@ -6,8 +6,6 @@ x-backend-common: &backend-common
   working_dir: /app
   volumes:
     - ./backend:/app
-  env_file:
-    - ./backend/.env
   environment:
     - OLLAMA_HOST=http://ollama:11434
     - REDIS_HOST=redis
@@ -42,6 +40,8 @@ services:
   backend:
     <<: *backend-common
     container_name: backend_container
+    env_file:
+      - ./backend/.env
     ports:
       - "8000:8000"
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
@@ -143,10 +143,17 @@ services:
   celery_worker:
     <<: *backend-common
     container_name: celery_worker_container
+    profiles:
+      - dev
+    env_file:
+      - ./backend/.env
     command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q chat_queue,document_queue,platform_queue
+
   celery_beat:
     <<: *backend-common
     container_name: celery_beat_container
+    env_file:
+      - ./backend/.env
     command: celery -A celery_app beat --loglevel=info
 
 volumes:
