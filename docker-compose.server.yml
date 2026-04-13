@@ -10,6 +10,11 @@
 # base compose는 네트워크를 별도 선언하지 않으므로 기본 네트워크(team_default)를 사용한다.
 # server overlay에서 모든 서비스를 동일한 app-network로 명시해 서비스명 통신을 보장한다.
 # db, redis, qdrant 포함 전 서비스가 app-network에 속한다.
+#
+# [업로드 볼륨 구조]
+# backend_uploads named volume을 backend 계열 전 서비스에 /app/uploads로 공유한다.
+# backend가 저장한 파일을 document_worker 등 celery worker가 동일 경로로 읽을 수 있어야 하기 때문.
+# 프론트엔드 업스트림 포트: frontend:80 (운영 이미지는 nginx 정적 서빙, 개발용 변경 시 함께 수정 필요)
 
 services:
   # ───────────────────────────────────────────
@@ -28,6 +33,7 @@ services:
 
   # ───────────────────────────────────────────
   # Backend: production command, 외부 env 참조
+  # backend_uploads volume을 /app/uploads에 마운트해 worker와 파일 공유
   # ───────────────────────────────────────────
   backend:
     image: ${DOCKER_HUB_USER}/jiyun-backend:latest
@@ -38,7 +44,8 @@ services:
     environment: !override
       - TZ=UTC
     restart: unless-stopped
-    volumes: []
+    volumes:
+      - backend_uploads:/app/uploads
     ports: []
     networks:
       - app-network
@@ -46,8 +53,9 @@ services:
   # ───────────────────────────────────────────
   # Celery workers: 역할별 queue 분리
   # chat      → 병렬 처리
-  # document  → 한 번에 1개
+  # document  → 한 번에 1개 (업로드 파일 직접 접근 필수)
   # platform  → 한 번에 1개
+  # 모두 backend_uploads volume을 동일 경로(/app/uploads)로 마운트
   # ───────────────────────────────────────────
   chat_worker:
     image: ${DOCKER_HUB_USER}/jiyun-backend:latest
@@ -57,7 +65,8 @@ services:
       - D:/jiyun-env/backend.env
     environment: !override
       - TZ=UTC
-    volumes: []
+    volumes:
+      - backend_uploads:/app/uploads
     networks:
       - app-network
 
@@ -69,7 +78,8 @@ services:
       - D:/jiyun-env/backend.env
     environment: !override
       - TZ=UTC
-    volumes: []
+    volumes:
+      - backend_uploads:/app/uploads
     networks:
       - app-network
 
@@ -81,7 +91,8 @@ services:
       - D:/jiyun-env/backend.env
     environment: !override
       - TZ=UTC
-    volumes: []
+    volumes:
+      - backend_uploads:/app/uploads
     networks:
       - app-network
 
@@ -93,14 +104,14 @@ services:
       - D:/jiyun-env/backend.env
     environment: !override
       - TZ=UTC
-    volumes: []
+    volumes:
+      - backend_uploads:/app/uploads
     networks:
       - app-network
 
   # ───────────────────────────────────────────
   # DB / Redis / Qdrant
   # 외부 포트 노출 제거 + app-network 명시
-  # (backend/celery와 서비스명으로 통신 가능하게 동일 네트워크에 배치)
   # ───────────────────────────────────────────
   db:
     ports: []
@@ -120,7 +131,6 @@ services:
   # ───────────────────────────────────────────
   # Ollama: 서버에서는 실행하지 않음
   # 서버용 OLLAMA_HOST는 backend.env에서 외부 엔드포인트로 직접 지정
-  # (예: 개발 PC의 ngrok 주소, 또는 외부 API)
   # ───────────────────────────────────────────
   ollama:
     profiles:
@@ -169,3 +179,6 @@ services:
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  backend_uploads:
