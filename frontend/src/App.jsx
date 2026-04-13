@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import Footer from './components/layout/Footer.jsx'
 import Header from './components/layout/Header.jsx'
 import { ProtectedRoute, useAuth } from './features/auth/index.js'
+import ChatWidget from './features/chat/components/ChatWidget.jsx'
+import ExportMonitor from './features/export/components/ExportMonitor.jsx'
 import AdminPage from './pages/Admin/index.jsx'
 import DocumentPage from './pages/Document/index.jsx'
 import LandingPage from './pages/Landing/index.jsx'
 import MypagePage from './pages/Mypage/index.jsx'
 import UploadPage from './pages/Upload/index.jsx'
-import WorkspacePage from './pages/Workspace/index.jsx'
 import GroupDetailPage from './pages/Workspace/GroupDetailPage.jsx'
-import ChatWidget from './features/chat/components/ChatWidget.jsx'
-import ExportMonitor from './features/export/components/ExportMonitor.jsx'
+import WorkspacePage from './pages/Workspace/index.jsx'
 
 export default function App() {
   const location = useLocation()
@@ -21,19 +21,19 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
+
     if (params.get('login') === 'success') {
-      params.delete('login')
-      const newUrl = window.location.pathname + (params.toString() ? `?${params.toString()}` : '')
+      const newUrl = window.location.pathname
       window.history.replaceState({}, '', newUrl)
     }
 
-    if (params.get('error')) {
-      const errCode = params.get('error')
-      if (errCode === 'not_registered') {
-        openAuthModal('signup')
-      } else {
-        openAuthModal('login')
-      }
+    const errCode = params.get('error')
+    const action = params.get('action')
+
+    if (errCode === 'not_registered' || action === 'signup') {
+      openAuthModal('signup')
+    } else if (errCode) {
+      openAuthModal('login')
     }
   }, [openAuthModal])
 

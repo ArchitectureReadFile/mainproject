@@ -179,9 +179,12 @@ class AuthService:
         if not redis_client.get(f"email_verified:{user.email}"):
             raise AppException(ErrorCode.USER_EMAIL_NOT_VERIFIED)
 
-        user.is_active = False
-        user.deactivated_at = datetime.now(timezone.utc).replace(tzinfo=None)
-        self.auth_repo.commit()
+        if self.auth_repo.has_owned_groups(user_id):
+            raise AppException(ErrorCode.USER_WITHDRAWAL_AS_OWNER_RESTRICTED)
+
+        self.auth_repo.deactivate_user(
+            user, datetime.now(timezone.utc).replace(tzinfo=None)
+        )
 
         redis_client.delete(f"email_verified:{user.email}")
 
