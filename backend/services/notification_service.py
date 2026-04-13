@@ -39,10 +39,6 @@ class NotificationService:
         if not self._is_enabled(user_id, type):
             return None
 
-        # 멤버십 체크가 필요한 경우 라우터나 서비스에서 미리 체크하거나,
-        # 필요시 이 메서드를 호출하는 쪽에서 검증하도록 책임을 분리합니다.
-        # (기존의 SessionLocal()을 여기서 직접 여는 것은 아키텍처상 좋지 않습니다.)
-
         notification = Notification(
             user_id=user_id,
             actor_user_id=actor_user_id,
