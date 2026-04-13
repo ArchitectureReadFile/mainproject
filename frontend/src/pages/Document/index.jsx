@@ -10,6 +10,7 @@ import {
     getGroupDocumentPreviewUrl,
     getMembers,
     rejectDocument,
+    updateDocumentClassification,
 } from '@/api/groups'
 import {
     calcKoreanDday,
@@ -36,6 +37,13 @@ import {
     SheetHeader,
     SheetTitle,
 } from '@/components/ui/Sheet'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/Textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAuth } from '@/features/auth/context/AuthContext'
@@ -73,6 +81,29 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 const PDF_OPTIONS = {
     withCredentials: true,
 }
+
+const DOCUMENT_TYPE_OPTIONS = [
+    { value: '계약서', label: '계약서' },
+    { value: '신청서', label: '신청서' },
+    { value: '준비서면', label: '준비서면' },
+    { value: '의견서', label: '의견서' },
+    { value: '내용증명', label: '내용증명' },
+    { value: '소장', label: '소장' },
+    { value: '고소장', label: '고소장' },
+    { value: '기타', label: '기타' },
+    { value: '미분류', label: '미분류' },
+]
+
+const CATEGORY_OPTIONS = [
+    { value: '민사', label: '민사' },
+    { value: '계약', label: '계약' },
+    { value: '회사', label: '회사' },
+    { value: '행정', label: '행정' },
+    { value: '형사', label: '형사' },
+    { value: '노동', label: '노동' },
+    { value: '기타', label: '기타' },
+    { value: '미분류', label: '미분류' },
+]
 
 /**
  * 댓글 시간 표시 문자열을 만든다.
@@ -324,6 +355,12 @@ export default function DocumentPage() {
     const [zoom, setZoom] = useState(1)
     const [zoomInput, setZoomInput] = useState('100')
     const [isPanning, setIsPanning] = useState(false)
+
+    const [showClassificationConfirmModal, setShowClassificationConfirmModal] = useState(false)
+    const [isClassificationEditMode, setIsClassificationEditMode] = useState(false)
+    const [classificationDocumentType, setClassificationDocumentType] = useState('')
+    const [classificationCategory, setClassificationCategory] = useState('')
+    const [isClassificationSubmitting, setIsClassificationSubmitting] = useState(false)
 
     const explicitCommentScope = useMemo(() => {
         const params = new URLSearchParams(location.search)
@@ -733,6 +770,16 @@ export default function DocumentPage() {
     const isPendingReview = doc?.approval_status === 'PENDING_REVIEW'
     const isRejected = doc?.approval_status === 'REJECTED'
 
+    const isClassificationEditable =
+        !isDeletedDocument &&
+        s?.status === 'DONE' &&
+        groupMeta?.status === 'ACTIVE' &&
+        ['OWNER', 'ADMIN'].includes(groupMeta?.my_role)
+
+    const hasClassificationChanged =
+        classificationDocumentType !== (s?.document_type || '미분류') ||
+        classificationCategory !== (s?.category || '미분류')
+
     /**
      * 상세 페이지에서 승인/반려 버튼 노출 여부를 계산한다.
      */
@@ -741,7 +788,6 @@ export default function DocumentPage() {
         isPendingReview &&
         groupMeta?.status === 'ACTIVE' &&
         ['OWNER', 'ADMIN'].includes(groupMeta?.my_role)
-
 
     const mentionableMembers = useMemo(() => {
         return members.filter(
@@ -869,6 +915,50 @@ export default function DocumentPage() {
             }, 0)
         }
     }, [])
+
+    const handleStartClassificationEdit = () => {
+        setClassificationDocumentType(s?.document_type || '미분류')
+        setClassificationCategory(s?.category || '미분류')
+        setIsClassificationEditMode(true)
+    }
+
+    const handleCancelClassificationEdit = () => {
+        setClassificationDocumentType(s?.document_type || '미분류')
+        setClassificationCategory(s?.category || '미분류')
+        setIsClassificationEditMode(false)
+        setShowClassificationConfirmModal(false)
+    }
+
+    const handleOpenClassificationConfirmModal = () => {
+        if (!hasClassificationChanged || isClassificationSubmitting) {
+            return
+        }
+
+        setShowClassificationConfirmModal(true)
+    }
+
+    const handleConfirmClassificationUpdate = async () => {
+        if (!s || isClassificationSubmitting) return
+
+        setIsClassificationSubmitting(true)
+
+        try {
+            await updateDocumentClassification(group_id, doc_id, {
+                document_type: classificationDocumentType,
+                category: classificationCategory,
+            })
+
+            const updatedDoc = await getGroupDocumentDetail(group_id, doc_id)
+            setDoc(updatedDoc)
+            setIsClassificationEditMode(false)
+            setShowClassificationConfirmModal(false)
+            toast.success('문서 분류를 수정했습니다.')
+        } catch (e) {
+            toast.error(e.message || '문서 분류를 수정하지 못했습니다.')
+        } finally {
+            setIsClassificationSubmitting(false)
+        }
+    }
 
     /**
      * 문서를 승인한다.
@@ -1540,7 +1630,23 @@ export default function DocumentPage() {
                             </Button>
                         </>
                     )}
-
+                    {isClassificationEditable && !isClassificationEditMode && (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleStartClassificationEdit}
+                                    className="gap-1.5"
+                                >
+                                    분류 수정
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                문서 유형과 카테고리를 수정합니다
+                            </TooltipContent>
+                        </Tooltip>
+                    )}
                     {doc && (
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -1607,6 +1713,17 @@ export default function DocumentPage() {
                 confirmLabel={reviewActionLoading ? '처리 중...' : '승인'}
                 onConfirm={handleApproveConfirm}
                 onCancel={() => setShowApproveModal(false)}
+            />
+
+            <ConfirmModal
+                open={showClassificationConfirmModal}
+                message={'문서 분류를 수정하시겠습니까?\n분류를 변경하면 문서 검색 결과가 달라질 수 있습니다.'}
+                confirmLabel={isClassificationSubmitting ? '처리 중...' : '수정'}
+                onConfirm={handleConfirmClassificationUpdate}
+                onCancel={() => {
+                    if (isClassificationSubmitting) return
+                    setShowClassificationConfirmModal(false)
+                }}
             />
 
             <Dialog
@@ -1691,21 +1808,116 @@ export default function DocumentPage() {
             )}
 
             <div className="px-1">
-                <h1 className="mb-3 text-2xl font-bold">{s.title || '문서 상세'}</h1>
-                <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
-                    <div className="flex gap-1.5">
-                        <span className="font-medium text-foreground">문서 유형</span>
-                        <span>{s.document_type || '-'}</span>
-                    </div>
-                    <div className="flex gap-1.5">
-                        <span className="font-medium text-foreground">업로더</span>
-                        <span>{s.uploader || '-'}</span>
-                    </div>
-                    <div className="flex gap-1.5">
-                        <span className="font-medium text-foreground">업로드 일시</span>
-                        <span>{formatCommentDate(s.created_at)}</span>
-                    </div>
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <h1 className="text-2xl font-bold">{s.title || '문서 상세'}</h1>
+
+                    {isClassificationEditMode && (
+                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                            분류 수정 중
+                        </span>
+                    )}
                 </div>
+
+                {isClassificationEditMode ? (
+                    <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                        <div className="flex flex-col gap-3 md:flex-row">
+                            <div className="flex-1 space-y-2">
+                                <p className="text-xs font-medium text-muted-foreground">문서 유형</p>
+                                <Select
+                                    value={classificationDocumentType}
+                                    onValueChange={setClassificationDocumentType}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="문서 유형 선택" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {DOCUMENT_TYPE_OPTIONS.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="flex-1 space-y-2">
+                                <p className="text-xs font-medium text-muted-foreground">카테고리</p>
+                                <Select
+                                    value={classificationCategory}
+                                    onValueChange={setClassificationCategory}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="카테고리 선택" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {CATEGORY_OPTIONS.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                            분류를 변경하면 문서 검색 결과가 달라질 수 있습니다.
+                        </div>
+
+                        <div className="flex flex-wrap justify-end gap-2 pr-3">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={handleCancelClassificationEdit}
+                                disabled={isClassificationSubmitting}
+                            >
+                                취소
+                            </Button>
+
+                            <Tooltip delayDuration={100}>
+                                <TooltipTrigger asChild>
+                                    <span>
+                                        <Button
+                                            type="button"
+                                            onClick={handleOpenClassificationConfirmModal}
+                                            disabled={!hasClassificationChanged || isClassificationSubmitting}
+                                        >
+                                            {isClassificationSubmitting ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                '저장'
+                                            )}
+                                        </Button>
+                                    </span>
+                                </TooltipTrigger>
+                                {!hasClassificationChanged && !isClassificationSubmitting && (
+                                    <TooltipContent>
+                                        변경된 내용이 없습니다.
+                                    </TooltipContent>
+                                )}
+                            </Tooltip>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
+                        <div className="flex gap-1.5">
+                            <span className="font-medium text-foreground">문서 유형</span>
+                            <span>{s.document_type || '-'}</span>
+                        </div>
+                        <div className="flex gap-1.5">
+                            <span className="font-medium text-foreground">카테고리</span>
+                            <span>{s.category || '-'}</span>
+                        </div>
+                        <div className="flex gap-1.5">
+                            <span className="font-medium text-foreground">업로더</span>
+                            <span>{s.uploader || '-'}</span>
+                        </div>
+                        <div className="flex gap-1.5">
+                            <span className="font-medium text-foreground">업로드 일시</span>
+                            <span>{formatCommentDate(s.created_at)}</span>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <Card className="p-6">
