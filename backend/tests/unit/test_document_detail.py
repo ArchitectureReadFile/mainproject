@@ -71,14 +71,45 @@ def test_get_document_detail_uses_document_classification(
     assert data["metadata"]["document_type"] == "내용증명"
 
 
-# UT-DOC-003-03 존재하지 않는 문서의 상세 정보는 조회할 수 없다.
+# UT-DOC-003-03 요약 정보가 없는 경우에도 문서 상세를 정상 조회할 수 있다.
+def test_get_document_detail_success_without_summary(authenticated_client, db_session):
+    """요약 정보가 없는 경우에도 문서 상세를 정상 조회하는지 검증한다."""
+    db_session.add(
+        Document(
+            id=202,
+            group_id=GROUP_ID,
+            uploader_user_id=1,
+            original_filename="no_summary.pdf",
+            stored_path="/tmp/test_docs/no_summary.pdf",
+            processing_status="DONE",
+            document_type="계약서",
+            category="계약",
+        )
+    )
+    db_session.add(DocumentApproval(document_id=202, status=ReviewStatus.APPROVED))
+    db_session.commit()
+
+    res = authenticated_client.get(f"/api/groups/{GROUP_ID}/documents/202")
+    assert res.status_code == 200
+
+    data = res.json()
+    assert data["id"] == 202
+    assert data["document_type"] == "계약서"
+    assert data["category"] == "계약"
+    assert data["summary_id"] is None
+    assert data["summary_text"] is None
+    assert data["key_points"] == []
+    assert data["metadata"] == {}
+
+
+# UT-DOC-003-04 존재하지 않는 문서의 상세 정보는 조회할 수 없다.
 def test_get_document_detail_not_found(authenticated_client):
     """존재하지 않는 문서의 상세 정보는 조회할 수 없는지 검증한다."""
     res = authenticated_client.get(f"/api/groups/{GROUP_ID}/documents/9999")
     assert res.status_code == 404
 
 
-# UT-DOC-003-04 비로그인 사용자는 문서 상세 정보를 조회할 수 없다.
+# UT-DOC-003-05 비로그인 사용자는 문서 상세 정보를 조회할 수 없다.
 def test_get_document_detail_unauthenticated(client):
     """비로그인 사용자는 문서 상세 정보 조회가 차단되는지 검증한다."""
     res = client.get(f"/api/groups/{GROUP_ID}/documents/101")
