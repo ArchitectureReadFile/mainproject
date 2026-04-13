@@ -16,13 +16,18 @@ from main import app
 from models.model import (
     Document,
     DocumentApproval,
+    DocumentComment,
+    DocumentLifecycleStatus,
+    DocumentStatus,
     Group,
     GroupMember,
+    GroupStatus,
     MembershipRole,
     MembershipStatus,
     ReviewStatus,
     Summary,
     User,
+    utc_now_naive,
 )
 from redis_client import redis_client
 from routers.auth import get_current_user
@@ -237,3 +242,133 @@ def seed_documents(db_session):
     for obj in group_objects + doc_objects + sum_objects:
         db_session.refresh(obj)
     return {"groups": group_objects, "documents": doc_objects, "summaries": sum_objects}
+
+
+@pytest.fixture
+def user_factory(db_session):
+    """테스트용 사용자를 생성하는 팩토리를 제공한다."""
+
+    def _create(user_data: dict) -> User:
+        payload = user_data.copy()
+        payload["password"] = auth_service.hash_password(payload["password"])
+        user = User(**payload)
+        db_session.add(user)
+        db_session.flush()
+        return user
+
+    return _create
+
+
+@pytest.fixture
+def group_factory(db_session):
+    """테스트용 워크스페이스를 생성하는 팩토리를 제공한다."""
+
+    def _create(
+        *,
+        group_id: int = 1,
+        owner_user_id: int,
+        name: str = groups[0]["name"],
+        description: str = groups[0]["description"],
+        status: GroupStatus = GroupStatus.ACTIVE,
+    ) -> Group:
+        group = Group(
+            id=group_id,
+            owner_user_id=owner_user_id,
+            name=name,
+            description=description,
+            status=status,
+        )
+        db_session.add(group)
+        db_session.flush()
+        return group
+
+    return _create
+
+
+@pytest.fixture
+def group_member_factory(db_session):
+    """테스트용 워크스페이스 멤버십을 생성하는 팩토리를 제공한다."""
+
+    def _create(
+        *,
+        user_id: int,
+        group_id: int = 1,
+        role: MembershipRole,
+        status: MembershipStatus = MembershipStatus.ACTIVE,
+    ) -> GroupMember:
+        member = GroupMember(
+            user_id=user_id,
+            group_id=group_id,
+            role=role,
+            status=status,
+        )
+        db_session.add(member)
+        db_session.flush()
+        return member
+
+    return _create
+
+
+@pytest.fixture
+def document_factory(db_session):
+    """테스트용 문서와 승인 상태를 생성하는 팩토리를 제공한다."""
+
+    def _create(
+        *,
+        doc_id: int,
+        uploader_user_id: int,
+        approval_status: ReviewStatus,
+        group_id: int = 1,
+        filename_prefix: str = "comment_doc",
+    ) -> Document:
+        document = Document(
+            id=doc_id,
+            group_id=group_id,
+            uploader_user_id=uploader_user_id,
+            original_filename=f"{filename_prefix}_{doc_id}.pdf",
+            stored_path=f"/tmp/test_docs/{filename_prefix}_{doc_id}.pdf",
+            processing_status=DocumentStatus.DONE,
+            lifecycle_status=DocumentLifecycleStatus.ACTIVE,
+        )
+        db_session.add(document)
+        db_session.add(
+            DocumentApproval(
+                document_id=doc_id,
+                status=approval_status,
+            )
+        )
+        db_session.flush()
+        return document
+
+    return _create
+
+
+@pytest.fixture
+def comment_factory(db_session):
+    """테스트용 댓글 또는 답글을 생성하는 팩토리를 제공한다."""
+
+    def _create(
+        *,
+        document_id: int,
+        author_user_id: int,
+        content: str,
+        scope: str,
+        parent_id: int | None = None,
+        deleted: bool = False,
+    ) -> DocumentComment:
+        comment = DocumentComment(
+            document_id=document_id,
+            author_user_id=author_user_id,
+            parent_id=parent_id,
+            content=content,
+            comment_scope=scope,
+            page=1 if parent_id is None else None,
+            x=0.11 if parent_id is None else None,
+            y=0.22 if parent_id is None else None,
+            deleted_at=utc_now_naive() if deleted else None,
+        )
+        db_session.add(comment)
+        db_session.flush()
+        return comment
+
+    return _create
