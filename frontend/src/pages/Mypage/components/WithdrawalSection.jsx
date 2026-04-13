@@ -3,9 +3,9 @@ import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, ArrowLeft, Check, Trash2 } from 'lucide-react'
+import { AlertCircle, AlertTriangle, ArrowLeft, Check, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { toast } from 'sonner'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../features/auth'
 import { deactivateAccount } from '../../../features/auth/api/authApi'
 import { sendVerificationCode, verifyCode } from '../../../features/auth/api/emailApi'
@@ -17,7 +17,9 @@ const EMAIL_VERIFY_INIT = {
 
 export default function WithdrawalSection() {
   const { user, setUser } = useAuth()
+  const navigate = useNavigate()
   const [emailVerify, setEmailVerify] = useState(EMAIL_VERIFY_INIT)
+  const [withdrawalError, setWithdrawalError] = useState('')
   const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false)
   const [step, setStep] = useState(1)
 
@@ -28,6 +30,7 @@ export default function WithdrawalSection() {
     if (!open) {
       setTimeout(() => {
         setEmailVerify(EMAIL_VERIFY_INIT)
+        setWithdrawalError('')
         setStep(1)
       }, 300)
     }
@@ -61,15 +64,27 @@ export default function WithdrawalSection() {
   }
 
   const handleWithdrawal = async () => {
+    setWithdrawalError('')
     try {
       await deactivateAccount()
-      toast.success("회원 탈퇴가 접수되었습니다. 7일 후 영구적으로 삭제됩니다.")
-      setUser(null)
-      setIsWithdrawDialogOpen(false)
-      window.location.href = '/'
+      setStep(4)
     } catch (error) {
       console.error('Withdrawal failed:', error)
-      toast.error("회원 탈퇴 처리에 실패했습니다.")
+      let errorMessage = error.response?.data?.detail?.message || error.message || "회원 탈퇴 처리에 실패했습니다."
+      if (errorMessage.startsWith('Error: ')) {
+        errorMessage = errorMessage.replace('Error: ', '')
+      }
+      setWithdrawalError(errorMessage)
+    }
+  }
+
+  const handleFinalExit = (action) => {
+    setUser(null)
+    setIsWithdrawDialogOpen(false)
+    if (action === 'signup') {
+      navigate('/?action=signup', { replace: true })
+    } else {
+      navigate('/', { replace: true })
     }
   }
 
@@ -96,8 +111,8 @@ export default function WithdrawalSection() {
                 </p>
               ) : (
                 <p className="text-sm text-red-500/80 dark:text-red-400/80 leading-relaxed font-medium">
-                  계정을 삭제하면 모든 상담 내역, 업로드한 문서, 그리고 개인 정보가 <br className="hidden md:block" />
-                  <strong className="dark:text-red-400">영구적으로 삭제</strong>되며 절대 복구할 수 없습니다.
+                  계정을 삭제하면 개인 정보와 상담 내역은 영구 삭제되지만, <br className="hidden md:block" />
+                  워크스페이스의 <strong className="dark:text-red-400">공유 데이터는 익명화되어 보존</strong>되며 복구할 수 없습니다.
                 </p>
               )}
             </div>
@@ -131,7 +146,7 @@ export default function WithdrawalSection() {
           )}
 
           <div className="px-8 pt-8 pb-6 bg-zinc-50 dark:bg-slate-900/50 border-b border-zinc-100 dark:border-slate-800">
-            <div className="flex items-center justify-between max-w-[280px] mx-auto relative">
+            <div className="flex items-center justify-between max-w-[320px] mx-auto relative">
               <div className="flex flex-col items-center relative z-10">
                 <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300",
                   step > 1 ? "bg-blue-600 text-white" :
@@ -147,7 +162,7 @@ export default function WithdrawalSection() {
                 </span>
               </div>
 
-              <div className={cn("flex-1 h-1 mx-2 rounded-full transition-colors duration-300",
+              <div className={cn("flex-1 h-1 mx-1 rounded-full transition-colors duration-300",
                 step >= 2 ? "bg-blue-600" : "bg-zinc-200 dark:bg-slate-800"
               )} />
 
@@ -162,25 +177,44 @@ export default function WithdrawalSection() {
                 <span className={cn("text-[11px] font-bold mt-2.5 absolute -bottom-6 w-max transition-colors",
                   step >= 2 ? "text-blue-600 dark:text-blue-500" : "text-zinc-400"
                 )}>
-                  인증번호 입력
+                  인증번호
                 </span>
               </div>
 
-              <div className={cn("flex-1 h-1 mx-2 rounded-full transition-colors duration-300",
+              <div className={cn("flex-1 h-1 mx-1 rounded-full transition-colors duration-300",
                 step >= 3 ? "bg-red-500" : "bg-zinc-200 dark:bg-slate-800"
               )} />
 
               <div className="flex flex-col items-center relative z-10">
                 <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300",
-                  step === 3 ? "bg-red-500 text-white ring-4 ring-red-100 dark:ring-red-900/30" :
-                    "bg-zinc-200 text-zinc-500 dark:bg-slate-800 dark:text-slate-400"
+                  step > 3 ? "bg-red-500 text-white" :
+                    step === 3 ? "bg-red-500 text-white ring-4 ring-red-100 dark:ring-red-900/30" :
+                      "bg-zinc-200 text-zinc-500 dark:bg-slate-800 dark:text-slate-400"
                 )}>
-                  3
+                  {step > 3 ? <Check size={18} strokeWidth={3} /> : "3"}
                 </div>
                 <span className={cn("text-[11px] font-bold mt-2.5 absolute -bottom-6 w-max transition-colors",
-                  step === 3 ? "text-red-600 dark:text-red-500" : "text-zinc-400"
+                  step >= 3 ? "text-red-600 dark:text-red-500" : "text-zinc-400"
                 )}>
                   최종 승인
+                </span>
+              </div>
+
+              <div className={cn("flex-1 h-1 mx-1 rounded-full transition-colors duration-300",
+                step >= 4 ? "bg-green-500" : "bg-zinc-200 dark:bg-slate-800"
+              )} />
+
+              <div className="flex flex-col items-center relative z-10">
+                <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300",
+                  step === 4 ? "bg-green-500 text-white ring-4 ring-green-100 dark:ring-green-900/30" :
+                    "bg-zinc-200 text-zinc-500 dark:bg-slate-800 dark:text-slate-400"
+                )}>
+                  4
+                </div>
+                <span className={cn("text-[11px] font-bold mt-2.5 absolute -bottom-6 w-max transition-colors",
+                  step === 4 ? "text-green-600 dark:text-green-500" : "text-zinc-400"
+                )}>
+                  완료
                 </span>
               </div>
             </div>
@@ -285,9 +319,24 @@ export default function WithdrawalSection() {
                       <li>탈퇴 승인 즉시 계정은 <strong className="font-bold text-zinc-900 dark:text-slate-100">비활성화 상태</strong>로 전환됩니다.</li>
                       <li>비활성화 시점으로부터 <strong className="font-bold text-zinc-900 dark:text-slate-100">7일간의 유예 기간</strong>이 주어집니다.</li>
                       <li>유예 기간 내에 다시 로그인하시면 탈퇴가 자동 취소됩니다.</li>
-                      <li>7일 경과 후에는 모든 데이터가 영구 삭제되어 <strong className="font-bold underline">절대 복구할 수 없습니다.</strong></li>
+                      <li>7일 경과 후 다음 데이터가 <strong className="font-bold underline">영구 삭제</strong>됩니다:
+                        <div className="mt-2 ml-5 p-3 bg-zinc-100/50 dark:bg-slate-800/30 rounded-lg space-y-1 text-[13px] text-zinc-500 dark:text-slate-500 font-medium">
+                          <p>• 계정 프로필 및 소셜 로그인 연동 정보</p>
+                          <p>• 개인용 AI 상담 및 모든 대화 기록</p>
+                          <p>• 구독 상태 및 수신한 모든 알림 내역</p>
+                          <p>• 파일 내보내기(Export) 요청 기록</p>
+                        </div>
+                      </li>
+                      <li className="text-[12px] opacity-80 italic">※ 공유 워크스페이스에 남긴 문서나 댓글은 삭제되지 않으며 '알 수 없음'으로 익명화됩니다.</li>
                     </ul>
                   </div>
+
+                  {withdrawalError && (
+                    <div className="bg-destructive/10 p-2 rounded-lg flex items-start gap-2 animate-in slide-in-from-top-1 duration-200">
+                      <AlertCircle className="w-3.5 h-3.5 text-destructive mt-0.5 shrink-0" />
+                      <p className="text-[12px] font-bold text-destructive leading-tight whitespace-pre-line">{withdrawalError}</p>
+                    </div>
+                  )}
 
                   <Button
                     variant="destructive"
@@ -295,6 +344,36 @@ export default function WithdrawalSection() {
                     className="w-full h-12 rounded-xl font-bold text-base bg-red-500 hover:bg-red-600 shadow-md shadow-red-100 dark:shadow-none"
                   >
                     최종 탈퇴 승인
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {step === 4 && (
+              <div className="flex flex-col animate-in zoom-in-95 duration-300 text-center px-6 pb-8">
+                <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Check size={40} className="text-green-600 dark:text-green-500" />
+                </div>
+                
+                <h3 className="text-xl font-black text-zinc-800 dark:text-slate-100 mb-3">탈퇴 처리가 완료되었습니다</h3>
+                <p className="text-sm font-medium text-zinc-500 dark:text-slate-400 leading-relaxed mb-8">
+                  그동안 서비스를 이용해 주셔서 감사합니다.<br />
+                  <strong className="text-zinc-900 dark:text-slate-200">7일의 유예 기간이 지난 후</strong> 모든 데이터가 영구 삭제됩니다.
+                </p>
+
+                <div className="grid grid-cols-2 gap-3 w-full">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleFinalExit('home')}
+                    className="h-12 rounded-xl font-bold border-zinc-200 dark:border-slate-700 hover:bg-zinc-50 dark:hover:bg-slate-800"
+                  >
+                    홈으로 가기
+                  </Button>
+                  <Button
+                    onClick={() => handleFinalExit('signup')}
+                    className="h-12 rounded-xl font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-100 dark:shadow-none"
+                  >
+                    새로 가입하기
                   </Button>
                 </div>
               </div>

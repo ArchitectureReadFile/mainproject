@@ -20,7 +20,7 @@ export default function AuthModal({ mode, open, onClose }) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="max-w-[400px] p-8 sm:rounded-[24px] border-none shadow-2xl overflow-hidden bg-background">
+      <DialogContent className="max-w-[400px] p-8 rounded-[24px] border-none shadow-2xl overflow-hidden bg-background">
         <DialogHeader className="space-y-1 mb-4">
           <DialogTitle>
             {titles[view]}
