@@ -325,11 +325,46 @@ export default function DocumentPage() {
     const [zoomInput, setZoomInput] = useState('100')
     const [isPanning, setIsPanning] = useState(false)
 
-    const commentScope = useMemo(() => {
+    const explicitCommentScope = useMemo(() => {
         const params = new URLSearchParams(location.search)
         const rawScope = params.get('comment_scope')
-        return rawScope === 'review' ? 'REVIEW' : 'GENERAL'
+
+        if (rawScope === 'review') {
+            return 'REVIEW'
+        }
+
+        if (rawScope === 'general') {
+            return 'GENERAL'
+        }
+
+        return null
     }, [location.search])
+
+    /**
+     * 문서 상태와 현재 사용자 권한을 기준으로 기본 댓글 scope를 계산한다.
+     * 승인 대기/반려 문서에 접근 가능한 업로더, OWNER, ADMIN은 REVIEW를 기본값으로 사용한다.
+     */
+    const resolveCommentScope = useCallback((targetDoc) => {
+        if (explicitCommentScope) {
+            return explicitCommentScope
+        }
+
+        const isReviewDocument =
+            targetDoc?.approval_status === 'PENDING_REVIEW' ||
+            targetDoc?.approval_status === 'REJECTED'
+
+        const canAccessReviewComments = Boolean(targetDoc?.can_delete)
+
+        if (isReviewDocument && canAccessReviewComments) {
+            return 'REVIEW'
+        }
+
+        return 'GENERAL'
+    }, [explicitCommentScope])
+
+    const commentScope = useMemo(() => {
+        return resolveCommentScope(doc)
+    }, [doc, resolveCommentScope])
 
     const commentPanelMeta = useMemo(() => {
         if (commentScope === 'REVIEW') {
@@ -420,13 +455,15 @@ export default function DocumentPage() {
         setCommentsLoading(true)
 
         try {
-            const [docData, commentData, memberData] = await Promise.all([
+            const [docData, memberData] = await Promise.all([
                 getGroupDocumentDetail(group_id, doc_id),
-                getDocumentComments(group_id, doc_id, {
-                    scope: commentScope,
-                }),
                 getMembers(group_id),
             ])
+
+            const nextCommentScope = resolveCommentScope(docData)
+            const commentData = await getDocumentComments(group_id, doc_id, {
+                scope: nextCommentScope,
+            })
 
             setDoc(docData)
             setComments(commentData.items ?? [])
@@ -446,7 +483,7 @@ export default function DocumentPage() {
             setLoading(false)
             setCommentsLoading(false)
         }
-    }, [group_id, doc_id, commentScope])
+    }, [group_id, doc_id, resolveCommentScope])
 
     /**
      * 멘션 팝오버 상태를 현재 커서 기준으로 동기화한다.
