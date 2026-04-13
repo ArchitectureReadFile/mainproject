@@ -28,15 +28,10 @@ class DocumentCommentService:
         user,
         member_status: MembershipStatus | None = None,
     ) -> str | None:
-        """
-        계정 탈퇴 또는 그룹 탈퇴 상태를 반영한 사용자 표시명을 반환
-        """
         if not user:
             return None
-
         is_deactivated = user.is_active is False
         is_removed_member = member_status == MembershipStatus.REMOVED
-
         return (
             f"{user.username}(탈퇴)"
             if is_deactivated or is_removed_member
@@ -44,18 +39,11 @@ class DocumentCommentService:
         )
 
     def _build_author_response(
-        self,
-        comment,
-        member_status_map: dict[int, MembershipStatus],
+        self, comment, member_status_map: dict[int, MembershipStatus]
     ) -> DocumentCommentAuthorResponse | None:
-        """
-        댓글 작성자 응답 스키마를 구성
-        """
         if not getattr(comment, "author", None):
             return None
-
         member_status = member_status_map.get(comment.author.id)
-
         return DocumentCommentAuthorResponse(
             id=comment.author.id,
             username=self._build_user_display_name(comment.author, member_status),
@@ -63,18 +51,12 @@ class DocumentCommentService:
         )
 
     def _build_mentions_response(
-        self,
-        comment,
-        member_status_map: dict[int, MembershipStatus],
+        self, comment, member_status_map: dict[int, MembershipStatus]
     ) -> list[DocumentCommentMentionResponse]:
-        """
-        댓글 멘션 응답 목록을 구성
-        """
         mentions = sorted(
             getattr(comment, "mentions", []),
             key=lambda item: (item.start_index, item.end_index, item.id),
         )
-
         return [
             DocumentCommentMentionResponse(
                 user_id=mention.mentioned_user_id,
@@ -96,44 +78,29 @@ class DocumentCommentService:
         ]
 
     def _collect_comment_user_ids(self, comments) -> list[int]:
-        """
-        댓글 트리에서 작성자와 멘션 대상 사용자 id를 수집
-        """
         collected: set[int] = set()
 
         def walk(comment):
             if getattr(comment, "author_user_id", None):
                 collected.add(comment.author_user_id)
-
             for mention in getattr(comment, "mentions", []):
                 if getattr(mention, "mentioned_user_id", None):
                     collected.add(mention.mentioned_user_id)
-
             for reply in getattr(comment, "replies", []):
                 walk(reply)
 
         for comment in comments:
             walk(comment)
-
         return list(collected)
 
     def _build_comment_response(
-        self,
-        comment,
-        member_status_map: dict[int, MembershipStatus],
+        self, comment, member_status_map: dict[int, MembershipStatus]
     ) -> DocumentCommentResponse:
-        """
-        댓글 엔티티를 API 응답 스키마로 변환
-        soft delete 댓글은 표시용 본문으로 치환
-        """
         is_deleted = comment.deleted_at is not None
         display_content = "삭제된 댓글입니다." if is_deleted else comment.content
-
         sorted_replies = sorted(
-            comment.replies,
-            key=lambda item: (item.created_at, item.id),
+            comment.replies, key=lambda item: (item.created_at, item.id)
         )
-
         return DocumentCommentResponse(
             id=comment.id,
             document_id=comment.document_id,
@@ -151,10 +118,7 @@ class DocumentCommentService:
             deleted_at=comment.deleted_at,
             mentions=[]
             if is_deleted
-            else self._build_mentions_response(
-                comment,
-                member_status_map,
-            ),
+            else self._build_mentions_response(comment, member_status_map),
             replies=[
                 self._build_comment_response(reply, member_status_map)
                 for reply in sorted_replies
@@ -168,44 +132,30 @@ class DocumentCommentService:
         content: str,
         mentions: list[DocumentCommentMentionRequest],
     ) -> list[dict]:
-        """
-        content와 mentions 정합성을 검증하고 저장용 데이터로 정규화
-        """
         if not mentions:
             return []
 
         ordered_mentions = sorted(
-            mentions,
-            key=lambda item: (item.start, item.end, item.user_id),
+            mentions, key=lambda item: (item.start, item.end, item.user_id)
         )
-
         previous_end = -1
         mentioned_user_ids = sorted({mention.user_id for mention in ordered_mentions})
         users = self.group_repository.get_active_users_by_ids(
-            group_id=group_id,
-            user_ids=mentioned_user_ids,
+            group_id=group_id, user_ids=mentioned_user_ids
         )
         user_map = {user.id: user for user in users}
-
         normalized_mentions: list[dict] = []
 
         for mention in ordered_mentions:
             if mention.start < previous_end:
                 raise AppException(ErrorCode.COMMENT_MENTION_INVALID)
-
             if mention.end > len(content):
                 raise AppException(ErrorCode.COMMENT_MENTION_INVALID)
-
             user = user_map.get(mention.user_id)
             if not user:
                 raise AppException(ErrorCode.COMMENT_MENTION_USER_NOT_FOUND)
-
-            expected_text = f"@{mention.snapshot_username}"
-            actual_text = content[mention.start : mention.end]
-
-            if actual_text != expected_text:
+            if content[mention.start : mention.end] != f"@{mention.snapshot_username}":
                 raise AppException(ErrorCode.COMMENT_MENTION_INVALID)
-
             normalized_mentions.append(
                 {
                     "mentioned_user_id": user.id,
@@ -226,24 +176,17 @@ class DocumentCommentService:
         current_user_id: int,
         current_user_role: MembershipRole | None,
     ) -> DocumentCommentResponse:
-        """
-        댓글 트리 전체에 삭제 권한 정보를 재귀적으로 반영
-        """
         is_owner_or_admin = current_user_role in (
             MembershipRole.OWNER,
             MembershipRole.ADMIN,
         )
         is_author = comment.author_user_id == current_user_id
-
         response.can_delete = (not response.is_deleted) and (
             is_owner_or_admin or is_author
         )
-
         sorted_replies = sorted(
-            comment.replies,
-            key=lambda item: (item.created_at, item.id),
+            comment.replies, key=lambda item: (item.created_at, item.id)
         )
-
         response.replies = [
             self._apply_delete_permission_recursively(
                 reply_response,
@@ -253,7 +196,6 @@ class DocumentCommentService:
             )
             for reply_response, reply_comment in zip(response.replies, sorted_replies)
         ]
-
         return response
 
     def list_comments(
@@ -265,26 +207,18 @@ class DocumentCommentService:
         current_user_role: MembershipRole | None,
         scope: str,
     ) -> DocumentCommentListResponse:
-        """
-        문서의 루트 댓글과 대댓글 목록을 반환
-        """
         self.document_service.get_document_in_group_with_permission(
             doc_id=doc_id,
             group_id=group_id,
             current_user_id=current_user_id,
             current_user_role=current_user_role,
         )
-
         comments = self.comment_repository.get_root_comments_by_document_id(
-            doc_id,
-            scope=scope,
+            doc_id, scope=scope
         )
-
         member_status_map = self.group_repository.get_member_status_map(
-            group_id=group_id,
-            user_ids=self._collect_comment_user_ids(comments),
+            group_id=group_id, user_ids=self._collect_comment_user_ids(comments)
         )
-
         items = [
             self._apply_delete_permission_recursively(
                 self._build_comment_response(comment, member_status_map),
@@ -294,7 +228,6 @@ class DocumentCommentService:
             )
             for comment in comments
         ]
-
         return DocumentCommentListResponse(items=items)
 
     def create_comment(
@@ -312,11 +245,6 @@ class DocumentCommentService:
         scope: str = "GENERAL",
         mentions: list[DocumentCommentMentionRequest] | None = None,
     ) -> DocumentCommentResponse:
-        """
-        문서 댓글 또는 대댓글을 생성
-        대댓글은 같은 문서의 루트 댓글에만 작성할 수 있으며,
-        댓글 깊이는 1단계까지만 허용
-        """
         self.document_service.get_document_in_group_with_permission(
             doc_id=doc_id,
             group_id=group_id,
@@ -326,26 +254,19 @@ class DocumentCommentService:
 
         if parent_id is not None:
             parent_comment = self.comment_repository.get_comment_by_id(parent_id)
-
             if not parent_comment:
                 raise AppException(ErrorCode.COMMENT_NOT_FOUND)
-
             if parent_comment.document_id != doc_id:
                 raise AppException(ErrorCode.COMMENT_PARENT_MISMATCH)
-
             if parent_comment.parent_id is not None:
                 raise AppException(ErrorCode.COMMENT_REPLY_DEPTH_EXCEEDED)
-
             if parent_comment.deleted_at is not None:
                 raise AppException(ErrorCode.COMMENT_PARENT_DELETED)
-
             if parent_comment.comment_scope != scope:
                 raise AppException(ErrorCode.COMMENT_PARENT_MISMATCH)
 
         normalized_mentions = self._validate_and_normalize_mentions(
-            group_id=group_id,
-            content=content,
-            mentions=mentions or [],
+            group_id=group_id, content=content, mentions=mentions or []
         )
 
         try:
@@ -359,51 +280,47 @@ class DocumentCommentService:
                 y=y,
                 scope=scope,
             )
-
             self.comment_repository.create_comment_mentions(
-                comment_id=comment.id,
-                mentions=normalized_mentions,
+                comment_id=comment.id, mentions=normalized_mentions
             )
-
             self.comment_repository.db.commit()
 
-            from models.model import NotificationType
-            from repositories.notification_repository import NotificationRepository
-            from services.notification_service import NotificationService
+            if normalized_mentions:
+                from models.model import NotificationType
+                from repositories.notification_repository import NotificationRepository
+                from services.notification_service import NotificationService
 
-            notification_service = NotificationService()
-            notification_repo = NotificationRepository(self.comment_repository.db)
+                notification_repo = NotificationRepository(self.comment_repository.db)
+                notification_service = NotificationService(notification_repo)  # ✅
 
-            for mention_data in normalized_mentions:
-                mentioned_user_id = mention_data["mentioned_user_id"]
-                if mentioned_user_id == current_user_id:
-                    continue
+                for mention_data in normalized_mentions:
+                    mentioned_user_id = mention_data["mentioned_user_id"]
+                    if mentioned_user_id == current_user_id:
+                        continue
 
-                page_str = str(page) if page is not None else "1"
-                scope_str = scope.lower() if scope else "general"
-                target_type = f"doc_comment:{page_str}:{scope_str}"
+                    page_str = str(page) if page is not None else "1"
+                    scope_str = scope.lower() if scope else "general"
+                    short_content = (
+                        content[:30] + "..." if len(content) > 30 else content
+                    )
 
-                short_content = content[:30] + "..." if len(content) > 30 else content
-
-                notification_service.create_notification_sync(
-                    repository=notification_repo,
-                    user_id=mentioned_user_id,
-                    type=NotificationType.COMMENT_MENTIONED,
-                    title="댓글 멘션 알림",
-                    body=f"문서 댓글에서 회원님을 멘션했습니다: {short_content}",
-                    actor_user_id=current_user_id,
-                    group_id=group_id,
-                    target_type=target_type,
-                    target_id=doc_id,
-                )
+                    notification_service.create_notification_sync(
+                        user_id=mentioned_user_id,  # ✅ repository= 제거
+                        type=NotificationType.COMMENT_MENTIONED,
+                        title="댓글 멘션 알림",
+                        body=f"문서 댓글에서 회원님을 멘션했습니다: {short_content}",
+                        actor_user_id=current_user_id,
+                        group_id=group_id,
+                        target_type=f"doc_comment:{page_str}:{scope_str}",
+                        target_id=doc_id,
+                    )
 
         except Exception:
             self.comment_repository.db.rollback()
             raise
 
         saved_comment = self.comment_repository.get_comment_by_id(comment.id)
-        response = self._build_comment_response(saved_comment)
-
+        response = self._build_comment_response(saved_comment, {})
         return self._apply_delete_permission_recursively(
             response,
             saved_comment,
@@ -419,12 +336,7 @@ class DocumentCommentService:
         current_user_id: int,
         current_user_role: MembershipRole | None,
     ) -> DocumentCommentResponse:
-        """
-        댓글을 soft delete 처리
-        OWNER/ADMIN은 전체 삭제 가능, 그 외에는 본인 댓글만 삭제 가능
-        """
         comment = self.comment_repository.get_comment_by_id(comment_id)
-
         if not comment:
             raise AppException(ErrorCode.COMMENT_NOT_FOUND)
 
@@ -443,22 +355,19 @@ class DocumentCommentService:
             MembershipRole.ADMIN,
         )
         is_author = comment.author_user_id == current_user_id
-
         if not (is_owner_or_admin or is_author):
             raise AppException(ErrorCode.AUTH_FORBIDDEN)
 
         try:
             deleted_comment = self.comment_repository.soft_delete_comment(
-                comment,
-                deleted_by_user_id=current_user_id,
+                comment, deleted_by_user_id=current_user_id
             )
             self.comment_repository.db.commit()
         except Exception:
             self.comment_repository.db.rollback()
             raise
 
-        response = self._build_comment_response(deleted_comment)
-
+        response = self._build_comment_response(deleted_comment, {})
         return self._apply_delete_permission_recursively(
             response,
             deleted_comment,

@@ -150,7 +150,6 @@ class ChatProcessor:
                     preview = preview[:150] + "..."
 
                 self.notification_service.create_notification_sync(
-                    self.notification_repo,
                     user_id=user_id,
                     type=NotificationType.AI_ANSWER_COMPLETE,
                     title="AI 답변이 완료되었습니다.",

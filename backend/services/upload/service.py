@@ -23,7 +23,6 @@ class UploadService:
 
     @staticmethod
     def _normalize_filename(filename: str) -> str:
-        """파일명을 NFC 기준으로 정규화"""
         return unicodedata.normalize("NFC", filename or "").strip()
 
     def handle_upload(
@@ -35,15 +34,8 @@ class UploadService:
         uploader_role: MembershipRole,
         assignee_user_id: Optional[int] = None,
     ):
-        """
-        업로드된 원본 문서를 저장하고 문서/승인 레코드를 생성
-        """
         doc_ids = []
-
-        is_auto_approved = uploader_role in (
-            MembershipRole.OWNER,
-            MembershipRole.ADMIN,
-        )
+        is_auto_approved = uploader_role in (MembershipRole.OWNER, MembershipRole.ADMIN)
 
         if not is_auto_approved and assignee_user_id is not None:
             self.group_service.assert_reviewer_assignable(assignee_user_id, group_id)
@@ -56,7 +48,6 @@ class UploadService:
 
             group_dir = os.path.join(self.UPLOAD_DIR, f"group_{group_id}")
             os.makedirs(group_dir, exist_ok=True)
-
             file_path = os.path.join(group_dir, unique_name)
 
             with open(file_path, "wb") as f:
@@ -91,11 +82,10 @@ class UploadService:
                     )
                     from services.notification_service import NotificationService
 
-                    notif_service = NotificationService()
                     notif_repo = NotificationRepository(self.repository.db)
+                    notif_service = NotificationService(notif_repo)  # ✅
                     notif_service.create_notification_sync(
-                        repository=notif_repo,
-                        user_id=assignee_user_id,
+                        user_id=assignee_user_id,  # ✅ repository= 제거
                         actor_user_id=user_id,
                         group_id=group_id,
                         type=NotificationType.DOCUMENT_UPLOAD_REQUESTED,
