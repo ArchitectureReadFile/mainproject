@@ -248,10 +248,32 @@ def test_reset_password_failure_user_not_found(client, fake_redis):
     assert response.json()["code"] == ErrorCode.USER_NOT_FOUND.code
 
 
-def test_deactivate_account_success(authenticated_client, fake_redis):
+def test_deactivate_account_success(authenticated_client, db_session, fake_redis):
+    from models.model import Group
+
+    db_session.query(Group).filter(Group.owner_user_id == 1).delete()
+    db_session.commit()
+
     fake_redis.set("email_verified:testuser@example.com", "1")
     response = authenticated_client.delete("/api/auth/deactivate")
     assert response.status_code == 204
+
+
+def test_deactivate_account_failure_as_owner(
+    authenticated_client, db_session, fake_redis
+):
+    from models.model import Group, User
+
+    user = db_session.query(User).filter(User.email == "testuser@example.com").first()
+    group = Group(name="Test Group", owner_user_id=user.id)
+    db_session.add(group)
+    db_session.commit()
+
+    fake_redis.set("email_verified:testuser@example.com", "1")
+    response = authenticated_client.delete("/api/auth/deactivate")
+
+    assert response.status_code == 400
+    assert response.json()["code"] == ErrorCode.USER_WITHDRAWAL_AS_OWNER_RESTRICTED.code
 
 
 def test_deactivate_account_failure_not_verified(authenticated_client):

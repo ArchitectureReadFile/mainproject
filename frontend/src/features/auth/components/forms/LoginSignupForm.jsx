@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
+import { cn } from '@/lib/utils'
 import { AlertCircle, CheckCircle2, Info, Lock, Mail, User, ShieldCheck } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { getErrorMessageByCode } from '../../../../lib/errors'
@@ -34,8 +35,9 @@ export default function LoginSignupForm({ view, setView, onClose }) {
     const params = new URLSearchParams(window.location.search)
     const errCode = params.get('error')
     const emailParam = params.get('email')
+    const actionParam = params.get('action')
 
-    if (errCode === 'not_registered') {
+    if (errCode === 'not_registered' || actionParam === 'signup') {
       if (emailParam) {
         const decodedEmail = decodeURIComponent(emailParam)
         setInitialEmail(decodedEmail)
@@ -45,6 +47,7 @@ export default function LoginSignupForm({ view, setView, onClose }) {
       params.delete('error')
       params.delete('message')
       params.delete('email')
+      params.delete('action')
       const newUrl = window.location.pathname + (params.toString() ? `?${params.toString()}` : '')
       window.history.replaceState({}, '', newUrl)
     } else if (errCode === 'account_inactive') {
@@ -124,10 +127,22 @@ export default function LoginSignupForm({ view, setView, onClose }) {
     try {
       if (isLogin) {
         await login({ email: form.email, password: form.password })
+        onClose()
       } else {
-        await signup({ username: form.username, email: form.email, password: form.password })
+        const isSocial = !!initialEmail
+        const autoLogged = await signup({
+          username: form.username,
+          email: form.email,
+          password: form.password,
+          autoLogin: isSocial
+        })
+
+        if (autoLogged) {
+          onClose()
+        } else {
+          window.location.href = '/'
+        }
       }
-      onClose()
     } catch (err) {
       if (err.code === 'USER_010' || err.response?.data?.code === 'USER_010') {
         setPendingCredentials({ email: form.email, password: form.password })
@@ -182,7 +197,10 @@ export default function LoginSignupForm({ view, setView, onClose }) {
                 id="auth-email"
                 ref={isLogin ? firstInputRef : null}
                 type="email"
-                className="pl-9 h-11 bg-muted/5 focus:ring-0 focus:border-muted-foreground/40 transition-colors duration-200 placeholder:text-muted-foreground/40 shadow-none text-foreground"
+                className={cn(
+                  "pl-9 h-11 bg-muted/5 focus:ring-0 focus:border-muted-foreground/40 transition-colors duration-200 placeholder:text-muted-foreground/40 shadow-none text-foreground",
+                  !isLogin && emailVerify.verified && "pr-10"
+                )}
                 value={form.email}
                 onChange={(e) => {
                   onChange('email', e.target.value)
@@ -192,19 +210,20 @@ export default function LoginSignupForm({ view, setView, onClose }) {
                 autoComplete="email"
                 placeholder="example@email.com"
               />
+              {!isLogin && emailVerify.verified && (
+                <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-600" />
+              )}
             </div>
-            {!isLogin && (
+            {!isLogin && !emailVerify.verified && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={handleSendCode}
-                disabled={emailVerify.sending || emailVerify.verified || !form.email.trim()}
+                disabled={emailVerify.sending || !form.email.trim()}
                 className="shrink-0 h-11 px-4 font-bold border-muted-foreground/40 bg-muted/5 hover:bg-muted/10 text-muted-foreground transition-all duration-300"
               >
-                {emailVerify.verified ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                ) : emailVerify.sending ? (
+                {emailVerify.sending ? (
                   <span className="animate-pulse">...</span>
                 ) : emailVerify.codeSent ? (
                   '재발송'
@@ -380,7 +399,7 @@ export default function LoginSignupForm({ view, setView, onClose }) {
       )}
 
       <Dialog open={showReactivateModal} onOpenChange={setShowReactivateModal}>
-        <DialogContent className="sm:max-w-[380px] p-8 sm:rounded-[24px] border-none shadow-2xl">
+        <DialogContent className="max-w-[380px] p-8 rounded-[24px] border-none shadow-2xl bg-background">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3 text-lg font-bold text-foreground/90">
               <div className="w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">

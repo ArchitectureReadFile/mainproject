@@ -36,10 +36,17 @@ export function AuthProvider({ children }) {
     setUser(me);
   }, []);
 
-  const signup = useCallback(async ({ username, email, password }) => {
+  const signup = useCallback(async ({ username, email, password, autoLogin = false }) => {
     await signupApi(username.trim(), email.trim(), password);
-    window.location.href = "/";
-  }, []);
+    if (autoLogin) {
+      const me = await meApi();
+      if (me && typeof me === "object") {
+        setUser(me);
+      }
+      return true;
+    }
+    return false;
+  }, [setUser]);
 
   const registerLogoutGuard = useCallback((guard) => {
     setLogoutGuard(guard ?? null)  // 함수를 래핑 없이 직접 저장 (useState initializer 회피)

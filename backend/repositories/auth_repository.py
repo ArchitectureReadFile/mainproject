@@ -49,6 +49,17 @@ class AuthRepository:
             .all()
         )
 
+    def has_owned_groups(self, user_id: int) -> bool:
+        return (
+            self.db.query(Group).filter(Group.owner_user_id == user_id).first()
+            is not None
+        )
+
+    def deactivate_user(self, user: User, deactivated_at):
+        user.is_active = False
+        user.deactivated_at = deactivated_at
+        self.db.commit()
+
     def add(self, obj):
         self.db.add(obj)
 
