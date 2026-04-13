@@ -29,6 +29,8 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
             return;
         }
 
+        intentionalClose.current = false;
+
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
         const wsUrl = `${protocol}://${window.location.host}/api/ws/chat/${sessionId}/${user.id}`
         ws.current = new WebSocket(wsUrl);

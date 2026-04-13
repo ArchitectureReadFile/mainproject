@@ -511,9 +511,7 @@ class DocumentService:
                     approval_status=getattr(doc.approval, "status", None).value
                     if getattr(doc, "approval", None)
                     else None,
-                    document_type=get_summary_field(summary, "document_type")
-                    if summary
-                    else None,
+                    document_type=doc.document_type,
                     created_at=doc.created_at,
                     uploader=self._build_user_display_name(doc.owner, owner_status),
                     comment_count=0,
