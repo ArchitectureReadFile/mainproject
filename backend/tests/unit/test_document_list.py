@@ -6,28 +6,28 @@ from tests.dummy_data import users
 GROUP_ID = 1  # seed_documents / authenticated_client 기준
 
 
-# TC-011-01 정상 조회 — 승인 문서 1건
+# UT-DOC-002-01 워크스페이스 멤버는 승인된 문서 목록을 정상 조회할 수 있다.
 @pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
-def test_list_documents_normal(client, logged_in_user, seed_documents):
-    # seed: doc_id=101 (group_id=1, APPROVED) 1건
+def test_list_documents_success(client, logged_in_user, seed_documents):
+    """워크스페이스 멤버는 승인된 문서 목록을 정상 조회하는지 검증한다."""
     res = client.get(f"/api/groups/{GROUP_ID}/documents?skip=0&limit=5")
     assert res.status_code == 200
 
     data = res.json()
     assert "items" in data
     assert "total" in data
-    assert len(data["items"]) <= 5
     assert data["total"] == 1
+    assert len(data["items"]) == 1
+    assert data["items"][0]["id"] == 101
     assert data["items"][0]["summary_id"] == 1
 
 
-# TC-011-02 두 번째 페이지 조회 — view_type=my로 검증
-# 기본 view_type=all은 APPROVED 문서만 반환하므로,
-# approval 없는 추가 문서는 업로더 기준 목록(view_type=my)으로 검증한다.
+# UT-DOC-002-02 view_type이 my인 경우 업로더 본인의 문서 목록을 조회할 수 있다.
 @pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
-def test_list_documents_second_page(client, db_session, logged_in_user, seed_documents):
-    # 기존 seed에는 user_id=1이 업로드한 group 1 문서가 2건(id=101, 103) 있다.
-    # 여기에 approval 없는 문서 6건을 추가하므로 view_type=my 기준 총 8건이 된다.
+def test_list_documents_success_with_view_type_my(
+    client, db_session, logged_in_user, seed_documents
+):
+    """view_type이 my인 경우 업로더 본인의 문서 목록을 정상 조회하는지 검증한다."""
     for i in range(6):
         db_session.add(
             Document(
@@ -48,38 +48,36 @@ def test_list_documents_second_page(client, db_session, logged_in_user, seed_doc
     assert data["total"] == 8
     assert len(data["items"]) == 3
 
-
-# TC-011-03 view_type=all — 승인 문서만 반환됨을 확인
-# group_id=1에 APPROVED 문서는 doc_id=101(uploader=users[0]) 1건뿐.
-# doc_id=102는 group_id=2 소속이므로 group_id=1 조회에 포함되지 않는다.
-@pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
-def test_list_documents_view_type_all(client, logged_in_user, seed_documents):
-    res = client.get(f"/api/groups/{GROUP_ID}/documents?skip=0&limit=5&view_type=all")
-    assert res.status_code == 200
-
-    data = res.json()
-    assert data["total"] == 1
-    assert data["items"][0]["uploader"] == "테스트유저"
+    ids = [item["id"] for item in data["items"]]
+    assert set(ids).issubset({101, 103, 200, 201, 202, 203, 204, 205})
 
 
-# TC-011-04 비멤버 접근 → 404
-# users[1]은 group_id=1 비멤버 → assert_view_permission → GROUP_NOT_FOUND
+# UT-DOC-002-03 비멤버는 문서 목록을 조회할 수 없다.
 @pytest.mark.parametrize("logged_in_user", [users[1]], indirect=True)
-def test_list_documents_non_member(client, logged_in_user, seed_documents):
+def test_list_documents_not_found_for_non_member(
+    client, logged_in_user, seed_documents
+):
+    """비멤버는 문서 목록을 조회할 수 없는지 검증한다."""
     res = client.get(f"/api/groups/{GROUP_ID}/documents?skip=0&limit=5")
     assert res.status_code == 404
 
 
-# TC-011-05 멤버이지만 문서 없음 → 빈 목록
-# users[0]를 group_id=1 멤버로 세팅하되 승인 문서를 추가하지 않는다.
+# UT-DOC-002-04 문서가 없는 경우 빈 목록을 조회할 수 있다.
 @pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
-def test_list_documents_empty_for_member(client, db_session, logged_in_user):
+def test_list_documents_empty(client, db_session, logged_in_user):
+    """문서가 없는 경우 빈 목록을 정상 조회하는지 검증한다."""
     from models.model import Group, GroupMember, MembershipRole, MembershipStatus
 
     db_session.add(
-        Group(**{"id": 1, "owner_user_id": 1, "name": "빈 그룹", "status": "ACTIVE"})
+        Group(
+            id=1,
+            owner_user_id=1,
+            name="빈 그룹",
+            status="ACTIVE",
+        )
     )
     db_session.flush()
+
     db_session.add(
         GroupMember(
             user_id=logged_in_user.id,
@@ -92,12 +90,14 @@ def test_list_documents_empty_for_member(client, db_session, logged_in_user):
 
     res = client.get(f"/api/groups/{GROUP_ID}/documents?skip=0&limit=5")
     assert res.status_code == 200
+
     data = res.json()
     assert data["items"] == []
     assert data["total"] == 0
 
 
-# TC-011-06 비로그인 상태 → 401
+# UT-DOC-002-05 비로그인 사용자는 문서 목록을 조회할 수 없다.
 def test_list_documents_unauthenticated(client):
+    """비로그인 사용자는 문서 목록 조회가 차단되는지 검증한다."""
     res = client.get(f"/api/groups/{GROUP_ID}/documents?skip=0&limit=5")
     assert res.status_code == 401
