@@ -53,6 +53,33 @@ def fake_redis():
     return redis_client
 
 
+@pytest.fixture(autouse=True)
+def stub_async_side_effects(monkeypatch, fake_redis):
+    """테스트 중 Redis/Celery 외부 부수효과를 no-op으로 막는다."""
+    import services.group_service as group_service_module
+    import tasks.file_cleanup_task as file_cleanup_task_module
+    from services.notification_service import NotificationService
+    from tasks.group_document_task import deindex_document, index_approved_document
+
+    monkeypatch.setattr(
+        NotificationService,
+        "send_realtime_notification_sync",
+        lambda self, user_id, notification: None,
+    )
+    monkeypatch.setattr(
+        deindex_document,
+        "delay",
+        lambda document_id: None,
+    )
+    monkeypatch.setattr(
+        index_approved_document,
+        "delay",
+        lambda document_id: None,
+    )
+    monkeypatch.setattr(group_service_module, "redis_client", fake_redis)
+    monkeypatch.setattr(file_cleanup_task_module, "redis_client", fake_redis)
+
+
 @pytest.fixture()
 def db_session():
     Base.metadata.create_all(bind=engine)

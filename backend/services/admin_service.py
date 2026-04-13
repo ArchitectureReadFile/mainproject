@@ -381,12 +381,31 @@ def _get_admin_user_effective_plan(user: User) -> str:
     )
 
 
+def _enqueue_restored_group_reindex(
+    db: Session,
+    *,
+    group_ids: list[int],
+) -> None:
+    """복구된 워크스페이스의 활성 승인 문서를 재인덱싱 큐에 적재한다."""
+    from repositories.group_repository import GroupRepository
+    from tasks.group_document_task import index_approved_document
+
+    group_repository = GroupRepository(db)
+
+    for group_id in group_ids:
+        document_ids = group_repository.get_active_approved_document_ids(group_id)
+        for document_id in document_ids:
+            index_approved_document.delay(document_id)
+
+
 def _set_admin_user_plan(
     db: Session,
     *,
     user: User,
     plan: SubscriptionPlan,
 ) -> str:
+    db.info.pop("restored_group_ids", None)
+
     subscription = user.subscription
     if subscription is None:
         subscription = Subscription(
@@ -427,11 +446,18 @@ def _set_admin_user_plan(
             .all()
         )
 
+        restored_group_ids: list[int] = []
+
         for group in pending_groups:
             group.status = GroupStatus.ACTIVE
             group.pending_reason = None
             group.delete_requested_at = None
             group.delete_scheduled_at = None
+            restored_group_ids.append(group.id)
+
+        if restored_group_ids:
+            # update_admin_user()에서 db.commit() 이후 호출하도록 분리하는 게 제일 안전함
+            db.info["restored_group_ids"] = restored_group_ids
 
     return subscription.plan.value
 
@@ -458,5 +484,12 @@ def update_admin_user(
         )
 
     db.commit()
-    db.refresh(user)
+
+    restored_group_ids = db.info.pop("restored_group_ids", [])
+    if restored_group_ids:
+        _enqueue_restored_group_reindex(
+            db,
+            group_ids=restored_group_ids,
+        )
+
     return user, effective_plan
