@@ -1717,7 +1717,7 @@ export default function DocumentPage() {
 
             <ConfirmModal
                 open={showClassificationConfirmModal}
-                message={'문서 분류를 수정하시겠습니까?\n분류를 변경하면 문서 검색 결과가 달라질 수 있습니다.'}
+                message={'문서 분류를 수정하시겠습니까?\n분류를 변경하면 챗봇 답변에 활용되는 문서 검색 결과가 달라질 수 있습니다.'}
                 confirmLabel={isClassificationSubmitting ? '처리 중...' : '수정'}
                 onConfirm={handleConfirmClassificationUpdate}
                 onCancel={() => {
@@ -1861,7 +1861,7 @@ export default function DocumentPage() {
                         </div>
 
                         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                            분류를 변경하면 문서 검색 결과가 달라질 수 있습니다.
+                            분류를 변경하면 챗봇 답변에 활용되는 문서 검색 결과가 달라질 수 있습니다.
                         </div>
 
                         <div className="flex flex-wrap justify-end gap-2 pr-3">
