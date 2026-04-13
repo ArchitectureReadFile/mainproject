@@ -21,6 +21,9 @@ celery_app = Celery(
         "tasks.platform_sync_task",
         "tasks.subscription_task",
         "tasks.export_task",
+        "tasks.workspace_deletion_task",
+        "tasks.document_deletion_task",
+        "tasks.file_cleanup_task",
     ],
 )
 
@@ -49,11 +52,26 @@ celery_app.conf.update(
         "tasks.precedent_task.index_precedent": {"queue": "platform_queue"},
         "tasks.precedent_task.delete_precedent_index": {"queue": "platform_queue"},
         "tasks.subscription_task.reconcile_subscriptions": {"queue": "platform_queue"},
+        "tasks.workspace_deletion_task.finalize_pending_workspaces": {
+            "queue": "document_queue"
+        },
+        "tasks.document_deletion_task.finalize_pending_documents": {
+            "queue": "document_queue"
+        },
+        "tasks.file_cleanup_task.cleanup_document_files": {"queue": "document_queue"},
     },
     beat_schedule={
         "reconcile-subscriptions-every-hour": {
             "task": "tasks.subscription_task.reconcile_subscriptions",
             "schedule": crontab(minute=0),
+        },
+        "finalize-pending-workspaces-every-10-minutes": {
+            "task": "tasks.workspace_deletion_task.finalize_pending_workspaces",
+            "schedule": crontab(minute="*/10"),
+        },
+        "finalize-pending-documents-every-10-minutes": {
+            "task": "tasks.document_deletion_task.finalize_pending_documents",
+            "schedule": crontab(minute="*/10"),
         },
         "cleanup-expired-exports-every-10-minutes": {
             "task": "tasks.export_task.cleanup_expired_exports",

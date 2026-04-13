@@ -16,11 +16,18 @@ from services.rag.group_document_indexing_service import (
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, name="tasks.group_document_task.index_approved_document")
+@celery_app.task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    retry_kwargs={"max_retries": 5},
+    name="tasks.group_document_task.index_approved_document",
+)
 def index_approved_document(self, document_id: int) -> dict:
     """
-    APPROVED 상태 그룹 문서를 RAG 인덱스에 등록
-    문서 승인(APPROVED) 시점에 호출
+    APPROVED 상태 그룹 문서를 RAG 인덱스에 등록한다.
+    실패 시 Celery retry 로 재시도한다.
     """
     db = SessionLocal()
     try:
@@ -58,35 +65,22 @@ def index_approved_document(self, document_id: int) -> dict:
         )
 
         return {"indexed": True, "document_id": document_id, "chunks": chunk_count}
-
-    except Exception as e:
-        logger.error(
-            "[그룹문서 인덱싱 태스크 실패] document_id=%s, error=%s",
-            document_id,
-            e,
-            exc_info=True,
-        )
-        raise
     finally:
         db.close()
 
 
-@celery_app.task(bind=True, name="tasks.group_document_task.deindex_document")
+@celery_app.task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    retry_kwargs={"max_retries": 5},
+    name="tasks.group_document_task.deindex_document",
+)
 def deindex_document(self, document_id: int) -> dict:
     """
     문서 삭제 시 RAG 인덱스에서 제거한다.
-
-    Args:
-        document_id: documents.id
+    실패 시 Celery retry 로 재시도한다.
     """
-    try:
-        deindex_group_document(document_id)
-        return {"deindexed": True, "document_id": document_id}
-    except Exception as e:
-        logger.error(
-            "[그룹문서 디인덱싱 실패] document_id=%s, error=%s",
-            document_id,
-            e,
-            exc_info=True,
-        )
-        raise
+    deindex_group_document(document_id)
+    return {"deindexed": True, "document_id": document_id}

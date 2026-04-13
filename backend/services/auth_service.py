@@ -375,6 +375,18 @@ class AuthService:
     def _clear_login_failures(self, redis_client: Redis, key: str):
         redis_client.delete(f"attempts:{key}", f"block:{key}")
 
+    def _enqueue_restored_group_reindex(self, group_ids: list[int]) -> None:
+        """복구된 워크스페이스의 활성 승인 문서를 재인덱싱 큐에 적재한다."""
+        from repositories.group_repository import GroupRepository
+        from tasks.group_document_task import index_approved_document
+
+        group_repository = GroupRepository(self.auth_repo.db)
+
+        for group_id in group_ids:
+            document_ids = group_repository.get_active_approved_document_ids(group_id)
+            for document_id in document_ids:
+                index_approved_document.delay(document_id)
+
     def has_full_workspace_access(self, user_id: int) -> bool:
         """워크스페이스의 전체 사용 권한이 있는지 반환"""
         subscription = self.get_effective_subscription(user_id)
@@ -455,6 +467,7 @@ class AuthService:
     def subscribe_premium(
         self, user_id: int, payload: SubscribePremiumRequest
     ) -> UserResponse:
+        """프리미엄 구독을 시작하고 구독 만료 워크스페이스를 복구한다."""
         if not payload.confirm:
             raise AppException(ErrorCode.AUTH_FORBIDDEN)
 
@@ -487,13 +500,20 @@ class AuthService:
             GroupPendingReason.SUBSCRIPTION_EXPIRED,
         )
 
+        restored_group_ids: list[int] = []
+
         for group in pending_groups:
             group.status = GroupStatus.ACTIVE
             group.pending_reason = None
             group.delete_requested_at = None
             group.delete_scheduled_at = None
+            restored_group_ids.append(group.id)
 
         self.auth_repo.commit()
+
+        if restored_group_ids:
+            self._enqueue_restored_group_reindex(restored_group_ids)
+
         self.auth_repo.refresh(user)
         self.auth_repo.refresh(subscription)
         return self.to_user_response(user)
