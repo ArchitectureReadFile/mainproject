@@ -1,3 +1,4 @@
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -5,26 +6,58 @@ import {
   SheetContent,
   SheetDescription,
   SheetHeader,
-  SheetTitle,
 } from '@/components/ui/Sheet'
 import { cn } from '@/lib/utils'
-import { FolderOpen, Home, LogIn, LogOut, Shield, User, UserPlus, X } from 'lucide-react'
+import { FolderOpen, Home, LogIn, LogOut, Shield, UserPlus, X } from 'lucide-react'
+import { useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 
-function MenuItem({ to, icon, label, active, onClick }) {
+const AVATAR_COLORS = [
+  'bg-red-500', 'bg-orange-500', 'bg-amber-500',
+  'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500',
+  'bg-sky-500', 'bg-blue-500', 'bg-indigo-500',
+  'bg-violet-500', 'bg-purple-500', 'bg-pink-500', 'bg-rose-500'
+]
+
+const getAvatarColor = (seed) => {
+  if (!seed) return 'bg-zinc-800'
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
+
+function MenuItem({ to, icon, label, active, onClick, isButton = false, className }) {
+  const content = (
+    <>
+      <span className="shrink-0 transition-transform duration-200 group-active:scale-90">
+        {icon}
+      </span>
+      <span className="flex-1 text-left truncate">{label}</span>
+    </>
+  )
+
+  const commonClasses = cn(
+    'group flex items-center gap-3 px-4 py-3 text-[0.9375rem] font-medium transition-all duration-200',
+    active
+      ? 'bg-accent text-foreground shadow-sm'
+      : 'text-muted-foreground hover:bg-accent hover:text-foreground active:scale-[0.98]',
+    'rounded-lg mx-3 w-[calc(100%-1.5rem)]',
+    className
+  )
+
+  if (isButton) {
+    return (
+      <button onClick={onClick} className={cn('border-none bg-transparent cursor-pointer', commonClasses)}>
+        {content}
+      </button>
+    )
+  }
+
   return (
-    <Link
-      to={to}
-      onClick={onClick}
-      className={cn(
-        'flex items-center gap-3 px-5 py-3 text-[0.9375rem] font-medium no-underline transition-colors rounded-l-lg',
-        active
-          ? 'bg-primary text-primary-foreground'
-          : 'text-foreground hover:bg-accent hover:text-accent-foreground'
-      )}
-    >
-      {icon}
-      <span>{label}</span>
+    <Link to={to} onClick={onClick} className={cn('no-underline', commonClasses)}>
+      {content}
     </Link>
   )
 }
@@ -40,119 +73,125 @@ export default function MenuDrawer({
 }) {
   const location = useLocation()
 
+  const avatarBgColor = useMemo(() => {
+    return getAvatarColor(user?.email || user?.username || 'guest')
+  }, [user])
+
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <SheetContent>
-        <SheetHeader>
-          <div>
-            <SheetTitle>메뉴</SheetTitle>
-            <SheetDescription className="sr-only">
-              프로필, 홈, 워크스페이스, 로그인, 로그아웃 등 주요 메뉴로 이동할 수 있는 사이드 메뉴입니다.
-            </SheetDescription>
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="닫기">
-            <X size={20} />
+      <SheetContent className="p-0 flex flex-col overflow-x-hidden h-full">
+        <SheetHeader className="px-6 pt-6 pb-2 border-b-0 shrink-0 flex flex-row items-center justify-between">
+          <SheetDescription className="sr-only">
+            사이드 메뉴입니다.
+          </SheetDescription>
+          <span className="text-[0.75rem] font-black tracking-[0.3em] text-muted-foreground uppercase select-none">
+            Readlaw
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label="닫기"
+            className="rounded-full hover:bg-accent -mr-2"
+          >
+            <X size={18} />
           </Button>
         </SheetHeader>
 
-        {isAuthenticated && (
-          <>
-            <div className="py-2">
-              <MenuItem
+        {/* 상단/중단 스크롤 영역 */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden pt-1 pb-4 flex flex-col gap-1">
+          {isAuthenticated && user && (
+            <>
+              <Link
                 to="/mypage"
-                icon={<User size={18} />}
-                label="프로필"
-                active={location.pathname.startsWith('/mypage')}
                 onClick={onClose}
-              />
-            </div>
-            <Separator />
-          </>
-        )}
-        <>
-          <div className="py-2">
-          <MenuItem
-            to="/"
-            icon={<Home size={18} />}
-            label="홈"
-            active={location.pathname === '/'}
-            onClick={onClose}
-          />
-        </div>
-        <Separator />
-        </>
-
-        {!isAuthenticated && (
-          <>
-            <div className="py-2">
-              <Button
-                variant="ghost"
-                className="flex items-center gap-3 w-full justify-start px-5 h-12 text-[0.9375rem] font-medium rounded-none"
-                onClick={onOpenLogin}
+                className="group px-5 py-5 mx-3 mb-2 flex items-center gap-4 hover:bg-accent/50 rounded-2xl transition-all no-underline border border-transparent active:scale-[0.98]"
               >
-                <LogIn size={18} />
-                <span>로그인</span>
-              </Button>
-              <Button
-                variant="ghost"
-                className="flex items-center gap-3 w-full justify-start px-5 h-12 text-[0.9375rem] font-medium rounded-none"
-                onClick={onOpenSignup}
-              >
-                <UserPlus size={18} />
-                <span>회원가입</span>
-              </Button>
-            </div>
-            <Separator />
-          </>
-        )}
+                <Avatar className="size-12 border-2 border-background shadow-md shrink-0 transition-transform group-hover:scale-105">
+                  <AvatarImage src={user.profileImage} alt={user.username} />
+                  <AvatarFallback className={cn('text-white text-lg font-bold shadow-inner', avatarBgColor)}>
+                    {(user.username || user.email || '?').charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-foreground truncate group-hover:text-primary transition-colors text-base">
+                    {user.username || '사용자'}
+                  </span>
+                  <span className="text-[0.7rem] text-muted-foreground truncate uppercase tracking-wider">프로필 보기</span>
+                </div>
+              </Link>
+              <Separator className="mx-6 mb-4 opacity-30" />
+            </>
+          )}
 
-        {isAuthenticated && (
-          <>
-            <div className="py-2">
+          <div className="flex flex-col gap-1">
+            <MenuItem
+              to="/"
+              icon={<Home size={20} />}
+              label="홈"
+              active={location.pathname === '/'}
+              onClick={onClose}
+            />
+
+            {isAuthenticated && (
               <MenuItem
                 to="/workspace"
-                icon={<FolderOpen size={18} />}
+                icon={<FolderOpen size={20} />}
                 label="워크스페이스"
                 active={location.pathname.startsWith('/workspace')}
                 onClick={onClose}
               />
-            </div>
-          </>
-        )}
+            )}
+          </div>
 
-        {isAuthenticated && user?.role === 'ADMIN' && (
-          <>
-            <Separator />
-            <div className="py-2">
+          {isAuthenticated && user?.role === 'ADMIN' && (
+            <>
+              <div className="px-7 pt-4 pb-2">
+                <p className="text-[0.7rem] font-bold uppercase tracking-wider text-muted-foreground/60">System</p>
+              </div>
               <MenuItem
                 to="/admin"
-                icon={<Shield size={18} />}
+                icon={<Shield size={20} />}
                 label="관리자 페이지"
                 active={location.pathname.startsWith('/admin')}
                 onClick={onClose}
               />
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
 
-        {isAuthenticated && (
-          <>
-            <Separator />
-            <div className="py-2">
-              <Button
-                variant="ghost"
-                className="flex items-center gap-3 w-full justify-start px-5 h-12 text-[0.9375rem] font-medium rounded-none hover:bg-destructive/10 hover:text-destructive"
-                onClick={async () => {
-                  const loggedOut = await onLogout()
-                  if (loggedOut !== false) onClose()
-                }}
-              >
-                <LogOut size={18} />
-                <span>로그아웃</span>
-              </Button>
+        {/* 하단 밀착 액션 영역 */}
+        <div className="shrink-0 flex flex-col overflow-hidden bg-background border-t border-border/40">
+          {!isAuthenticated ? (
+            <div className="flex flex-col">
+              <MenuItem
+                isButton
+                onClick={onOpenLogin}
+                icon={<LogIn size={20} />}
+                label="로그인"
+                className="mx-0 w-full rounded-none px-7 h-14"
+              />
+              <MenuItem
+                isButton
+                onClick={onOpenSignup}
+                icon={<UserPlus size={20} />}
+                label="회원가입"
+                className="mx-0 w-full rounded-none px-7 h-14"
+              />
             </div>
-          </>
-        )}
+          ) : (
+            <MenuItem
+              isButton
+              onClick={async () => {
+                const loggedOut = await onLogout()
+                if (loggedOut !== false) onClose()
+              }}
+              icon={<LogOut size={20} />}
+              label="로그아웃"
+              className="mx-0 w-full rounded-none px-7 h-14 text-destructive hover:bg-destructive/10 active:bg-destructive/15 transition-colors"
+            />
+          )}
+        </div>
       </SheetContent>
     </Sheet>
   )
