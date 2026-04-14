@@ -84,8 +84,8 @@ export default function MenuDrawer({
           <SheetDescription className="sr-only">
             사이드 메뉴입니다.
           </SheetDescription>
-          <span className="text-[0.75rem] font-black tracking-[0.3em] text-muted-foreground uppercase select-none">
-            Readlaw
+          <span className="text-[0.65rem] font-black tracking-[0.3em] text-muted-foreground/50 uppercase select-none">
+            Readfile
           </span>
           <Button
             variant="ghost"
@@ -98,12 +98,11 @@ export default function MenuDrawer({
           </Button>
         </SheetHeader>
 
-        {/* 상단/중단 스크롤 영역 */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden pt-1 pb-4 flex flex-col gap-1">
           {isAuthenticated && user && (
             <>
-              <Link
-                to="/mypage"
+              <Link 
+                to="/mypage" 
                 onClick={onClose}
                 className="group px-5 py-5 mx-3 mb-2 flex items-center gap-4 hover:bg-accent/50 rounded-2xl transition-all no-underline border border-transparent active:scale-[0.98]"
               >
@@ -160,7 +159,6 @@ export default function MenuDrawer({
           )}
         </div>
 
-        {/* 하단 밀착 액션 영역 */}
         <div className="shrink-0 flex flex-col overflow-hidden bg-background border-t border-border/40">
           {!isAuthenticated ? (
             <div className="flex flex-col">
