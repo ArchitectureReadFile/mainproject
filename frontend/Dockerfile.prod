@@ -19,6 +19,22 @@ RUN printf 'server {\n\
     listen 3000;\n\
     root /usr/share/nginx/html;\n\
     index index.html;\n\
+\n\
+    include /etc/nginx/mime.types;\n\
+    default_type application/octet-stream;\n\
+\n\
+    types {\n\
+        application/javascript js mjs;\n\
+    }\n\
+\n\
+    location /assets/ {\n\
+        try_files $uri =404;\n\
+    }\n\
+\n\
+    location = /index.html {\n\
+        add_header Cache-Control "no-store";\n\
+    }\n\
+\n\
     location / {\n\
         try_files $uri $uri/ /index.html;\n\
     }\n\
