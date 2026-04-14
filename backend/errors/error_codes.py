@@ -122,6 +122,11 @@ class ErrorCode(Enum):
     DOC_ALREADY_DELETE_PENDING = ("DOC_007", 409, "이미 삭제 요청된 문서입니다.")
     DOC_NOT_DELETE_PENDING = ("DOC_008", 400, "삭제 요청 상태가 아닙니다.")
     DOC_NOT_PENDING_REVIEW = ("DOC_009", 409, "승인 대기 상태의 문서가 아닙니다.")
+    DOC_CLASSIFICATION_EDIT_NOT_ALLOWED = (
+        "DOC_010",
+        409,
+        "처리 완료된 활성 문서만 분류를 수정할 수 있습니다.",
+    )
 
     # ── LLM 요약 (LLM) ───────────────────────────────────────────────────────
     LLM_EMPTY_PAGES = ("LLM_001", 422, "텍스트 추출 결과가 비어 있습니다.")

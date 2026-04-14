@@ -21,7 +21,11 @@ from schemas.comment import (
     DocumentCommentListResponse,
     DocumentCommentResponse,
 )
-from schemas.document import DocumentDetailResponse, DocumentRejectRequest
+from schemas.document import (
+    DocumentClassificationUpdateRequest,
+    DocumentDetailResponse,
+    DocumentRejectRequest,
+)
 from services.document_comment_service import DocumentCommentService
 from services.document_review_service import DocumentReviewService
 from services.document_service import DocumentService
@@ -139,6 +143,29 @@ def list_documents(
         group_id=group_id,
     )
     return {"items": items, "total": total}
+
+
+@router.patch("/{group_id}/documents/{doc_id}/classification")
+def update_document_classification(
+    group_id: int,
+    doc_id: int,
+    payload: DocumentClassificationUpdateRequest,
+    service: DocumentService = Depends(get_document_service),
+    group_service: GroupService = Depends(get_group_service),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    문서 유형과 카테고리를 수동 수정
+    OWNER/ADMIN만 수정 가능
+    """
+    group_service.assert_review_permission(current_user.id, group_id)
+
+    return service.update_classification(
+        doc_id=doc_id,
+        group_id=group_id,
+        document_type=payload.document_type,
+        category=payload.category,
+    )
 
 
 @router.get("/{group_id}/documents/pending")

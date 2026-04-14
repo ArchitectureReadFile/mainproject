@@ -198,6 +198,28 @@ class DocumentCommentService:
         ]
         return response
 
+    def _assert_review_scope_permission(
+        self,
+        *,
+        doc,
+        current_user_id: int,
+        current_user_role: MembershipRole | None,
+    ) -> None:
+        """
+        REVIEW 댓글 조회/작성 권한을 검증한다.
+        OWNER, ADMIN, 문서 업로더만 REVIEW 댓글에 접근할 수 있다.
+        """
+        is_owner_or_admin = current_user_role in (
+            MembershipRole.OWNER,
+            MembershipRole.ADMIN,
+        )
+        is_uploader = doc.uploader_user_id == current_user_id
+
+        if is_owner_or_admin or is_uploader:
+            return
+
+        raise AppException(ErrorCode.AUTH_FORBIDDEN)
+
     def list_comments(
         self,
         *,
@@ -207,12 +229,20 @@ class DocumentCommentService:
         current_user_role: MembershipRole | None,
         scope: str,
     ) -> DocumentCommentListResponse:
-        self.document_service.get_document_in_group_with_permission(
+        doc = self.document_service.get_document_in_group_with_permission(
             doc_id=doc_id,
             group_id=group_id,
             current_user_id=current_user_id,
             current_user_role=current_user_role,
         )
+
+        if scope == "REVIEW":
+            self._assert_review_scope_permission(
+                doc=doc,
+                current_user_id=current_user_id,
+                current_user_role=current_user_role,
+            )
+
         comments = self.comment_repository.get_root_comments_by_document_id(
             doc_id, scope=scope
         )
@@ -245,12 +275,19 @@ class DocumentCommentService:
         scope: str = "GENERAL",
         mentions: list[DocumentCommentMentionRequest] | None = None,
     ) -> DocumentCommentResponse:
-        self.document_service.get_document_in_group_with_permission(
+        doc = self.document_service.get_document_in_group_with_permission(
             doc_id=doc_id,
             group_id=group_id,
             current_user_id=current_user_id,
             current_user_role=current_user_role,
         )
+
+        if scope == "REVIEW":
+            self._assert_review_scope_permission(
+                doc=doc,
+                current_user_id=current_user_id,
+                current_user_role=current_user_role,
+            )
 
         if parent_id is not None:
             parent_comment = self.comment_repository.get_comment_by_id(parent_id)
@@ -291,7 +328,7 @@ class DocumentCommentService:
                 from services.notification_service import NotificationService
 
                 notification_repo = NotificationRepository(self.comment_repository.db)
-                notification_service = NotificationService(notification_repo)  # ✅
+                notification_service = NotificationService(notification_repo)
 
                 for mention_data in normalized_mentions:
                     mentioned_user_id = mention_data["mentioned_user_id"]
@@ -305,7 +342,7 @@ class DocumentCommentService:
                     )
 
                     notification_service.create_notification_sync(
-                        user_id=mentioned_user_id,  # ✅ repository= 제거
+                        user_id=mentioned_user_id,
                         type=NotificationType.COMMENT_MENTIONED,
                         title="댓글 멘션 알림",
                         body=f"문서 댓글에서 회원님을 멘션했습니다: {short_content}",
@@ -340,12 +377,19 @@ class DocumentCommentService:
         if not comment:
             raise AppException(ErrorCode.COMMENT_NOT_FOUND)
 
-        self.document_service.get_document_in_group_with_permission(
+        doc = self.document_service.get_document_in_group_with_permission(
             doc_id=comment.document_id,
             group_id=group_id,
             current_user_id=current_user_id,
             current_user_role=current_user_role,
         )
+
+        if comment.comment_scope == "REVIEW":
+            self._assert_review_scope_permission(
+                doc=doc,
+                current_user_id=current_user_id,
+                current_user_role=current_user_role,
+            )
 
         if comment.deleted_at is not None:
             raise AppException(ErrorCode.COMMENT_ALREADY_DELETED)
