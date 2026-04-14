@@ -34,6 +34,21 @@ export default function ChatSection() {
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // 사이드바가 열려있을 때 바디 스크롤 차단
+  useEffect(() => {
+    if (isSidebarOpen && window.innerWidth < 768) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    };
+  }, [isSidebarOpen]);
+
   useEffect(() => {
     const sessionId = searchParams.get('sessionId');
     if (sessionId && sessions.length > 0) {

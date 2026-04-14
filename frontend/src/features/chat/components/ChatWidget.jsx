@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import nongdamgom from '../../../assets/nongdamgom.png';
 import { Card } from "@/components/ui/Card.jsx";
 import ChatList from './ChatList';
@@ -11,10 +11,28 @@ export default function ChatWidget() {
   const [footerOffset, setFooterOffset] = useState(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const handleSessionUpdate = (updatedSession) => {
-    setActiveSession(prev => ({...prev, ...updatedSession}));
+  const handleSessionUpdate = useCallback((updatedSession) => {
+    setActiveSession(prev => {
+      if (!prev) return prev;
+      const isChanged = Object.keys(updatedSession).some(key => prev[key] !== updatedSession[key]);
+      return isChanged ? { ...prev, ...updatedSession } : prev;
+    });
     setRefreshTrigger(prev => prev + 1);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     let lastScrollY = window.scrollY;
@@ -28,6 +46,7 @@ export default function ChatWidget() {
           if (currentScrollY > lastScrollY) setScrollOffset(15);
           else if (currentScrollY < lastScrollY) setScrollOffset(-15);
           lastScrollY = currentScrollY;
+          
           const footer = document.querySelector('footer');
           if (footer) {
             const footerRect = footer.getBoundingClientRect();
@@ -62,9 +81,9 @@ export default function ChatWidget() {
     <>
       {isOpen && (
         <Card 
-          className="fixed right-[20px] z-[10000] w-[360px] h-[550px] flex flex-col overflow-hidden shadow-2xl border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200 origin-bottom-right"
+          className="fixed inset-0 sm:inset-auto sm:right-[20px] z-[10000] w-full h-full sm:w-[360px] sm:h-[550px] flex flex-col overflow-hidden shadow-2xl border-none sm:border sm:border-slate-200 sm:dark:border-slate-800 animate-in slide-in-from-bottom sm:zoom-in duration-300 sm:duration-200 origin-bottom sm:origin-bottom-right sm:rounded-3xl"
           style={{
-            bottom: `${30 + footerOffset}px`
+            bottom: window.innerWidth >= 640 ? `${20 + footerOffset}px` : '0'
           }}
         >
           <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900">
@@ -88,15 +107,15 @@ export default function ChatWidget() {
 
       {!isOpen && (
         <div
-          className="fixed right-[15px] z-[9999] transition-all duration-300 ease-out"
+          className="fixed right-2 sm:right-[15px] z-[9999] transition-all duration-300 ease-out"
           style={{
-            bottom: `${30 + footerOffset}px`,
+            bottom: `${20 + footerOffset}px`,
             transform: `translateY(${scrollOffset}px)`
           }}
         >
           <button
             onClick={() => setIsOpen(true)}
-            className="w-[90px] h-[90px] rounded-full transition-all duration-300 hover:scale-110 active:scale-90 flex items-center justify-center overflow-hidden"
+            className="w-[70px] h-[70px] sm:w-[90px] sm:h-[90px] rounded-full transition-all duration-300 hover:scale-110 active:scale-90 flex items-center justify-center overflow-hidden"
           >
             <img
               src={nongdamgom}
