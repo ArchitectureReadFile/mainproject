@@ -1,10 +1,23 @@
 """
 domains/rag/group_document_indexing_service.py
 
-그룹 문서 PDF → extract → normalize → chunk → Qdrant + BM25 인덱싱 파이프라인.
+그룹 문서 RAG 인덱싱 파이프라인.
+
+흐름: DocumentSchema(cache) → chunk → embed → Qdrant + BM25
+
+■ normalized document cache 재사용:
+    DocumentSchemaResolver.get_or_create()를 통해 DocumentSchema를 얻는다.
+    직접 DocumentExtractService / DocumentNormalizeService를 호출하지 않는다.
+    summary_process.py와 동일한 cache를 사용하므로 두 경로 간 직렬화된다.
+
+■ 인덱싱 시점 계약:
+    승인(APPROVED) 후에만 인덱싱된다.
+    index_approved_document task는 내부에서 APPROVED 여부를 다시 확인한다.
+    인덱싱 시점에는 document.document_type / document.category가 DB에 저장된 이후여야 한다.
+    (process_file 완료 후 enqueue하여 stale metadata 인덱싱을 방지한다.)
 
 사용처:
-    tasks/group_document_task.py (Celery background task)
+    domains/document/index_task.py (Celery background task)
     또는 동기 호출 (테스트, 재인덱싱 스크립트)
 """
 

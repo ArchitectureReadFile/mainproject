@@ -1,3 +1,24 @@
+"""domains/document/normalized_document_store.py
+
+normalized document cache 저장소.
+
+역할:
+    - DocumentSchema를 JSON 파일로 저장하고 로드한다.
+    - 저장 위치: NORMALIZED_DOCUMENT_DIR 환경변수 (기본 runtime/normalized_documents/)
+    - 파일 구조: {document_id}.json / {document_id}.json.tmp / {document_id}.lock
+
+재생성 판단 (should_regenerate):
+    - force_regenerate, document 없음, schema_version 불일치,
+      normalization_version 불일치, source fingerprint 불일치 중 하나라도 True
+    - fingerprint fast path(stat) 판단은 resolver(document_schema_resolver.py)를 참고
+
+cache lifecycle:
+    - 재생성 가능 자산. 소실되면 다음 extract/normalize 시 자동 복구된다.
+    - 문서 최종 삭제 시 cleanup_document_files task에서 get_cleanup_paths()를 통해 정리된다.
+    - .json.tmp: save() 시 atomic write 중간 파일. 정상 완료 시 정리된다.
+    - .lock: fcntl 기반 동시 작성 차단용. 중단 시 남을 수 있으며 안전하게 재사용 가능하다.
+"""
+
 from __future__ import annotations
 
 import contextlib
@@ -63,6 +84,19 @@ class NormalizedDocumentStore:
 
     def get_lock_path(self, document_id: int) -> Path:
         return self.base_dir / f"{document_id}.lock"
+
+    def get_cleanup_paths(self, document_id: int) -> list[Path]:
+        """document_id 기준 cleanup 대상 파일 목록을 반환한다.
+
+        실제 존재 여부는 판단하지 않으며,
+        호출자가 skip 또는 remove를 선택한다.
+        목록: [.json, .json.tmp, .lock]
+        """
+        return [
+            self.get_path(document_id),
+            self.get_tmp_path(document_id),
+            self.get_lock_path(document_id),
+        ]
 
     @contextlib.contextmanager
     def document_lock(self, document_id: int):

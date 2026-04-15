@@ -1,3 +1,5 @@
+import logging
+
 from domains.document.index_task import index_approved_document
 from domains.document.review_repository import DocumentReviewRepository
 from domains.document.schemas import (
@@ -12,11 +14,14 @@ from domains.notification.service import NotificationService
 from errors import AppException, ErrorCode
 from models.model import (
     DocumentLifecycleStatus,
+    DocumentStatus,
     MembershipStatus,
     NotificationType,
     ReviewStatus,
     utc_now_naive,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentReviewService:
@@ -171,7 +176,17 @@ class DocumentReviewService:
                 target_id=doc.id,
             )
 
-        index_approved_document.delay(doc.id)
+        if doc.processing_status == DocumentStatus.DONE:
+            # 처리 완료 상태: classification/category가 이미 저장되어 있으므로 즉시 인덱싱
+            index_approved_document.delay(doc.id)
+            logger.info("[approve] DONE 상태로 index enqueue: doc_id=%s", doc.id)
+        else:
+            # 아직 처리 중: process_file 완료 시점에 enqueue를 process 쪽에 맡김
+            logger.info(
+                "[approve] 처리 미완료(status=%s)로 process 완료 후 enqueue 대기: doc_id=%s",
+                doc.processing_status,
+                doc.id,
+            )
 
         return {"message": "문서가 승인되었습니다."}
 
