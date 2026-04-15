@@ -263,7 +263,7 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
                     onClick={() => fileInputRef.current?.click()}
                     className="w-full text-left px-3 py-2.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg flex items-center gap-2 transition-colors border border-dashed border-blue-200 dark:border-blue-800 mb-2 font-medium"
                   >
-                    <IoCloudUploadOutline size={18} /> 내 PC에서 새 파일 업로드
+                    <IoCloudUploadOutline size={18} /> 파일 업로드
                   </button>
                 </>
               )}
