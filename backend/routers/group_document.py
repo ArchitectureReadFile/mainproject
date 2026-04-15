@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
+from dependencies import get_notification_service
 from errors import AppException, ErrorCode
 from models.model import User
 from repositories.document_comment_repository import DocumentCommentRepository
@@ -30,6 +31,7 @@ from services.document_comment_service import DocumentCommentService
 from services.document_review_service import DocumentReviewService
 from services.document_service import DocumentService
 from services.group_service import GroupService
+from services.notification_service import NotificationService
 from services.upload.service import UploadService
 
 router = APIRouter(prefix="/groups", tags=["group-documents"])
@@ -70,8 +72,12 @@ def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
 
 def get_document_review_service(
     db: Session = Depends(get_db),
+    notification_service: NotificationService = Depends(get_notification_service),
 ) -> DocumentReviewService:
-    return DocumentReviewService(DocumentReviewRepository(db))
+    return DocumentReviewService(
+        DocumentReviewRepository(db),
+        notification_service,
+    )
 
 
 def get_document_comment_service(

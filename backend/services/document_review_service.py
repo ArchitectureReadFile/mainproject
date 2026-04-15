@@ -2,6 +2,7 @@ from errors import AppException, ErrorCode
 from models.model import (
     DocumentLifecycleStatus,
     MembershipStatus,
+    NotificationType,
     ReviewStatus,
     utc_now_naive,
 )
@@ -10,6 +11,7 @@ from schemas.document import (
     PendingDocumentListItemResponse,
     ReviewedDocumentListItemResponse,
 )
+from services.notification_service import NotificationService
 from services.summary.summary_mapper import (
     build_document_title,
     build_summary_preview,
@@ -18,8 +20,13 @@ from tasks.group_document_task import index_approved_document
 
 
 class DocumentReviewService:
-    def __init__(self, review_repository: DocumentReviewRepository):
+    def __init__(
+        self,
+        review_repository: DocumentReviewRepository,
+        notification_service: NotificationService,
+    ):
         self.review_repository = review_repository
+        self.notification_service = notification_service
 
     @staticmethod
     def _build_user_display_name(
@@ -152,6 +159,18 @@ class DocumentReviewService:
         )
         self.review_repository.db.commit()
 
+        if doc.uploader_user_id and doc.uploader_user_id != user_id:
+            self.notification_service.create_notification_sync(
+                user_id=doc.uploader_user_id,
+                actor_user_id=user_id,
+                group_id=group_id,
+                type=NotificationType.DOCUMENT_REVIEW_RESULT,
+                title="문서 승인 알림",
+                body=f"'{doc.original_filename}' 문서가 승인되었습니다.",
+                target_type="group_document",
+                target_id=doc.id,
+            )
+
         index_approved_document.delay(doc.id)
 
         return {"message": "문서가 승인되었습니다."}
@@ -182,6 +201,18 @@ class DocumentReviewService:
         )
 
         self.review_repository.db.commit()
+
+        if doc.uploader_user_id and doc.uploader_user_id != user_id:
+            self.notification_service.create_notification_sync(
+                user_id=doc.uploader_user_id,
+                actor_user_id=user_id,
+                group_id=group_id,
+                type=NotificationType.DOCUMENT_REVIEW_RESULT,
+                title="문서 반려 알림",
+                body=f"'{doc.original_filename}' 문서가 반려되었습니다.",
+                target_type="group_document",
+                target_id=doc.id,
+            )
 
         return {"message": "문서가 반려되었습니다."}
 

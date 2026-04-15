@@ -1,7 +1,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useState } from 'react'
-import { MessageSquare, Users, FileText, ShieldAlert, Trash2, Check, Loader2, UserMinus, AtSign, UserCheck, ShieldCheck } from 'lucide-react'
+import { MessageSquare, Users, FileText, FileCheck, ShieldAlert, Trash2, Check, Loader2, UserMinus, AtSign, UserCheck, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { acceptInvite, declineInvite } from '@/api/groups'
@@ -65,6 +65,7 @@ export default function NotificationToast({ notification, onNavigate, onClose })
       case 'DOCUMENT_DELETED': return { color: 'zinc', label: '문서 삭제 알림', icon: Trash2 }
       case 'COMMENT_MENTIONED': return { color: 'purple', label: '댓글 멘션 알림', icon: AtSign }
       case 'WORKSPACE_STATUS_UPDATE': return { color: 'blue', label: '워크스페이스 상태 변경', icon: ShieldCheck }
+      case 'DOCUMENT_REVIEW_RESULT': return { color: 'blue', label: '문서 검토 결과', icon: FileCheck }
       default: return { color: 'zinc', label: '새로운 알림', icon: MessageSquare }
     }
   }

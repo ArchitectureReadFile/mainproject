@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Bell, Check, X, Loader2, MessageSquare, Users, FileText, ShieldAlert, Trash2, AtSign, UserCheck, ShieldCheck } from 'lucide-react'
+import { Bell, Check, X, Loader2, MessageSquare, Users, FileText, FileCheck, ShieldAlert, Trash2, AtSign, UserCheck, ShieldCheck } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -89,6 +89,8 @@ export default function NotificationBell() {
         return <AtSign size={14} className="text-purple-500" />
       case 'WORKSPACE_STATUS_UPDATE':
         return <ShieldCheck size={14} className="text-blue-500" />
+      case 'DOCUMENT_REVIEW_RESULT':
+        return <FileCheck size={14} className="text-blue-500" />
       default:
         return <Bell size={14} className="text-zinc-400" />
     }
@@ -101,13 +103,17 @@ export default function NotificationBell() {
     li: ({ children }) => <li className="mb-0">{children}</li>,
   }
 
-  const workspaceCount = notifications.filter(n =>
-    n.target_type === 'group' || (n.target_type && n.target_type.startsWith('doc_comment:'))).length;
-  const chatCount = notifications.filter(n => n.target_type === 'chat').length;
+  const isWorkspaceNotification = (n) =>
+    n.target_type === 'group' ||
+    n.target_type === 'group_document' ||
+    (n.target_type && n.target_type.startsWith('doc_comment:'))
+
+  const workspaceCount = notifications.filter(isWorkspaceNotification).length
+  const chatCount = notifications.filter(n => n.target_type === 'chat').length
 
   const filteredNotifications = notifications.filter(n => {
     if (activeTab === 'workspace') {
-      return n.target_type === 'group' || (n.target_type && n.target_type.startsWith('doc_comment:'))
+      return isWorkspaceNotification(n)
     }
     if (activeTab === 'chat') return n.target_type === 'chat'
     return true
