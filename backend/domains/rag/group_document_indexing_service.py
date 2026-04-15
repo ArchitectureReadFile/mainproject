@@ -10,8 +10,7 @@ domains/rag/group_document_indexing_service.py
 
 import logging
 
-from domains.document.extract_service import DocumentExtractService
-from domains.document.normalize_service import DocumentNormalizeService
+from domains.document.document_schema_resolver import DocumentSchemaResolver
 from domains.rag import bm25_store, vector_store
 from domains.rag.document_chunk_service import DocumentChunkService
 from domains.rag.embedding_service import embed_passages
@@ -19,8 +18,7 @@ from domains.rag.group_document_chunk_builder import GroupDocumentChunk
 
 logger = logging.getLogger(__name__)
 
-_extract_service = DocumentExtractService()
-_normalize_service = DocumentNormalizeService()
+_document_schema_resolver = DocumentSchemaResolver()
 _chunk_service = DocumentChunkService()
 
 
@@ -52,13 +50,13 @@ def index_group_document(
         category,
     )
 
-    # 1. PDF 추출
-    extracted = _extract_service.extract(file_path)
+    # 1. normalized document 로드 또는 생성
+    document = _document_schema_resolver.get_or_create(
+        document_id=document_id,
+        file_path=file_path,
+    )
 
-    # 2. normalize
-    document = _normalize_service.normalize(extracted)
-
-    # 3. chunk 생성
+    # 2. chunk 생성
     chunks: list[GroupDocumentChunk] = _chunk_service.build_group_document_chunks(
         document,
         document_id=document_id,
@@ -69,15 +67,18 @@ def index_group_document(
         logger.warning("[그룹문서 인덱싱] chunk 없음: document_id=%s", document_id)
         return 0
 
-    # 4. 배치 임베딩
+    # 3. 배치 임베딩
     texts = [c["text"] for c in chunks]
     embeddings = embed_passages(texts)
 
-    # 5. 새 인덱스 준비가 끝난 뒤 기존 인덱스 교체
-    vector_store.delete_document(document_id)
-    bm25_store.delete_document(document_id)
+    new_chunk_ids = {chunk["chunk_id"] for chunk in chunks}
+    existing_chunk_ids = vector_store.get_document_chunk_ids(
+        document_id
+    ) | bm25_store.get_document_chunk_ids(document_id)
 
-    # 6. Qdrant + BM25 저장
+    # 4. Qdrant + BM25 저장
+    # 기존 chunk_id와 겹치는 항목은 upsert로 덮어쓰고,
+    # 전체 쓰기가 성공한 뒤 stale chunk만 정리한다.
     for chunk, embedding in zip(chunks, embeddings):
         payload = {k: v for k, v in chunk.items() if k != "text"}
         # 분류 metadata 추가 — retrieval boost 용도
@@ -95,6 +96,10 @@ def index_group_document(
             group_id=group_id,
             text=chunk["text"],
         )
+
+    stale_chunk_ids = existing_chunk_ids - new_chunk_ids
+    vector_store.delete_document_chunks(document_id, stale_chunk_ids)
+    bm25_store.delete_document_chunks(document_id, group_id, stale_chunk_ids)
 
     logger.info(
         "[그룹문서 인덱싱 완료] document_id=%s, chunks=%d",

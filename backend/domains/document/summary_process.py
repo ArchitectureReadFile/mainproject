@@ -1,9 +1,9 @@
 import logging
+import os
 
 from database import SessionLocal
 from domains.document.classification_service import DocumentClassificationService
-from domains.document.extract_service import DocumentExtractService
-from domains.document.normalize_service import DocumentNormalizeService
+from domains.document.document_schema_resolver import DocumentSchemaResolver
 from domains.document.repository import DocumentRepository
 from domains.document.summary_llm_service import LLMService
 from domains.document.summary_payload import (
@@ -18,8 +18,7 @@ logger = logging.getLogger(__name__)
 class ProcessService:
     def __init__(self):
         self.llm = LLMService()
-        self.extractor = DocumentExtractService()
-        self.normalizer = DocumentNormalizeService()
+        self.document_resolver = DocumentSchemaResolver()
         self.classifier = DocumentClassificationService()
         self.summary_payload = DocumentSummaryPayloadService()
 
@@ -55,13 +54,21 @@ class ProcessService:
                 repository.update_status(document_id, DocumentStatus.PROCESSING)
                 db.commit()
 
-            # 1. extract → normalize
-            extracted = self.extractor.extract(file_path)
-            document = self.normalizer.normalize(extracted)
+            # 1. normalized document 로드 또는 생성
+            document = self.document_resolver.get_or_create(
+                document_id=document_id,
+                file_path=file_path,
+            )
 
             # 2. classify
+            current_document = repository.get_by_id(document_id)
+            title = (
+                current_document.original_filename
+                if current_document and current_document.original_filename
+                else os.path.basename(file_path)
+            )
             classification = self.classifier.classify(
-                title=document.metadata.get("title"),
+                title=title,
                 body_text=document.body_text,
             )
             logger.info(
