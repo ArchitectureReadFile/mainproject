@@ -1,5 +1,5 @@
 """
-services/rag/group_document_retrieval_service.py
+domains/rag/group_document_retrieval_service.py
 
 그룹 문서 RAG 검색 + document_id 기준 그룹핑.
 

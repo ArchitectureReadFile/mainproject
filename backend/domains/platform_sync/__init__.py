@@ -1,5 +1,5 @@
 """
-services/platform
+domains/platform_sync
 
 Platform Knowledge ingestion / normalize / chunk / index 서비스 패키지.
 

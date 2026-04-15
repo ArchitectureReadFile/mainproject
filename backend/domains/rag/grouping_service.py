@@ -1,5 +1,5 @@
 """
-services/rag/grouping_service.py
+domains/rag/grouping_service.py
 
 chunk 단위 retrieval 결과를 precedent 단위로 그룹핑한다.
 

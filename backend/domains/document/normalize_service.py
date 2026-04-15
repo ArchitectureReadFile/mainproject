@@ -1,5 +1,5 @@
 """
-services/document_normalize_service.py
+domains/document/normalize_service.py
 
 ExtractedDocument → DocumentSchema 정규화 계층.
 

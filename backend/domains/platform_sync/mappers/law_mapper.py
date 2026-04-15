@@ -1,5 +1,5 @@
 """
-services/platform/mappers/law_mapper.py
+domains/platform_sync/mappers/law_mapper.py
 
 국가법령정보 현행법령 API 응답 → PlatformDocumentSchema 정규화.
 

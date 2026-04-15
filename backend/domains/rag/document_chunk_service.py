@@ -1,5 +1,5 @@
 """
-services/rag/document_chunk_service.py
+domains/rag/document_chunk_service.py
 
 DocumentSchema -> GroupDocumentChunk 리스트 변환 계층.
 

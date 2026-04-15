@@ -1,5 +1,5 @@
 """
-services/document_classification_service.py
+domains/document/classification_service.py
 
 document_type / category 단일값 분류.
 

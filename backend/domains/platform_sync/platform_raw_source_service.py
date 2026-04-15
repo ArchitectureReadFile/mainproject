@@ -1,5 +1,5 @@
 """
-services/platform/platform_raw_source_service.py
+domains/platform_sync/platform_raw_source_service.py
 
 공공 API 원본 응답 보관 서비스.
 

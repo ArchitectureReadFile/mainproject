@@ -1,5 +1,5 @@
 """
-services/platform/mappers/precedent_summary_fallback_mapper.py
+domains/platform_sync/mappers/precedent_summary_fallback_mapper.py
 
 판례(precedent) 목록 item 기반 기본 문서(list_only) 적재.
 

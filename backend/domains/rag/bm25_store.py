@@ -1,5 +1,5 @@
 """
-services/rag/bm25_store.py
+domains/rag/bm25_store.py
 
 BM25 키워드 검색 레이어. chunk 단위 저장.
 

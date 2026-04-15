@@ -1,5 +1,5 @@
 """
-services/rag/group_document_indexing_service.py
+domains/rag/group_document_indexing_service.py
 
 그룹 문서 PDF → extract → normalize → chunk → Qdrant + BM25 인덱싱 파이프라인.
 

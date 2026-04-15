@@ -1,5 +1,5 @@
 """
-services/rag/embedding_service.py
+domains/rag/embedding_service.py
 
 임베딩 인터페이스 레이어.
 모델은 환경 변수로 교체 가능하다.

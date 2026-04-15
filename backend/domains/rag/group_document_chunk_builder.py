@@ -1,5 +1,5 @@
 """
-services/rag/group_document_chunk_builder.py
+domains/rag/group_document_chunk_builder.py
 
 GroupDocument(document_id, group_id, file_name, body_text, table_blocks)를
 body chunk / table chunk 리스트로 변환한다.

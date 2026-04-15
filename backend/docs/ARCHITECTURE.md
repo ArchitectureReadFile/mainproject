@@ -13,19 +13,19 @@ PDF 업로드부터 분류/요약/인덱싱까지의 흐름.
 PDF 파일
   │
   ▼
-DocumentExtractService          services/document_extract_service.py
+DocumentExtractService          domains/document/extract_service.py
   - opendataloader-pdf hybrid OCR 호출
   - scanned/image PDF 포함 단일 추출 경로
   - 반환: ExtractedDocument(markdown, json_data, source_type)
   │
   ▼
-DocumentNormalizeService        services/document_normalize_service.py
+DocumentNormalizeService        domains/document/normalize_service.py
   - extractor가 넘긴 source_type 사용 (odl | ocr)
   - body_text, table_blocks, pages, metadata 생성
   - 반환: DocumentSchema
   │
   ▼
-DocumentClassificationService   services/document_classification_service.py
+DocumentClassificationService   domains/document/classification_service.py
   - title + body_text(최대 3000자) → LLM 단일 호출
   - 반환: {document_type, category}
   - 허용값 외 응답 및 LLM 오류 → "미분류" fallback (파이프라인 중단 없음)
@@ -36,11 +36,11 @@ Document.category               update_classification() → DB commit
   (source of truth)
   │
   ▼
-DocumentSummaryPayloadService   services/summary/document_summary_payload_service.py
+DocumentSummaryPayloadService   domains/document/summary_payload.py
   - [본문]/[표] LLM 입력 문자열 조립
   │
   ▼
-LLMService.summarize()          services/summary/llm_service.py
+LLMService.summarize()          domains/document/summary_llm_service.py
   - summary_text, key_points 생성
   - document_type는 추출하지 않음 (분류는 별도 단계에서 완료)
   │
@@ -90,7 +90,7 @@ DocumentReviewService.approve_document()
   └─ index_approved_document.delay(document_id)   tasks/group_document_task.py
        │
        ▼
-     index_group_document()     services/rag/group_document_indexing_service.py
+     index_group_document()     domains/rag/group_document_indexing_service.py
        - extract → normalize → chunk
        - document.document_type / document.category → 각 chunk payload에 포함
        - Qdrant + BM25 저장
@@ -147,7 +147,7 @@ GET /groups/{group_id}/documents/unclassified
 사용자 메시지
   │
   ▼
-ChatProcessor.process_chat()     services/chat/chat_processor.py
+ChatProcessor.process_chat()     domains/chat/processor.py
   │
   ├─ KnowledgeRetrievalRequest 생성
   │    include_platform=True (항상)
@@ -155,7 +155,7 @@ ChatProcessor.process_chat()     services/chat/chat_processor.py
   │    include_session=bool(reference_document_text)
   │
   ▼
-KnowledgeRetrievalService        services/knowledge/knowledge_retrieval_service.py
+KnowledgeRetrievalService        domains/knowledge/knowledge_retrieval_service.py
   │  (sort → dedupe → 반환)
   │
   ├──▶ PlatformKnowledgeRetriever    platform/  판례 RAG (항상 호출)
@@ -169,7 +169,7 @@ KnowledgeRetrievalService        services/knowledge/knowledge_retrieval_service.
          reference_document_text → RetrievedKnowledgeItem (score=1.0)
   │
   ▼
-AnswerContextBuilder.build()     services/knowledge/answer_context_builder.py
+AnswerContextBuilder.build()     domains/knowledge/answer_context_builder.py
   - [플랫폼 지식] / [워크스페이스 문서] / [임시 문서] 블록 조립
   - source별 top-k 및 텍스트 길이 제한
   │

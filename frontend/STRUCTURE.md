@@ -1,11 +1,11 @@
-# Frontend 구조 리팩토링 현황
+# Frontend 구조
 
 ## 파일 분류 기준
 
 | 구분 | 설명 |
 |---|---|
 | **실제 파일 (source of truth)** | `src/shared/` 하위에 위치. 실제 구현 코드 |
-| **브릿지 shim** | 기존 경로(`src/lib/`, `src/hooks/`, `src/api/`, `src/components/ui/`)에 위치. re-export만 함 |
+| **기능 코드** | `src/features/`, `src/pages/`, `src/app/` 하위에 위치. 화면/도메인별 기능 구현 |
 
 ---
 
@@ -57,27 +57,7 @@
 
 ---
 
-## 브릿지 shim 위치 (기존 경로 호환용)
+## 현재 구조 메모
 
-> vite alias + re-export shim 이중으로 구버전 import를 보장.
-> 향후 팀 전체 import 경로 정리 후 제거 예정.
-
-### `src/components/ui/` — 15개 (전부 shim)
-`Button.jsx`, `Dialog.jsx`, `Input.jsx`, `Sheet.jsx`, `alert-dialog.jsx`,
-`avatar.jsx`, `badge.jsx`, `card.jsx`, `confirm-modal.jsx`, `label.jsx`,
-`select.jsx`, `separator.jsx`, `tabs.jsx`, `textarea.jsx`, `tooltip.jsx`
-
-### `src/lib/` — 3개 (전부 shim)
-`utils.js`, `datetime.js`, `errors.js`
-
-### `src/api/` — 4개 (전부 shim)
-`client.js`, `admin.js`, `groups.js`, `exports.js`
-
-### `src/hooks/` — 1개 (전부 shim)
-`useTheme.js`
-
----
-
-## shim 제거 기준 (향후)
-- `features/`, `pages/` 내 모든 import가 `@/shared/...` 또는 `@/features/...` 경로로 전환 완료된 시점
-- vite alias의 backward-compat 항목 제거와 동시에 shim 삭제
+- 구버전 `src/lib/`, `src/hooks/`, `src/api/`, `src/components/ui/` shim 계층은 현재 저장소에 남아 있지 않다.
+- 공용 코드는 `src/shared/...`, 기능 코드는 `src/features/...`, 라우트 단위 화면은 `src/pages/...`를 source of truth로 사용한다.

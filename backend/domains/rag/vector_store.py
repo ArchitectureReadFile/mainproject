@@ -1,5 +1,5 @@
 """
-services/rag/vector_store.py
+domains/rag/vector_store.py
 
 벡터 DB 인터페이스 레이어.
 현재 구현체: Qdrant

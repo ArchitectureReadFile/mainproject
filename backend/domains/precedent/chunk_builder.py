@@ -1,5 +1,5 @@
 """
-services/precedent/chunk_builder.py
+domains/precedent/chunk_builder.py
 
 PrecedentDocument를 meta / 주문 / 이유 중심 chunk 리스트로 변환한다.
 
