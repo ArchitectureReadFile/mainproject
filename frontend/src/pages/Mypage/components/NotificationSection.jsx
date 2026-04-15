@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Label } from '@/components/ui/Label'
 import { cn } from '@/lib/utils'
-import { BellRing, FileUp, Inbox, Info, MessageSquare, ShieldAlert, Trash2, Users, AtSign, UserCheck } from 'lucide-react'
+import { BellRing, FileUp, Inbox, Info, MessageSquare, ShieldAlert, Trash2, Users, AtSign, UserCheck, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { getNotificationSettings, updateNotificationSetting } from '../../../features/notification/api/notification'
 
@@ -24,6 +24,7 @@ export default function NotificationSection() {
       items: [
         { type: 'WORKSPACE_INVITED', label: '워크스페이스 초대', icon: Users, desc: '새로운 워크스페이스에 초대받았을 때 알림' },
         { type: 'WORKSPACE_MEMBER_UPDATE', label: '멤버 변경', icon: UserCheck, desc: '초대 수락, 권한 변경 등 워크스페이스 멤버 변경 알림' },
+        { type: 'WORKSPACE_STATUS_UPDATE', label: '상태 변경', icon: ShieldCheck, desc: '삭제 취소 등 워크스페이스 상태가 변경되었을 때 알림' },
         { type: 'WORKSPACE_DELETE_NOTICE', label: '워크스페이스 삭제', icon: ShieldAlert, desc: '소속된 워크스페이스가 삭제될 예정일 때 알림' }
       ]
     },

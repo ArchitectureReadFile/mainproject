@@ -156,6 +156,10 @@ export const useNotification = () => {
           break
         case 'WORKSPACE_DELETE_NOTICE':
           navigate(`/workspace/${groupId}?tab=workspace`)
+          break
+        case 'WORKSPACE_STATUS_UPDATE':
+          navigate(`/workspace/${groupId}?tab=workspace`)
+          break
       }
     }
   }, [navigate, markAsRead])

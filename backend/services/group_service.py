@@ -561,7 +561,7 @@ class GroupService:
                 group_id=group_id,
                 type=NotificationType.WORKSPACE_DELETE_NOTICE,
                 title=f"'{group.name}' 워크스페이스 삭제 알림",
-                body=f"워크스페이스 '{group.name}'이 소유자에 의해 삭제 요청되었습니다. 예정일: {group.delete_scheduled_at}",
+                body=f"워크스페이스 '{group.name}'이 소유자에 의해 삭제 요청되었습니다. 삭제 예정일: {group.delete_scheduled_at}",
                 target_type="group",
                 target_id=group_id,
             )
@@ -597,6 +597,24 @@ class GroupService:
             self._finalize_group_state_sync(original_error)
 
         group = self.repository.cancel_delete_group(group)
+
+        active_members = self.repository.get_members(group_id)
+
+        for _, user in active_members:
+            if user.id == user_id:
+                continue
+
+            self.notification_service.create_notification_sync(
+                user_id=user.id,
+                actor_user_id=user_id,
+                group_id=group_id,
+                type=NotificationType.WORKSPACE_STATUS_UPDATE,
+                title="워크스페이스 삭제 취소 알림",
+                body=f"'{group.name}' 워크스페이스 삭제 요청이 취소되었습니다. 다시 정상적으로 이용할 수 있습니다.",
+                target_type="group",
+                target_id=group_id,
+            )
+
         self._queue_group_rag_action(group_id, "reindex")
         self._finalize_group_state_sync()
 

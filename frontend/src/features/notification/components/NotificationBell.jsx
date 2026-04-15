@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Bell, Check, X, Loader2, MessageSquare, Users, FileText, ShieldAlert, Trash2, AtSign, UserCheck } from 'lucide-react'
+import { Bell, Check, X, Loader2, MessageSquare, Users, FileText, ShieldAlert, Trash2, AtSign, UserCheck, ShieldCheck } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -87,6 +87,8 @@ export default function NotificationBell() {
         return <Trash2 size={14} className="text-zinc-500" />
       case 'COMMENT_MENTIONED':
         return <AtSign size={14} className="text-purple-500" />
+      case 'WORKSPACE_STATUS_UPDATE':
+        return <ShieldCheck size={14} className="text-blue-500" />
       default:
         return <Bell size={14} className="text-zinc-400" />
     }
