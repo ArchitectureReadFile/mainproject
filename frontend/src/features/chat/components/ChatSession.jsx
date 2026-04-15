@@ -152,13 +152,21 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 relative">
       <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shadow-sm z-10">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack} className="text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full w-9 h-9">
-            <IoArrowBack size={20} />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onBack) onBack();
+            }} 
+            className="text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full w-10 h-10 flex items-center justify-center transition-colors"
+          >
+            <IoArrowBack size={22} />
           </Button>
-          <div className="flex items-center gap-2.5">
-            <Avatar className="h-9 w-9 border border-slate-100 dark:border-slate-800 shadow-sm">
-              <AvatarFallback className="bg-blue-600 text-white text-xs font-bold">AI</AvatarFallback>
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border border-slate-100 dark:border-slate-800 shadow-sm">
+              <AvatarFallback className="bg-blue-600 text-white text-[10px] sm:text-xs font-bold">AI</AvatarFallback>
             </Avatar>
             <div className="flex flex-col justify-center">
               <p className="text-sm font-bold text-slate-800 dark:text-foreground leading-tight">법률 어시스턴트</p>
@@ -170,10 +178,10 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
         </Button>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 sm:space-y-6">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-            <div className={`max-w-[85%] px-4 py-3 rounded-2xl shadow-sm text-[14px] leading-relaxed flex flex-col ${msg.sender === 'user'
+            <div className={`max-w-[88%] sm:max-w-[85%] px-3 py-2 sm:px-4 sm:py-3 rounded-2xl shadow-sm text-[13.5px] sm:text-[14px] leading-relaxed flex flex-col ${msg.sender === 'user'
               ? 'bg-blue-600 text-white rounded-br-sm'
               : msg.isError
                 ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 rounded-bl-sm'
@@ -273,7 +281,7 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
           </div>
         )}
 
-        <div className="flex flex-col bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 focus-within:border-blue-400 dark:focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-400 transition-all shadow-sm">
+        <div className="flex flex-col bg-slate-100/50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-200 dark:border-slate-800 focus-within:bg-white dark:focus-within:bg-slate-900 focus-within:border-blue-400 dark:focus-within:border-blue-500 transition-all duration-500 shadow-sm">
           {(referenceTitle || referenceGroup || selectedDoc || selectedGroup) && (
             <div className="flex flex-wrap gap-2 px-3 pt-3 pb-1">
               {referenceTitle && !selectedDoc && (
@@ -308,14 +316,14 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder={referenceTitle || referenceGroup || selectedDoc || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "메시지를 입력하세요..."}
-              className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-2 h-10 text-foreground"
+              className="flex-1 border-0 bg-transparent shadow-none focus:ring-0 focus:outline-none focus:border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-2 h-10 text-foreground"
             />
             {isLoading ? (
-              <Button size="icon" onClick={stopMessage} className="shrink-0 bg-slate-500 hover:bg-slate-600 rounded-xl w-10 h-10 shadow-sm">
+              <Button size="icon" onClick={stopMessage} className="shrink-0 bg-slate-500 hover:bg-slate-600 rounded-full w-10 h-10 shadow-sm">
                 <IoStop size={18} />
               </Button>
             ) : (
-              <Button size="icon" onClick={handleSend} className="shrink-0 bg-blue-600 hover:bg-blue-700 rounded-xl w-10 h-10 shadow-sm">
+              <Button size="icon" onClick={handleSend} className="shrink-0 bg-blue-600 hover:bg-blue-700 rounded-full w-10 h-10 shadow-sm">
                 <IoSend size={18} className="ml-1" />
               </Button>
             )}

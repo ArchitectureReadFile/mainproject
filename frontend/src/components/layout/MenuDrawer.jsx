@@ -6,6 +6,7 @@ import {
   SheetContent,
   SheetDescription,
   SheetHeader,
+  SheetTitle,
 } from '@/components/ui/Sheet'
 import { cn } from '@/lib/utils'
 import { FolderOpen, Home, LogIn, LogOut, Shield, UserPlus, X } from 'lucide-react'
@@ -81,11 +82,12 @@ export default function MenuDrawer({
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose() }}>
       <SheetContent className="p-0 flex flex-col overflow-x-hidden h-full">
         <SheetHeader className="px-6 pt-6 pb-2 border-b-0 shrink-0 flex flex-row items-center justify-between">
+          <SheetTitle className="sr-only">메뉴</SheetTitle>
           <SheetDescription className="sr-only">
             사이드 메뉴입니다.
           </SheetDescription>
-          <span className="text-[0.65rem] font-black tracking-[0.3em] text-muted-foreground/50 uppercase select-none">
-            Readfile
+          <span className="text-[0.75rem] font-black tracking-[0.3em] text-muted-foreground uppercase select-none">
+            Readlaw
           </span>
           <Button
             variant="ghost"
@@ -106,9 +108,9 @@ export default function MenuDrawer({
                 onClick={onClose}
                 className="group px-5 py-5 mx-3 mb-2 flex items-center gap-4 hover:bg-accent/50 rounded-2xl transition-all no-underline border border-transparent active:scale-[0.98]"
               >
-                <Avatar className="size-12 border-2 border-background shadow-md shrink-0 transition-transform group-hover:scale-105">
+                <Avatar className="size-12 border-2 border-background shrink-0 transition-transform group-hover:scale-105">
                   <AvatarImage src={user.profileImage} alt={user.username} />
-                  <AvatarFallback className={cn('text-white text-lg font-bold shadow-inner', avatarBgColor)}>
+                  <AvatarFallback className={cn('text-white text-lg font-bold', avatarBgColor)}>
                     {(user.username || user.email || '?').charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
@@ -116,7 +118,7 @@ export default function MenuDrawer({
                   <span className="font-bold text-foreground truncate group-hover:text-primary transition-colors text-base">
                     {user.username || '사용자'}
                   </span>
-                  <span className="text-[0.7rem] text-muted-foreground truncate uppercase tracking-wider">프로필 보기</span>
+                  <span className="text-[0.7rem] text-muted-foreground truncate uppercase tracking-wider">프로필 설정</span>
                 </div>
               </Link>
               <Separator className="mx-6 mb-4 opacity-30" />
