@@ -130,15 +130,22 @@ def test_passes_filter_none():
 
 
 def _make_document(approval_status=None, stored_path="/tmp/fake.pdf"):
+    from models.model import DocumentLifecycleStatus, GroupStatus
+
     doc = MagicMock()
     doc.group_id = 1
     doc.original_filename = "test.pdf"
     doc.stored_path = stored_path
+    doc.lifecycle_status = DocumentLifecycleStatus.ACTIVE
+    doc.group = MagicMock()
+    doc.group.status = GroupStatus.ACTIVE
+
     if approval_status is None:
         doc.approval = None
     else:
         doc.approval = MagicMock()
         doc.approval.status = approval_status
+
     return doc
 
 

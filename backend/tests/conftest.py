@@ -74,12 +74,12 @@ def stub_async_side_effects(monkeypatch, fake_redis):
     monkeypatch.setattr(
         deindex_document,
         "delay",
-        lambda document_id: None,
+        lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(
         index_approved_document,
         "delay",
-        lambda document_id: None,
+        lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(group_service_module, "redis_client", fake_redis)
     monkeypatch.setattr(file_cleanup_task_module, "redis_client", fake_redis)

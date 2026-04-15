@@ -366,7 +366,10 @@ class DocumentService:
         if approval_status == ReviewStatus.APPROVED:
             from tasks.group_document_task import deindex_document
 
-            deindex_document.delay(doc.id)
+            deindex_document.delay(
+                doc.id,
+                DocumentLifecycleStatus.DELETE_PENDING.value,
+            )
 
         if not is_uploader and doc.uploader_user_id:
             from models.model import NotificationType
@@ -406,7 +409,10 @@ class DocumentService:
         if approval_status == ReviewStatus.APPROVED:
             from tasks.group_document_task import index_approved_document
 
-            index_approved_document.delay(doc.id)
+            index_approved_document.delay(
+                doc.id,
+                DocumentLifecycleStatus.ACTIVE.value,
+            )
 
     def get_deleted_list(
         self, skip, limit, user_id, group_id=None

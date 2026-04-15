@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from errors import AppException, ErrorCode
 from models.model import (
+    DocumentLifecycleStatus,
     Group,
     GroupMember,
     GroupPendingReason,
@@ -211,6 +212,9 @@ class GroupService:
 
         try:
             for group_id, action in pending:
+                opposite_action = "reindex" if action == "deindex" else "deindex"
+                redis_client.delete(f"group_rag:{opposite_action}:{group_id}")
+
                 dedupe_key = f"group_rag:{action}:{group_id}"
                 acquired = redis_client.set(dedupe_key, "1", nx=True, ex=600)
                 if not acquired:
@@ -445,9 +449,12 @@ class GroupService:
         """워크스페이스의 활성 승인 문서를 RAG 제거 큐에 적재한다."""
         from tasks.group_document_task import deindex_document
 
+        group = self.repository.get_group_by_id(group_id)
+        expected_group_status = group.status.value if group else None
+
         document_ids = self.repository.get_active_approved_document_ids(group_id)
         for document_id in document_ids:
-            deindex_document.delay(document_id)
+            deindex_document.delay(document_id, None, expected_group_status)
 
     def _enqueue_group_rag_reindex(self, group_id: int) -> None:
         """복구된 워크스페이스의 활성 승인 문서를 재인덱싱 큐에 적재한다."""
@@ -455,7 +462,11 @@ class GroupService:
 
         document_ids = self.repository.get_active_approved_document_ids(group_id)
         for document_id in document_ids:
-            index_approved_document.delay(document_id)
+            index_approved_document.delay(
+                document_id,
+                DocumentLifecycleStatus.ACTIVE.value,
+                GroupStatus.ACTIVE.value,
+            )
 
     def _get_unique_notification_user_ids(self, *user_ids: int | None) -> list[int]:
         """알림 대상 사용자 ID 목록에서 빈 값과 중복을 제거한다."""

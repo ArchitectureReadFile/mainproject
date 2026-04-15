@@ -79,7 +79,11 @@ def _enqueue_group_rag_deindex(*, db, group_ids: list[int]) -> None:
     for group_id in group_ids:
         document_ids = group_repository.get_active_approved_document_ids(group_id)
         for document_id in document_ids:
-            deindex_document.delay(document_id)
+            deindex_document.delay(
+                document_id,
+                None,
+                GroupStatus.DELETE_PENDING.value,
+            )
 
 
 @celery_app.task(name="tasks.subscription_task.reconcile_subscriptions")
