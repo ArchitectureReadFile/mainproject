@@ -47,7 +47,9 @@ class ChatService:
         self.chat_repo.refresh(session)
         return session
 
-    def stop_message(self, session_id: int):
+    def stop_message(self, user_id: int, session_id: int):
+        self._get_session_with_permission(user_id, session_id)
+
         task_key = f"chat_task:{session_id}"
         task_id = redis_client.get(task_key)
 
@@ -62,7 +64,7 @@ class ChatService:
 
     def delete_session(self, user_id: int, session_id: int):
         session = self._get_session_with_permission(user_id, session_id)
-        self.stop_message(session_id)
+        self.stop_message(user_id, session_id)
         self.chat_repo.delete_session(session)
 
     def get_messages(self, user_id: int, session_id: int):

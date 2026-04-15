@@ -1,9 +1,9 @@
-from fastapi import Depends, Request
+from fastapi import Depends, Request, WebSocket
 from fastapi.security import APIKeyCookie
 from redis import Redis
 from sqlalchemy.orm import Session
 
-from database import get_db
+from database import db_session, get_db
 from domains.auth.repository import AuthRepository
 from domains.auth.service import AuthService
 from domains.chat.repository import ChatRepository
@@ -139,3 +139,16 @@ def get_current_user(
 ) -> User:
     token = request.cookies.get("access_token")
     return auth_service.get_user_from_token(token)
+
+
+def get_user_from_websocket(websocket: WebSocket) -> User:
+    """WebSocket 연결에서 access_token 쿠키로 사용자를 식별한다.
+
+    인증 실패 시 AppException을 발생시킨다.
+    호출자가 WebSocket close 처리를 담당한다.
+    """
+    token = websocket.cookies.get("access_token")
+    with db_session() as db:
+        auth_repo = AuthRepository(db)
+        auth_svc = AuthService(auth_repo)
+        return auth_svc.get_user_from_token(token)

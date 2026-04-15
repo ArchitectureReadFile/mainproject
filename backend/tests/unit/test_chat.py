@@ -149,6 +149,11 @@ def test_stop_message_success(authenticated_client):
         mock_stop.assert_called_once()
 
 
+def test_stop_message_failure_unauthorized(client):
+    response = client.post("/api/chat/sessions/1/stop")
+    assert response.status_code == 401
+
+
 def test_stop_message_failure_not_found(authenticated_client):
     with patch(
         "domains.chat.service.ChatService.stop_message",
@@ -156,6 +161,15 @@ def test_stop_message_failure_not_found(authenticated_client):
     ):
         response = authenticated_client.post("/api/chat/sessions/999/stop")
         assert response.status_code == 404
+
+
+def test_stop_message_failure_forbidden(authenticated_client):
+    with patch(
+        "domains.chat.service.ChatService.stop_message",
+        side_effect=AppException(ErrorCode.CHAT_UNAUTHORIZED),
+    ):
+        response = authenticated_client.post("/api/chat/sessions/999/stop")
+        assert response.status_code == 403
 
 
 def test_delete_reference_document_success(authenticated_client):

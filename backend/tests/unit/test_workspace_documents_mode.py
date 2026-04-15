@@ -10,14 +10,10 @@ WorkspaceSelection(mode="documents") retrieval 계층별 테스트.
     B. group_document_retrieval_service 레벨: Python 재검증 + Qdrant 필터 검증
        → retrieve_group_documents()가 document_ids whitelist를 올바르게 처리하는지
 
-    C. WorkspaceKnowledgeRetriever 레벨: 현재 정책 검증
-       → mode="documents" 는 fail-closed (빈 결과, retrieve 호출 안 함)
-       → mode="all" 은 정상 retrieve 호출
-
-정책 메모:
-    WorkspaceKnowledgeRetriever.mode="documents" 는 11단계 이전까지 fail-closed.
-    BM25/Qdrant document_ids 필터 구현(B계층)은 완료되어 있으나,
-    Retriever 계층(C)에서 아직 호출하지 않는다.
+    C. WorkspaceKnowledgeRetriever 레벨: 복구된 계약 검증
+       → mode="all"       → document_ids=None 으로 retrieve 호출
+       → mode="documents" → selection.document_ids 로 retrieve 호출
+       → include_workspace=False / group_id 없음 → retrieve 호출 안 함
 """
 
 from __future__ import annotations
@@ -213,44 +209,18 @@ class TestRetrievalServiceWhitelist:
         assert set(match_any_conditions[0].match.any) == {10, 20}
 
 
-# ── C. WorkspaceKnowledgeRetriever — 현재 정책 (fail-closed) ─────────────────
+# ── C. WorkspaceKnowledgeRetriever — 복구된 계약 ──────────────────────────────
 
 
 class TestWorkspaceKnowledgeRetrieverDocumentsMode:
     """
-    현재 정책: mode="documents" → fail-closed (빈 결과, retrieve 호출 안 함)
-    11단계에서 실제 document_ids 필터 retrieval로 전환 예정.
+    복구된 계약:
+        include_workspace=False 또는 group_id 없음 → 빈 결과, retrieve 호출 안 함
+        mode="all"       → document_ids=None 으로 retrieve 호출
+        mode="documents" → selection.document_ids 로 retrieve 호출
     """
 
-    def test_documents_mode_returns_empty_without_retrieve(self):
-        """
-        mode="documents" + document_ids 있음 → 현재 fail-closed.
-        retrieve_group_documents 호출하지 않고 빈 결과 반환.
-        """
-        from domains.knowledge.workspace_knowledge_retriever import (
-            WorkspaceKnowledgeRetriever,
-        )
-        from domains.rag.schemas import SearchMode
-
-        retriever = WorkspaceKnowledgeRetriever()
-        req = KnowledgeRetrievalRequest(
-            query="질문",
-            include_workspace=True,
-            group_id=1,
-            workspace_selection=WorkspaceSelection(
-                mode="documents", document_ids=[10, 20]
-            ),
-        )
-
-        with patch(
-            "domains.knowledge.workspace_knowledge_retriever.retrieve_group_documents"
-        ) as mock_retrieve:
-            results = retriever.retrieve(req, search_mode=SearchMode.dense)
-
-        assert results == []
-        mock_retrieve.assert_not_called()
-
-    def test_all_mode_calls_retrieve_with_no_document_ids(self):
+    def test_all_mode_calls_retrieve_with_document_ids_none(self):
         """mode="all" → retrieve_group_documents 호출, document_ids=None."""
         from domains.knowledge.workspace_knowledge_retriever import (
             WorkspaceKnowledgeRetriever,
@@ -272,11 +242,36 @@ class TestWorkspaceKnowledgeRetrieverDocumentsMode:
             retriever.retrieve(req, search_mode=SearchMode.dense)
 
         mock_retrieve.assert_called_once()
-        call_kwargs = mock_retrieve.call_args[1]
-        assert call_kwargs["document_ids"] is None
+        assert mock_retrieve.call_args[1]["document_ids"] is None
 
-    def test_documents_mode_empty_ids_returns_empty_without_retrieve(self):
-        """빈 document_ids도 retrieve_group_documents를 호출하지 않고 빈 결과."""
+    def test_documents_mode_calls_retrieve_with_document_ids(self):
+        """mode="documents" → retrieve_group_documents 호출, document_ids 전달."""
+        from domains.knowledge.workspace_knowledge_retriever import (
+            WorkspaceKnowledgeRetriever,
+        )
+        from domains.rag.schemas import SearchMode
+
+        retriever = WorkspaceKnowledgeRetriever()
+        req = KnowledgeRetrievalRequest(
+            query="질문",
+            include_workspace=True,
+            group_id=1,
+            workspace_selection=WorkspaceSelection(
+                mode="documents", document_ids=[10, 20]
+            ),
+        )
+
+        with patch(
+            "domains.knowledge.workspace_knowledge_retriever.retrieve_group_documents",
+            return_value=[],
+        ) as mock_retrieve:
+            retriever.retrieve(req, search_mode=SearchMode.dense)
+
+        mock_retrieve.assert_called_once()
+        assert mock_retrieve.call_args[1]["document_ids"] == [10, 20]
+
+    def test_include_workspace_false_returns_empty_without_retrieve(self):
+        """include_workspace=False → retrieve 호출 안 함."""
         from domains.knowledge.workspace_knowledge_retriever import (
             WorkspaceKnowledgeRetriever,
         )
@@ -284,9 +279,9 @@ class TestWorkspaceKnowledgeRetrieverDocumentsMode:
         retriever = WorkspaceKnowledgeRetriever()
         req = KnowledgeRetrievalRequest(
             query="질문",
-            include_workspace=True,
+            include_workspace=False,
             group_id=1,
-            workspace_selection=WorkspaceSelection(mode="documents", document_ids=[]),
+            workspace_selection=WorkspaceSelection(mode="all"),
         )
 
         with patch(
@@ -296,3 +291,48 @@ class TestWorkspaceKnowledgeRetrieverDocumentsMode:
 
         assert results == []
         mock_retrieve.assert_not_called()
+
+    def test_group_id_none_returns_empty_without_retrieve(self):
+        """group_id=None → retrieve 호출 안 함."""
+        from domains.knowledge.workspace_knowledge_retriever import (
+            WorkspaceKnowledgeRetriever,
+        )
+
+        retriever = WorkspaceKnowledgeRetriever()
+        req = KnowledgeRetrievalRequest(
+            query="질문",
+            include_workspace=True,
+            group_id=None,
+            workspace_selection=WorkspaceSelection(mode="all"),
+        )
+
+        with patch(
+            "domains.knowledge.workspace_knowledge_retriever.retrieve_group_documents"
+        ) as mock_retrieve:
+            results = retriever.retrieve(req)
+
+        assert results == []
+        mock_retrieve.assert_not_called()
+
+    def test_selection_none_treated_as_all(self):
+        """workspace_selection=None → mode="all"과 동일, document_ids=None 전달."""
+        from domains.knowledge.workspace_knowledge_retriever import (
+            WorkspaceKnowledgeRetriever,
+        )
+
+        retriever = WorkspaceKnowledgeRetriever()
+        req = KnowledgeRetrievalRequest(
+            query="질문",
+            include_workspace=True,
+            group_id=1,
+            workspace_selection=None,
+        )
+
+        with patch(
+            "domains.knowledge.workspace_knowledge_retriever.retrieve_group_documents",
+            return_value=[],
+        ) as mock_retrieve:
+            retriever.retrieve(req)
+
+        mock_retrieve.assert_called_once()
+        assert mock_retrieve.call_args[1]["document_ids"] is None

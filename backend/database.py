@@ -1,4 +1,5 @@
 import os
+from contextlib import contextmanager
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
@@ -22,6 +23,24 @@ Base = declarative_base()
 
 
 def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@contextmanager
+def db_session():
+    """WebSocket / 비-DI 경로에서 DB 세션을 안전하게 사용하기 위한 context manager.
+
+    FastAPI DI(get_db)를 쓸 수 없는 경로(WebSocket, Celery task 등)에서 사용한다.
+
+    Example::
+
+        with db_session() as db:
+            repo = SomeRepository(db)
+    """
     db = SessionLocal()
     try:
         yield db
