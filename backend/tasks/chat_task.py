@@ -12,7 +12,7 @@ from services.chat.chat_processor import ChatProcessor
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 
 
-@celery_app.task(name="tasks.process_chat_message")
+@celery_app.task(name="tasks.chat_task.process_chat_message")
 def process_chat_message(payload: dict):
     user_id = payload.get("user_id")
     session_id = payload.get("session_id")
