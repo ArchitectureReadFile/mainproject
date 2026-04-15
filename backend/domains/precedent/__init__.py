@@ -1,0 +1,1 @@
+"""Precedent domain package."""

@@ -12,8 +12,8 @@ DocumentChunkService 단위 테스트.
 
 import pytest
 
-from schemas.document_schema import DocumentSchema, DocumentTableBlock
-from services.rag.document_chunk_service import DocumentChunkService
+from domains.document.document_schema import DocumentSchema, DocumentTableBlock
+from domains.rag.document_chunk_service import DocumentChunkService
 
 _GROUP_DOC_PAYLOAD_FIELDS = (
     "chunk_id",

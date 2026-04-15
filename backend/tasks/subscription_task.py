@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from celery_app import celery_app
 from database import SessionLocal
+from domains.workspace.repository import GroupRepository
 from models.model import (
     Group,
     GroupPendingReason,
@@ -14,7 +15,6 @@ from models.model import (
     SubscriptionStatus,
     utc_now_naive,
 )
-from repositories.group_repository import GroupRepository
 
 logger = logging.getLogger(__name__)
 
@@ -72,14 +72,18 @@ def _block_expired_subscription_groups(*, db, now) -> int:
 
 def _enqueue_group_rag_deindex(*, db, group_ids: list[int]) -> None:
     """삭제 예정으로 전환된 워크스페이스의 활성 승인 문서를 RAG 제거 큐에 적재한다."""
-    from tasks.group_document_task import deindex_document
+    from domains.document.index_task import deindex_document
 
     group_repository = GroupRepository(db)
 
     for group_id in group_ids:
         document_ids = group_repository.get_active_approved_document_ids(group_id)
         for document_id in document_ids:
-            deindex_document.delay(document_id)
+            deindex_document.delay(
+                document_id,
+                None,
+                GroupStatus.DELETE_PENDING.value,
+            )
 
 
 @celery_app.task(name="tasks.subscription_task.reconcile_subscriptions")

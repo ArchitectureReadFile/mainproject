@@ -6,7 +6,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 
 @pytest.mark.asyncio
 async def test_chat_ws_success():
-    with patch("routers.ws.aioredis.Redis") as mock_redis:
+    with patch("domains.chat.ws_router.aioredis.Redis") as mock_redis:
         mock_pubsub = AsyncMock()
         mock_redis.return_value.pubsub.return_value = mock_pubsub
 
@@ -27,7 +27,7 @@ async def test_chat_ws_success():
 
 @pytest.mark.asyncio
 async def test_chat_ws_redis_error():
-    with patch("routers.ws.aioredis.Redis") as mock_redis:
+    with patch("domains.chat.ws_router.aioredis.Redis") as mock_redis:
         mock_pubsub = AsyncMock()
         mock_redis.return_value.pubsub.return_value = mock_pubsub
         mock_pubsub.get_message.side_effect = RedisConnectionError()
@@ -40,7 +40,7 @@ async def test_chat_ws_redis_error():
 
 @pytest.mark.asyncio
 async def test_notifications_ws_success():
-    with patch("routers.ws.aioredis.Redis") as mock_redis:
+    with patch("domains.chat.ws_router.aioredis.Redis") as mock_redis:
         mock_pubsub = AsyncMock()
         mock_redis.return_value.pubsub.return_value = mock_pubsub
 
@@ -61,7 +61,7 @@ async def test_notifications_ws_success():
 
 @pytest.mark.asyncio
 async def test_notifications_ws_redis_error():
-    with patch("routers.ws.aioredis.Redis") as mock_redis:
+    with patch("domains.chat.ws_router.aioredis.Redis") as mock_redis:
         mock_pubsub = AsyncMock()
         mock_redis.return_value.pubsub.return_value = mock_pubsub
         mock_pubsub.get_message.side_effect = RedisConnectionError()

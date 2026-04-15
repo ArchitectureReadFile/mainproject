@@ -1,5 +1,7 @@
 import pytest
 
+from domains.auth.service import AuthService
+from domains.document.upload_service import UploadService, process_next_pending_document
 from errors import ErrorCode
 from models.model import (
     Group,
@@ -10,8 +12,6 @@ from models.model import (
     MembershipStatus,
     User,
 )
-from services.auth_service import AuthService
-from services.upload.service import UploadService, process_next_pending_document
 from tests.dummy_data import groups, users
 
 auth_service = AuthService(None)

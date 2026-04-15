@@ -4,7 +4,7 @@ from errors import AppException, ErrorCode
 
 
 def test_get_sessions_success(authenticated_client):
-    with patch("services.chat.chat_service.ChatService.get_sessions") as mock_get:
+    with patch("domains.chat.service.ChatService.get_sessions") as mock_get:
         mock_get.return_value = [
             {
                 "id": 1,
@@ -25,7 +25,7 @@ def test_get_sessions_failure_unauthorized(client):
 
 def test_create_session_success(authenticated_client):
     payload = {"title": "New Session"}
-    with patch("services.chat.chat_service.ChatService.create_session") as mock_create:
+    with patch("domains.chat.service.ChatService.create_session") as mock_create:
         mock_create.return_value = {
             "id": 1,
             "user_id": 1,
@@ -45,7 +45,7 @@ def test_create_session_failure_unauthorized(client):
 
 def test_update_session_success(authenticated_client):
     payload = {"title": "Updated Session"}
-    with patch("services.chat.chat_service.ChatService.update_session") as mock_update:
+    with patch("domains.chat.service.ChatService.update_session") as mock_update:
         mock_update.return_value = {
             "id": 1,
             "user_id": 1,
@@ -60,7 +60,7 @@ def test_update_session_success(authenticated_client):
 def test_update_session_failure_not_found(authenticated_client):
     payload = {"title": "Updated Session"}
     with patch(
-        "services.chat.chat_service.ChatService.update_session",
+        "domains.chat.service.ChatService.update_session",
         side_effect=AppException(ErrorCode.CHAT_ROOM_NOT_FOUND),
     ):
         response = authenticated_client.put("/api/chat/sessions/999", json=payload)
@@ -68,7 +68,7 @@ def test_update_session_failure_not_found(authenticated_client):
 
 
 def test_delete_session_success(authenticated_client):
-    with patch("services.chat.chat_service.ChatService.delete_session") as mock_delete:
+    with patch("domains.chat.service.ChatService.delete_session") as mock_delete:
         response = authenticated_client.delete("/api/chat/sessions/1")
         assert response.status_code == 204
         mock_delete.assert_called_once()
@@ -80,7 +80,7 @@ def test_delete_session_failure_unauthorized(client):
 
 
 def test_get_messages_success(authenticated_client):
-    with patch("services.chat.chat_service.ChatService.get_messages") as mock_get:
+    with patch("domains.chat.service.ChatService.get_messages") as mock_get:
         mock_get.return_value = {
             "messages": [
                 {
@@ -99,7 +99,7 @@ def test_get_messages_success(authenticated_client):
 
 def test_get_messages_failure_not_found(authenticated_client):
     with patch(
-        "services.chat.chat_service.ChatService.get_messages",
+        "domains.chat.service.ChatService.get_messages",
         side_effect=AppException(ErrorCode.CHAT_ROOM_NOT_FOUND),
     ):
         response = authenticated_client.get("/api/chat/sessions/999/messages")
@@ -108,7 +108,7 @@ def test_get_messages_failure_not_found(authenticated_client):
 
 def test_get_messages_failure_unauthorized_access(authenticated_client):
     with patch(
-        "services.chat.chat_service.ChatService.get_messages",
+        "domains.chat.service.ChatService.get_messages",
         side_effect=AppException(ErrorCode.CHAT_UNAUTHORIZED),
     ):
         response = authenticated_client.get("/api/chat/sessions/999/messages")
@@ -117,7 +117,7 @@ def test_get_messages_failure_unauthorized_access(authenticated_client):
 
 def test_send_message_success(authenticated_client):
     payload = {"text": "Hello Chat"}
-    with patch("services.chat.chat_service.ChatService.send_message") as mock_send:
+    with patch("domains.chat.service.ChatService.send_message") as mock_send:
         mock_send.return_value = {"status": "success", "task_id": "12345"}
         response = authenticated_client.post(
             "/api/chat/sessions/1/messages", data=payload
@@ -142,7 +142,7 @@ def test_send_message_failure_workspace_without_group(authenticated_client):
 
 
 def test_stop_message_success(authenticated_client):
-    with patch("services.chat.chat_service.ChatService.stop_message") as mock_stop:
+    with patch("domains.chat.service.ChatService.stop_message") as mock_stop:
         mock_stop.return_value = {"status": "success", "message": "Task stopped"}
         response = authenticated_client.post("/api/chat/sessions/1/stop")
         assert response.status_code == 200
@@ -151,7 +151,7 @@ def test_stop_message_success(authenticated_client):
 
 def test_stop_message_failure_not_found(authenticated_client):
     with patch(
-        "services.chat.chat_service.ChatService.stop_message",
+        "domains.chat.service.ChatService.stop_message",
         side_effect=AppException(ErrorCode.CHAT_ROOM_NOT_FOUND),
     ):
         response = authenticated_client.post("/api/chat/sessions/999/stop")
@@ -160,7 +160,7 @@ def test_stop_message_failure_not_found(authenticated_client):
 
 def test_delete_reference_document_success(authenticated_client):
     with patch(
-        "services.chat.chat_service.ChatService.delete_reference_document"
+        "domains.chat.service.ChatService.delete_reference_document"
     ) as mock_delete:
         mock_delete.return_value = {
             "id": 1,
@@ -176,7 +176,7 @@ def test_delete_reference_document_success(authenticated_client):
 
 def test_delete_reference_document_failure_not_found(authenticated_client):
     with patch(
-        "services.chat.chat_service.ChatService.delete_reference_document",
+        "domains.chat.service.ChatService.delete_reference_document",
         side_effect=AppException(ErrorCode.CHAT_ROOM_NOT_FOUND),
     ):
         response = authenticated_client.delete("/api/chat/sessions/999/reference")
@@ -185,7 +185,7 @@ def test_delete_reference_document_failure_not_found(authenticated_client):
 
 def test_delete_reference_group_success(authenticated_client):
     with patch(
-        "services.chat.chat_service.ChatService.delete_reference_group"
+        "domains.chat.service.ChatService.delete_reference_group"
     ) as mock_delete:
         mock_delete.return_value = {
             "id": 1,
@@ -201,7 +201,7 @@ def test_delete_reference_group_success(authenticated_client):
 
 def test_delete_reference_group_failure_not_found(authenticated_client):
     with patch(
-        "services.chat.chat_service.ChatService.delete_reference_group",
+        "domains.chat.service.ChatService.delete_reference_group",
         side_effect=AppException(ErrorCode.CHAT_ROOM_NOT_FOUND),
     ):
         response = authenticated_client.delete("/api/chat/sessions/999/reference-group")

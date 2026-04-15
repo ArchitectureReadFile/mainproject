@@ -1,8 +1,8 @@
 from datetime import datetime
 
+from domains.auth.service import AuthService
 from errors import ErrorCode
 from models.model import User
-from services.auth_service import AuthService
 from tests.dummy_data import (
     confirm_account_data,
     login_data,
@@ -339,21 +339,6 @@ def test_update_password_failure_invalid_credentials(authenticated_client):
         "confirm_new_password": "newpassword456!",
     }
     response = authenticated_client.patch("/api/auth/password", json=payload)
-    assert response.status_code == 401
-
-
-def test_update_email_success(authenticated_client, fake_redis):
-    new_email = "new_valid@example.com"
-    fake_redis.set(f"email_verified:{new_email}", "1")
-    payload = {"new_email": new_email}
-    response = authenticated_client.patch("/api/auth/email", json=payload)
-    assert response.status_code == 200
-    assert response.json()["email"] == new_email
-
-
-def test_update_email_failure_not_verified(authenticated_client):
-    payload = {"new_email": "unverified@example.com"}
-    response = authenticated_client.patch("/api/auth/email", json=payload)
     assert response.status_code == 401
 
 

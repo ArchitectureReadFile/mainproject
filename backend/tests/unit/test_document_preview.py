@@ -1,4 +1,4 @@
-from services.document_service import DocumentService
+from domains.document.service import DocumentService
 
 GROUP_ID = 1  # authenticated_client fixture seed 기준
 

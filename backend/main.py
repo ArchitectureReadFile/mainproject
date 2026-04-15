@@ -6,18 +6,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from database import init_db
+from domains.admin.router import router as admin_router
+from domains.auth.router import router as auth_router
+from domains.chat.router import router as chat_router
+from domains.chat.ws_router import router as ws_router
+from domains.document.router import router as group_document_router
+from domains.document.summary_router import router as summarize_router
+from domains.email.router import router as email_router
+from domains.export.router import router as export_router
+from domains.notification.router import router as notification_router
+from domains.oauth.router import router as oauth_router
+from domains.workspace.router import router as group_router
 from errors.exceptions import AppException
-from routers.admin import router as admin_router
-from routers.auth import router as auth_router
-from routers.chat import router as chat_router
-from routers.email import router as email_router
-from routers.export import router as export_router
-from routers.group import router as group_router
-from routers.group_document import router as group_document_router
-from routers.notification import router as notification_router
-from routers.oauth import router as oauth_router
-from routers.summarize import router as summarize_router
-from routers.ws import router as ws_router
 
 
 @asynccontextmanager

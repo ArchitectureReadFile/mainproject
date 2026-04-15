@@ -5,7 +5,7 @@ from errors import AppException, ErrorCode
 
 def test_get_notification_settings_success(authenticated_client):
     with patch(
-        "services.notification_service.NotificationService.get_all_settings"
+        "domains.notification.service.NotificationService.get_all_settings"
     ) as mock_get:
         mock_get.return_value = [
             {
@@ -30,7 +30,7 @@ def test_update_notification_setting_success(authenticated_client):
         "is_toast_enabled": False,
     }
     with patch(
-        "services.notification_service.NotificationService.upsert_setting"
+        "domains.notification.service.NotificationService.upsert_setting"
     ) as mock_upsert:
         mock_upsert.return_value = {
             "notification_type": "WORKSPACE_INVITED",
@@ -55,7 +55,7 @@ def test_update_notification_setting_failure_unauthorized(client):
 
 def test_get_notifications_success(authenticated_client):
     with patch(
-        "services.notification_service.NotificationService.get_notifications"
+        "domains.notification.service.NotificationService.get_notifications"
     ) as mock_get:
         mock_get.return_value = [
             {
@@ -84,7 +84,7 @@ def test_get_notifications_failure_unauthorized(client):
 
 def test_mark_notification_as_read_success(authenticated_client):
     with patch(
-        "services.notification_service.NotificationService.mark_as_read"
+        "domains.notification.service.NotificationService.mark_as_read"
     ) as mock_mark:
         mock_mark.return_value = {
             "id": 1,
@@ -106,7 +106,7 @@ def test_mark_notification_as_read_success(authenticated_client):
 
 def test_mark_notification_as_read_failure_not_found(authenticated_client):
     with patch(
-        "services.notification_service.NotificationService.mark_as_read",
+        "domains.notification.service.NotificationService.mark_as_read",
         side_effect=AppException(ErrorCode.USER_NOT_FOUND),
     ):
         response = authenticated_client.patch("/api/notifications/999/read")
@@ -115,7 +115,7 @@ def test_mark_notification_as_read_failure_not_found(authenticated_client):
 
 def test_mark_all_notifications_as_read_success(authenticated_client):
     with patch(
-        "services.notification_service.NotificationService.mark_all_as_read"
+        "domains.notification.service.NotificationService.mark_all_as_read"
     ) as mock_mark_all:
         response = authenticated_client.patch("/api/notifications/read-all")
         assert response.status_code == 204
@@ -129,7 +129,7 @@ def test_mark_all_notifications_as_read_failure_unauthorized(client):
 
 def test_delete_notification_success(authenticated_client):
     with patch(
-        "services.notification_service.NotificationService.delete_notification"
+        "domains.notification.service.NotificationService.delete_notification"
     ) as mock_delete:
         response = authenticated_client.delete("/api/notifications/1")
         assert response.status_code == 204
@@ -138,7 +138,7 @@ def test_delete_notification_success(authenticated_client):
 
 def test_delete_notification_failure_not_found(authenticated_client):
     with patch(
-        "services.notification_service.NotificationService.delete_notification",
+        "domains.notification.service.NotificationService.delete_notification",
         side_effect=AppException(ErrorCode.USER_NOT_FOUND),
     ):
         response = authenticated_client.delete("/api/notifications/999")

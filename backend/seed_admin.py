@@ -17,6 +17,7 @@ from sqlalchemy import delete
 sys.path.insert(0, os.path.dirname(__file__))
 
 from database import Base, SessionLocal, init_db
+from domains.auth.service import AuthService
 from models.model import (
     Document,
     DocumentLifecycleStatus,
@@ -32,7 +33,6 @@ from models.model import (
     User,
     UserRole,
 )
-from services.auth_service import AuthService
 
 _auth_service = AuthService()
 
@@ -170,7 +170,7 @@ def reset_seed_data(db):
 
 def _reset_rag_storage():
     try:
-        from services.rag import bm25_store, vector_store
+        from domains.rag import bm25_store, vector_store
 
         bm25_store.clear()
         vector_store.clear()

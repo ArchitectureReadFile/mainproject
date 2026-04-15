@@ -10,8 +10,8 @@ import json
 
 import pytest
 
-from schemas.knowledge import WorkspaceSelection
-from services.chat.workspace_selection_parser import parse_workspace_selection
+from domains.chat.workspace_selection_parser import parse_workspace_selection
+from domains.knowledge.schemas import WorkspaceSelection
 
 
 class TestParseNone:
@@ -109,12 +109,12 @@ class TestChatProcessorWorkspaceReflection:
     def _make_processor(self):
         from unittest.mock import MagicMock, patch
 
-        from services.chat.chat_processor import ChatProcessor
+        from domains.chat.processor import ChatProcessor
 
         with (
-            patch("services.chat.chat_processor.LLMClient"),
-            patch("services.chat.chat_processor.KnowledgeRetrievalService"),
-            patch("services.chat.chat_processor.AnswerContextBuilder"),
+            patch("domains.chat.processor.LLMClient"),
+            patch("domains.chat.processor.KnowledgeRetrievalService"),
+            patch("domains.chat.processor.AnswerContextBuilder"),
         ):
             p = ChatProcessor(MagicMock(), MagicMock())
         p.llm_client = MagicMock()
