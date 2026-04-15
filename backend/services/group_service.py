@@ -763,7 +763,35 @@ class GroupService:
         if not membership:
             raise AppException(ErrorCode.GROUP_MEMBER_NOT_FOUND)
 
+        group = self.repository.get_group_by_id(group_id)
+        if not group:
+            raise AppException(ErrorCode.GROUP_NOT_FOUND)
+
+        invited_user = self.repository.get_user_by_id(user_id)
+        invited_by_user_id = membership.invited_by_user_id
+
         self.repository.decline_invite(membership)
+
+        notification_user_ids = self._get_unique_notification_user_ids(
+            invited_by_user_id,
+            group.owner_user_id,
+        )
+
+        for notification_user_id in notification_user_ids:
+            if notification_user_id == user_id:
+                continue
+
+            self.notification_service.create_notification_sync(
+                user_id=notification_user_id,
+                actor_user_id=user_id,
+                group_id=group_id,
+                type=NotificationType.WORKSPACE_MEMBER_UPDATE,
+                title="워크스페이스 초대 거절 알림",
+                body=f"{invited_user.username}님이 '{group.name}' 워크스페이스 초대를 거절했습니다.",
+                target_type="group",
+                target_id=group_id,
+            )
+
         self.db.commit()
 
     def remove_member(self, target_id: int, group_id: int, remover_id: int) -> None:
@@ -799,6 +827,18 @@ class GroupService:
 
         if is_invited_member:
             self.repository.decline_invite(target_membership)
+
+            self.notification_service.create_notification_sync(
+                user_id=target_id,
+                actor_user_id=remover_id,
+                group_id=group_id,
+                type=NotificationType.WORKSPACE_MEMBER_UPDATE,
+                title="워크스페이스 초대 취소 알림",
+                body=f"'{group.name}' 워크스페이스 초대가 취소되었습니다.",
+                target_type="group",
+                target_id=group_id,
+            )
+
             self.db.commit()
             return
 

@@ -146,7 +146,7 @@ export const useNotification = () => {
           navigate(`/workspace/${groupId}?tab=workspace`)
           break
         case 'WORKSPACE_MEMBER_UPDATE':
-          navigate(`/workspace/${groupId}?tab=workspace`)
+          navigate(`/workspace/${groupId}?tab=members`)
           break
         case 'DOCUMENT_UPLOAD_REQUESTED':
           navigate(`/workspace/${groupId}?tab=approval`)
