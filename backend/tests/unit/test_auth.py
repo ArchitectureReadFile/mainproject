@@ -310,6 +310,93 @@ def test_reactivate_account_failure_rate_limit(client, registered_user, fake_red
     assert response.json()["code"] == ErrorCode.USER_RATE_LIMIT_EXCEEDED.code
 
 
+# ── 쿠키 옵션 검증 ────────────────────────────────────────────────────────────
+# AUTH_COOKIE_SECURE, AUTH_COOKIE_SAMESITE, HttpOnly 등 환경변수 기반 쿠키 옵션이
+# login / refresh / logout 응답 Set-Cookie 헤더에 올바르게 반영되는지 확인한다.
+# 테스트 환경 기본값: SECURE=false, SAMESITE=lax, ACCESS_HTTPONLY=true
+
+
+def _get_cookie_header(response, name: str) -> str | None:
+    """Set-Cookie 헤더 목록에서 쿠키명이 일치하는 헤더를 반환한다."""
+    for h in response.headers.get_list("set-cookie"):
+        if h.startswith(f"{name}="):
+            return h
+    return None
+
+
+def test_login_cookie_options(client, registered_user, fake_redis):
+    """login 응답 쿠키가 환경변수 기반 옵션을 따르는지 확인한다."""
+    payload = login_data["payload"].copy()
+    payload["email"] = registered_user.email
+    response = client.post("/api/auth/login", json=payload)
+    assert response.status_code == 200
+
+    access_hdr = _get_cookie_header(response, "access_token")
+    refresh_hdr = _get_cookie_header(response, "refresh_token")
+    assert access_hdr is not None
+    assert refresh_hdr is not None
+
+    # HttpOnly: access=true(기본), refresh=true(기본)
+    assert "httponly" in access_hdr.lower()
+    assert "httponly" in refresh_hdr.lower()
+
+    # secure=false (로컬 기본값)
+    assert "secure" not in access_hdr.lower()
+    assert "secure" not in refresh_hdr.lower()
+
+    # samesite=lax (기본값)
+    assert "samesite=lax" in access_hdr.lower()
+    assert "samesite=lax" in refresh_hdr.lower()
+
+
+def test_refresh_cookie_options(client, registered_user, fake_redis):
+    """refresh 응답 쿠키가 환경변수 기반 옵션을 따르는지 확인한다."""
+    email = registered_user.email
+    old_refresh_token = auth_service.create_refresh_token(email)
+    fake_redis.set(f"refresh_token:{old_refresh_token}", email)
+    client.cookies.set("refresh_token", old_refresh_token)
+    response = client.post("/api/auth/refresh")
+    assert response.status_code == 200
+
+    access_hdr = _get_cookie_header(response, "access_token")
+    refresh_hdr = _get_cookie_header(response, "refresh_token")
+    assert access_hdr is not None
+    assert refresh_hdr is not None
+
+    assert "httponly" in access_hdr.lower()
+    assert "httponly" in refresh_hdr.lower()
+    assert "samesite=lax" in access_hdr.lower()
+    assert "samesite=lax" in refresh_hdr.lower()
+
+
+def test_logout_delete_cookie_options(client, registered_user, fake_redis):
+    """logout 시 delete_cookie가 set_cookie와 동일한 path/samesite/secure 맥락으로 삭제되는지 확인한다."""
+    email = registered_user.email
+    refresh_token = auth_service.create_refresh_token(email)
+    fake_redis.set(f"refresh_token:{refresh_token}", email)
+    client.cookies.set("refresh_token", refresh_token)
+    response = client.post("/api/auth/logout")
+    assert response.status_code == 204
+
+    access_hdr = _get_cookie_header(response, "access_token")
+    refresh_hdr = _get_cookie_header(response, "refresh_token")
+    assert access_hdr is not None
+    assert refresh_hdr is not None
+
+    # 값이 비어 있어야 함
+    assert access_hdr.startswith("access_token=;") or 'access_token=""' in access_hdr
+    assert (
+        refresh_hdr.startswith("refresh_token=;") or 'refresh_token=""' in refresh_hdr
+    )
+
+    # samesite 맥락 일치 확인
+    assert "samesite=lax" in access_hdr.lower()
+    assert "samesite=lax" in refresh_hdr.lower()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 def test_update_username_success(authenticated_client):
     payload = {"new_username": "new_name"}
     response = authenticated_client.patch("/api/auth/username", json=payload)

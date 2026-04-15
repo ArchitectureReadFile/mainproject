@@ -23,7 +23,6 @@
 
 ### `backend/docs/` (백엔드 기술 문서) — 현위치 유지
 - `ARCHITECTURE.md` — 문서 파이프라인 및 채팅 지식 흐름 아키텍처
-- `backend_structure_mapping.md` — 목표 구조 매핑표 (이번 작업 생성)
 
 ## 다음 단계에서 추가될 문서 후보
 - `backend/docs/domain_migration_log.md` — 도메인 이동 이력

@@ -1,5 +1,5 @@
 """
-services/document_extract_service.py
+domains/document/extract_service.py
 
 PDF 문서 추출 서비스.
 
@@ -7,6 +7,10 @@ PDF 문서 추출 서비스.
     - opendataloader-pdf hybrid OCR 경로 호출
     - markdown/json 결과를 ExtractedDocument로 조립
     - body 유무를 검증해 공통 에러 코드로 변환
+
+환경변수 단위 정의:
+    ODL_HYBRID_TIMEOUT: milliseconds (OpenDataLoader 공식 문서 기준)
+                        로컬 기본값 180000 (3분), 운영 권장값 180000 이상
 """
 
 from __future__ import annotations
@@ -39,7 +43,9 @@ class DocumentExtractService:
         self.hybrid = os.getenv("ODL_HYBRID", "docling-fast")
         self.hybrid_mode = os.getenv("ODL_HYBRID_MODE")
         self.hybrid_url = os.getenv("ODL_HYBRID_URL", "http://odl_hybrid:5002")
-        self.hybrid_timeout = int(os.getenv("ODL_HYBRID_TIMEOUT", "180000"))
+        self.hybrid_timeout = int(
+            os.getenv("ODL_HYBRID_TIMEOUT", "180000")
+        )  # milliseconds
         self.hybrid_fallback = _env_bool("ODL_HYBRID_FALLBACK", False)
 
     # ── public ───────────────────────────────────────────────────────────────

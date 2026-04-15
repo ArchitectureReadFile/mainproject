@@ -103,9 +103,10 @@ async def send_message(
 @router.post("/sessions/{session_id}/stop")
 def stop_message(
     session_id: int,
+    current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
-    return chat_service.stop_message(session_id)
+    return chat_service.stop_message(current_user.id, session_id)
 
 
 @router.delete("/sessions/{session_id}/reference", response_model=ChatSessionResponse)

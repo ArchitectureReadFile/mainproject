@@ -273,20 +273,17 @@ WorkspaceKnowledgeRetriever.retrieve()
 
 ```
 backend/
-├── schemas/
-│   ├── document_schema.py      DocumentSchema, DocumentTableBlock, DocumentPage
-│   ├── knowledge.py            KnowledgeType, RetrievedKnowledgeItem, KnowledgeRetrievalRequest
-│   └── chat.py                 ChatWorkspaceSelectionInput
-│
-├── services/
-│   ├── document_extract_service.py           ExtractedDocument 생성
-│   ├── document_normalize_service.py         ExtractedDocument → DocumentSchema
-│   ├── document_classification_service.py    DocumentSchema → document_type / category
-│   │
-│   ├── summary/
-│   │   ├── process_service.py                       요약 파이프라인 진입점
-│   │   │                                            (classify → save → summarize → save)
-│   │   └── document_summary_payload_service.py      DocumentSchema → LLM 입력
+├── domains/
+│   ├── document/
+│   │   ├── document_schema.py      DocumentSchema, DocumentTableBlock, DocumentPage
+│   │   ├── schemas.py              API 입출력 스키마
+│   │   ├── extract_service.py      ExtractedDocument 생성
+│   │   ├── normalize_service.py    ExtractedDocument → DocumentSchema
+│   │   ├── classification_service.py  DocumentSchema → document_type / category
+│   │   ├── summary_process.py      요약 파이프라인 진입점 (classify → save → summarize → save)
+│   │   ├── summary_payload.py      DocumentSchema → LLM 입력
+│   │   ├── summary_llm_service.py  LLM 요약 호출
+│   │   └── repository.py           update_classification() — 분류 저장 단일 진입점
 │   │
 │   ├── rag/
 │   │   ├── document_chunk_service.py           DocumentSchema → chunk 리스트
@@ -295,22 +292,22 @@ backend/
 │   │   └── group_document_retrieval_service.py group/document 범위 검색
 │   │
 │   ├── chat/
-│   │   ├── chat_processor.py                   단일 retrieval 진입점 사용
-│   │   ├── chat_service.py                     workspace 권한 검증 포함
-│   │   ├── session_document_payload_service.py DocumentSchema → 세션 저장 텍스트
-│   │   └── workspace_selection_parser.py       API 입력 파싱/검증
+│   │   ├── processor.py                단일 retrieval 진입점 사용
+│   │   ├── service.py                  workspace 권한 검증 포함
+│   │   ├── session_payload.py          DocumentSchema → 세션 저장 텍스트
+│   │   └── workspace_selection_parser.py  API 입력 파싱/검증
 │   │
 │   └── knowledge/
-│       ├── knowledge_retrieval_service.py      retriever orchestrator
-│       ├── answer_context_builder.py           검색 결과 → context 문자열
-│       ├── platform_knowledge_retriever.py     판례 RAG
-│       ├── workspace_knowledge_retriever.py    그룹 문서 RAG (selection 지원)
-│       └── session_document_retriever.py       임시 첨부 문서
+│       ├── knowledge_retrieval_service.py   retriever orchestrator
+│       ├── answer_context_builder.py        검색 결과 → context 문자열
+│       ├── platform_knowledge_retriever.py  판례 RAG
+│       ├── workspace_knowledge_retriever.py 그룹 문서 RAG (selection 지원)
+│       └── session_document_retriever.py    임시 첨부 문서
 │
 ├── prompts/
 │   ├── classify_prompt.py      분류 LLM 프롬프트 (허용값 고정)
 │   └── summarize_prompt.py     요약 LLM 프롬프트
 │
-└── repositories/
-    └── document_repository.py  update_classification() — 분류 저장 단일 진입점
+└── models/
+    └── model.py                전체 ORM 모델 (domain 분리 전까지 현위치 유지)
 ```

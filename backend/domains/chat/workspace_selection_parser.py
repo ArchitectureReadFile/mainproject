@@ -1,5 +1,5 @@
 """
-services/chat/workspace_selection_parser.py
+domains/chat/workspace_selection_parser.py
 
 chat API에서 받은 workspace_selection_json 문자열을
 WorkspaceSelection 또는 None으로 변환한다.
@@ -11,11 +11,6 @@ validation 정책 (fail-closed):
     - mode="documents" + empty ids:        → ValueError (422 upstream에서 잡힘)
     - invalid JSON:                        → ValueError (422)
     - group_id 없이 selection 있음:        → ValueError (호출자가 검사)
-
-중요:
-    mode="documents"가 전달되더라도 WorkspaceKnowledgeRetriever는
-    현재 fail-closed로 빈 결과를 반환한다.
-    실제 document_ids 필터 지원은 추후 구현 예정(TODO).
 """
 
 from __future__ import annotations
