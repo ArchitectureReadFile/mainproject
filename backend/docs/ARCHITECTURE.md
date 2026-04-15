@@ -14,8 +14,8 @@ PDF 파일
   │
   ▼
 DocumentExtractService          services/document_extract_service.py
-  - opendataloader-pdf 1차 시도
-  - body 없으면 LocalOcrService fallback
+  - opendataloader-pdf hybrid OCR 호출
+  - scanned/image PDF 포함 단일 추출 경로
   - 반환: ExtractedDocument(markdown, json_data, source_type)
   │
   ▼
@@ -226,7 +226,7 @@ WorkspaceKnowledgeRetriever.retrieve()
 
 | 항목 | 현재 상태 | 다음 과제 |
 |---|---|---|
-| `pages` 분리 | v1: 전체 문서 = 1페이지로 단순화 | ODL/OCR page 정보 실제 분리 |
+| `pages` 분리 | v1: 전체 문서 = 1페이지로 단순화 | ODL page 정보 실제 분리 |
 | 분류 수정 이력 | 1차 미구현 | 2차에서 수정 이력 저장 검토 |
 | 검색 boost | chunk payload에 분류값 저장 완료 | 질문 측 category 근거 설계 후 연결 예정 |
 | workspace `mode="documents"` | 지원 (BM25 + Qdrant whitelist) | folder/category 확장 가능 |

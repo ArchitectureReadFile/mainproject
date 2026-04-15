@@ -30,7 +30,6 @@
 | `services/rag/vector_store.py` | `infra/vectorstore/qdrant.py` | Qdrant 클라이언트 |
 | `services/rag/bm25_store.py` | `infra/vectorstore/bm25.py` | Redis 기반 BM25 |
 | `services/summary/llm_client.py` | `infra/llm/ollama_client.py` | Ollama HTTP 통신 |
-| `services/ocr/` (전체) | `infra/ocr/` | LibreOffice/OCR 인프라 |
 | `extractors/` (전체) | `infra/extractors/` | 문서 파싱 인프라 |
 | `services/platform/korea_law_open_api_client.py` | `infra/external/korea_law_api.py` | 외부 API 클라이언트 |
 

@@ -14,7 +14,7 @@
 # [런타임 볼륨 구조]
 # backend_runtime named volume을 backend 계열 전 서비스에 /app/runtime으로 공유한다.
 # uploads / exports / cache / celery beat schedule을 한 루트에서 일관되게 관리하기 위함이다.
-# 프론트엔드 업스트림 포트: frontend:80 (운영 이미지는 nginx 정적 서빙, 개발용 변경 시 함께 수정 필요)
+# 프론트엔드 업스트림 포트: frontend:3000 (운영 이미지는 nginx 정적 서빙)
 
 services:
   # ───────────────────────────────────────────
@@ -42,6 +42,7 @@ services:
     env_file: !override
       - D:/jiyun-env/backend.env
     environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
       - TZ=UTC
     restart: unless-stopped
     volumes:
@@ -64,6 +65,7 @@ services:
     env_file: !override
       - D:/jiyun-env/backend.env
     environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
@@ -77,6 +79,7 @@ services:
     env_file: !override
       - D:/jiyun-env/backend.env
     environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
@@ -90,6 +93,7 @@ services:
     env_file: !override
       - D:/jiyun-env/backend.env
     environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
@@ -103,6 +107,7 @@ services:
     env_file: !override
       - D:/jiyun-env/backend.env
     environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
@@ -125,6 +130,17 @@ services:
 
   qdrant:
     ports: []
+    networks:
+      - app-network
+
+  odl_hybrid:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: odl_hybrid_container
+    command: opendataloader-pdf-hybrid --host 0.0.0.0 --port 5002 --force-ocr --ocr-lang ko,en
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - TZ=UTC
     networks:
       - app-network
 

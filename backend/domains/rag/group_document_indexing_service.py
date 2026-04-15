@@ -52,17 +52,13 @@ def index_group_document(
         category,
     )
 
-    # 1. 기존 인덱스 삭제 (재인덱싱 안전)
-    vector_store.delete_document(document_id)
-    bm25_store.delete_document(document_id)
-
-    # 2. PDF 추출
+    # 1. PDF 추출
     extracted = _extract_service.extract(file_path)
 
-    # 3. normalize
+    # 2. normalize
     document = _normalize_service.normalize(extracted)
 
-    # 4. chunk 생성
+    # 3. chunk 생성
     chunks: list[GroupDocumentChunk] = _chunk_service.build_group_document_chunks(
         document,
         document_id=document_id,
@@ -73,9 +69,13 @@ def index_group_document(
         logger.warning("[그룹문서 인덱싱] chunk 없음: document_id=%s", document_id)
         return 0
 
-    # 5. 배치 임베딩
+    # 4. 배치 임베딩
     texts = [c["text"] for c in chunks]
     embeddings = embed_passages(texts)
+
+    # 5. 새 인덱스 준비가 끝난 뒤 기존 인덱스 교체
+    vector_store.delete_document(document_id)
+    bm25_store.delete_document(document_id)
 
     # 6. Qdrant + BM25 저장
     for chunk, embedding in zip(chunks, embeddings):

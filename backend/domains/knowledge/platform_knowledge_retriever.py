@@ -71,9 +71,6 @@ class PlatformKnowledgeRetriever:
         *,
         search_mode: SearchMode,
     ) -> list[RetrievedKnowledgeItem]:
-        if not bm25_store.platform_corpus_exists():
-            return []
-
         source_types = get_platform_corpus_source_types()
         query_vector = embed_query(request.query)
         fetch_k = request.top_k * 4
@@ -94,6 +91,18 @@ class PlatformKnowledgeRetriever:
                 query_filter=platform_filter,
             )
         else:
+            if not bm25_store.platform_corpus_exists():
+                logger.info(
+                    "[PlatformRetriever] BM25 corpus 없음 → dense fallback: query=%s",
+                    request.query,
+                )
+                hits = vector_store.search(
+                    query_embedding=query_vector,
+                    top_k=fetch_k,
+                    query_filter=platform_filter,
+                )
+                return [platform_hit_to_item(hit) for hit in hits[: request.top_k]]
+
             bm25_hits = bm25_store.search_platform(
                 query=request.query,
                 top_k=fetch_k * 2,
