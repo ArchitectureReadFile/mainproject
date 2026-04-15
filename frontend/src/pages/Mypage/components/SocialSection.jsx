@@ -44,7 +44,7 @@ export default function SocialSection() {
 
   const handleLink = (provider) => {
     setLocalErrors(prev => ({ ...prev, [provider]: '' }))
-    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/auth/social/${provider}/login`
+    window.location.href = `/api/auth/social/${provider}/login`
   }
 
   const isGoogleLinked = user?.social_providers?.includes('google')
