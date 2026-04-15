@@ -12,26 +12,26 @@ import {
     getRejectedDocuments,
     getRejectedUploaders,
     rejectDocument,
-} from '@/api/groups'
-import { formatKoreanDateTime } from '@/lib/datetime'
-import { Button } from '@/components/ui/Button'
-import { ConfirmModal } from '@/components/ui/confirm-modal'
+} from '@/shared/api/groups'
+import { formatKoreanDateTime } from '@/shared/lib/datetime'
+import { Button } from '@/shared/ui/Button'
+import { ConfirmModal } from '@/shared/ui/confirm-modal'
 import {
     Dialog,
     DialogContent,
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
+} from '@/shared/ui/Dialog'
+import { Input } from '@/shared/ui/Input'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/Textarea'
+} from '@/shared/ui/select'
+import { Textarea } from '@/shared/ui/textarea'
 
 const APPROVAL_SUB_TABS = [
     { key: 'pending', label: '처리 대기' },

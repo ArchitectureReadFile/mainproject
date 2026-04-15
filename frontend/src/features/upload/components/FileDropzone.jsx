@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 import { IoCloudUploadOutline } from 'react-icons/io5'
 
 export default function FileDropzone({

@@ -1,10 +1,9 @@
-import { Button } from '@/components/ui/Button'
-import { Tabs, TabsContent } from '@/components/ui/Tabs'
-import { cn } from '@/lib/utils'
+import { Button } from '@/shared/ui/Button'
+import { Tabs, TabsContent } from '@/shared/ui/tabs'
+import { cn } from '@/shared/lib/utils'
 import { Bell, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import EmailSection from './components/EmailSection'
 import NotificationSection from './components/NotificationSection'
 import ProfileSection from './components/ProfileSection'
 import SecuritySection from './components/SecuritySection'
@@ -68,7 +67,6 @@ export default function Mypage() {
                 <ProfileSection />
                 <SocialSection />
                 <SubscriptionSection />
-                <EmailSection />
                 <SecuritySection />
               </div>
             </TabsContent>

@@ -1,4 +1,4 @@
-import client from '@/api/client'
+import client from '@/shared/api/client'
 
 export async function uploadDocumentApi(file, groupId, assigneeUserId, signal) {
   const formData = new FormData()

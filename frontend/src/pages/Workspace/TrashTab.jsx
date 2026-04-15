@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArchiveRestore, Loader2, Trash2 } from 'lucide-react'
-import { getDeletedGroupDocuments, restoreGroupDocument } from '@/api/groups'
-import { calcKoreanDday, formatKoreanDate } from '@/lib/datetime'
-import { Button } from '@/components/ui/Button'
+import { getDeletedGroupDocuments, restoreGroupDocument } from '@/shared/api/groups'
+import { calcKoreanDday, formatKoreanDate } from '@/shared/lib/datetime'
+import { Button } from '@/shared/ui/Button'
 import { toast } from 'sonner'
 
 const LIMIT = 5

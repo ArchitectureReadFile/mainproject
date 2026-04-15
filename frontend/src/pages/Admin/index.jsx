@@ -1,9 +1,9 @@
-import { fetchAdminPlatformSummary, fetchAdminStats, fetchAdminUsage, fetchAdminUsers } from "@/api/admin";
+import { fetchAdminPlatformSummary, fetchAdminStats, fetchAdminUsage, fetchAdminUsers } from "@/shared/api/admin";
 import AdminMembersSection from "@/features/admin/components/AdminMembersSection";
 import AdminDocumentAiSection from "@/features/admin/components/AdminDocumentAiSection";
 import AdminOverviewSection from "@/features/admin/components/AdminOverviewSection";
 import AdminRagDbSection from "@/features/admin/components/AdminRagDbSection";
-import { ERROR_CODE } from "@/lib/errors";
+import { ERROR_CODE } from "@/shared/lib/errors";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 

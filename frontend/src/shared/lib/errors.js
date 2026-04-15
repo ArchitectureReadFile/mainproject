@@ -2,7 +2,7 @@
  * 백엔드 errors/error_codes.py 와 1:1 대응되는 에러 코드 상수입니다.
  *
  * 사용 예시:
- *   import { ERROR_CODE } from "@/lib/errors";
+ *   import { ERROR_CODE } from "@/shared/lib/errors";
  *   if (error.code === ERROR_CODE.AUTH_TOKEN_MISSING) { ... }
  */
 

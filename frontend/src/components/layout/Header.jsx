@@ -1,6 +1,6 @@
-import { Badge } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
-import { useTheme } from '@/hooks/useTheme'
+import { Badge } from '@/shared/ui/badge'
+import { Button } from '@/shared/ui/Button'
+import { useTheme } from '@/shared/hooks/useTheme'
 import { LogIn, Menu, Moon, Sun, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -80,8 +80,8 @@ export default function Header({ onMenuOpenChange }) {
                 <path d="M16 13v3" />
               </svg>
               <div>
-                <p className="m-0 text-lg font-extrabold leading-tight text-foreground">판례 AI 플랫폼</p>
-                <p className="m-0 mt-0.5 text-xs text-muted-foreground hidden sm:block">Legal AI Platform</p>
+                <p className="m-0 text-lg font-extrabold leading-tight text-foreground">READLAW</p>
+                <p className="m-0 mt-0.5 text-xs text-muted-foreground hidden sm:block">법률 AI 플랫폼</p>
               </div>
             </div>
           </Link>

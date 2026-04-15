@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/Button.jsx";
+import { Button } from "@/shared/ui/Button.jsx";
 import { Scale, ChevronDown } from 'lucide-react';
 
 export default function IntroSection({ onStartClick }) {

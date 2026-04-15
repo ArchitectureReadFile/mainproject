@@ -2,17 +2,17 @@ import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Inbox, Loader2, Search, RotateCcw } from 'lucide-react'
 
-import { formatKoreanDate } from '@/lib/datetime'
-import { getGroupDocuments } from '@/api/groups'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { formatKoreanDate } from '@/shared/lib/datetime'
+import { getGroupDocuments } from '@/shared/api/groups'
+import { Button } from '@/shared/ui/Button'
+import { Input } from '@/shared/ui/Input'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
+} from '@/shared/ui/select'
 
 const STATUS_LABEL = {
     DONE: { text: '완료', color: 'text-green-600' },

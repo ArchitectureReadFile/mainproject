@@ -1,4 +1,4 @@
-import { updateAdminUser } from "@/api/admin";
+import { updateAdminUser } from "@/shared/api/admin";
 import {
   Dialog,
   DialogContent,
@@ -6,8 +6,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/Dialog";
-import { ERROR_CODE, getErrorMessageByCode } from "@/lib/errors";
+} from "@/shared/ui/Dialog";
+import { ERROR_CODE, getErrorMessageByCode } from "@/shared/lib/errors";
 import { BadgeCheck, Search, ShieldCheck, Sparkles, UserRoundX, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 

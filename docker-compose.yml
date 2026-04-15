@@ -155,7 +155,7 @@ services:
     container_name: celery_beat_container
     env_file:
       - ./backend/.env
-    command: celery -A celery_app beat --loglevel=info
+    command: celery -A celery_app beat --loglevel=info --schedule runtime/celery/beat-schedule
 
 volumes:
   ollama_data:

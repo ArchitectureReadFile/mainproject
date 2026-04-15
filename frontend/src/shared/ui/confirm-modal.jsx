@@ -7,7 +7,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from './alert-dialog'
+} from '@/shared/ui/alert-dialog'
 
 export function ConfirmModal({
   open,

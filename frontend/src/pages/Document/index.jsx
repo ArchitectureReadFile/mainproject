@@ -11,17 +11,17 @@ import {
     getMembers,
     rejectDocument,
     updateDocumentClassification,
-} from '@/api/groups'
+} from '@/shared/api/groups'
 import {
     calcKoreanDday,
     formatKoreanDate,
     formatKoreanDateTime,
-} from '@/lib/datetime'
-import { Avatar, AvatarFallback } from '@/components/ui/Avatar'
-import { Badge } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
-import { ConfirmModal } from '@/components/ui/confirm-modal'
+} from '@/shared/lib/datetime'
+import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
+import { Badge } from '@/shared/ui/badge'
+import { Button } from '@/shared/ui/Button'
+import { Card } from '@/shared/ui/card'
+import { ConfirmModal } from '@/shared/ui/confirm-modal'
 import {
     Dialog,
     DialogContent,
@@ -29,25 +29,25 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/Dialog'
+} from '@/shared/ui/Dialog'
 import {
     Sheet,
     SheetContent,
     SheetDescription,
     SheetHeader,
     SheetTitle,
-} from '@/components/ui/Sheet'
+} from '@/shared/ui/Sheet'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/Textarea'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+} from '@/shared/ui/select'
+import { Textarea } from '@/shared/ui/textarea'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/tooltip'
 import { useAuth } from '@/features/auth/context/AuthContext'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 import {
     ArrowLeft,
     ChevronDown,

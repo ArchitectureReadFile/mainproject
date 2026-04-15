@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ERROR_CODE } from '../lib/errors'
+import { ERROR_CODE } from '@/shared/lib/errors'
 
 const client = axios.create({
   baseURL: `/api`,

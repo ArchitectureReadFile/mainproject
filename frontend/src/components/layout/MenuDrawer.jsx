@@ -1,14 +1,14 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/Avatar'
-import { Button } from '@/components/ui/Button'
-import { Separator } from '@/components/ui/separator'
+import { Avatar, AvatarFallback, AvatarImage } from '@/shared/ui/avatar'
+import { Button } from '@/shared/ui/Button'
+import { Separator } from '@/shared/ui/separator'
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/Sheet'
-import { cn } from '@/lib/utils'
+} from '@/shared/ui/Sheet'
+import { cn } from '@/shared/lib/utils'
 import { FolderOpen, Home, LogIn, LogOut, Shield, UserPlus, X } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'

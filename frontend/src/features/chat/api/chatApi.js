@@ -1,4 +1,4 @@
-import client from '../../../api/client.js';
+import client from '@/shared/api/client';
 
 export const chatApi = {
     getRooms: async () => {

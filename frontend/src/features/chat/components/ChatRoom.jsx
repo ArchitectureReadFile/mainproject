@@ -11,9 +11,9 @@ import {
   IoCloudUploadOutline,
   IoEllipsisHorizontal
 } from 'react-icons/io5';
-import { Button } from "@/components/ui/Button.jsx";
-import { Input } from "@/components/ui/Input.jsx";
-import { Avatar, AvatarFallback } from "@/components/ui/Avatar.jsx";
+import { Button } from "@/shared/ui/Button.jsx";
+import { Input } from "@/shared/ui/Input.jsx";
+import { Avatar, AvatarFallback } from "@/shared/ui/avatar.jsx";
 import { useChat } from '../hooks/useChat.js';
 
 export default function ChatRoom({ sessionId, onBack, onClose }) {
@@ -185,7 +185,7 @@ export default function ChatRoom({ sessionId, onBack, onClose }) {
                     onClick={() => fileInputRef.current?.click()}
                     className="w-full text-left px-3 py-2.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg flex items-center gap-2 transition-colors border border-dashed border-blue-200 dark:border-blue-800 mb-2 font-medium"
                   >
-                    <IoCloudUploadOutline size={18} /> 내 PC에서 새 파일 업로드
+                    <IoCloudUploadOutline size={18} /> 파일 업로드
                   </button>
 
                   <div className="px-2 pt-1 pb-0.5 text-[10px] font-semibold text-slate-400 dark:text-slate-500">최근 문서</div>

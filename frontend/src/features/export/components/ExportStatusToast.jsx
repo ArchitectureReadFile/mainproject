@@ -7,8 +7,8 @@ import {
     AlertCircle,
 } from 'lucide-react'
 
-import { Button } from '@/components/ui/Button'
-import { cn } from '@/lib/utils'
+import { Button } from '@/shared/ui/Button'
+import { cn } from '@/shared/lib/utils'
 
 const EXPORT_STATUS_LABEL = {
     PENDING: '다운로드 준비 중입니다.',

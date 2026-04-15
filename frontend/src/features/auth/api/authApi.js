@@ -1,4 +1,4 @@
-import client from '@/api/client'
+import client from '@/shared/api/client'
 
 export async function loginApi(email, password) {
   const response = await client.post('/auth/login', { email, password })
@@ -39,11 +39,6 @@ export const reactivateAccount = async (credentials) => {
 
 export const updatePassword = async (data) => {
   await client.patch("/auth/password", data);
-};
-
-export const updateEmail = async (newEmail) => {
-  const response = await client.patch("/auth/email", { new_email: newEmail });
-  return response.data;
 };
 
 export const updateUsername = async (newUsername) => {
