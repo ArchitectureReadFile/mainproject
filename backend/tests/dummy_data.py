@@ -24,6 +24,33 @@ users = [
     },
 ]
 
+editor_user_data = {
+    "id": 3,
+    "email": "editor@example.com",
+    "username": "편집자",
+    "password": "password123!",
+    "role": "GENERAL",
+    "is_active": True,
+}
+
+uploader_user_data = {
+    "id": 4,
+    "email": "uploader@example.com",
+    "username": "업로더",
+    "password": "password123!",
+    "role": "GENERAL",
+    "is_active": True,
+}
+
+other_uploader_user_data = {
+    "id": 5,
+    "email": "other_uploader@example.com",
+    "username": "다른업로더",
+    "password": "password123!",
+    "role": "GENERAL",
+    "is_active": True,
+}
+
 groups = [
     {
         "id": 1,

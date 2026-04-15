@@ -3,6 +3,7 @@ import os
 from errors import AppException, ErrorCode
 from models.model import (
     DocumentLifecycleStatus,
+    DocumentStatus,
     MembershipRole,
     MembershipStatus,
     ReviewStatus,
@@ -61,6 +62,21 @@ class DocumentService:
         if not summary:
             return ""
         return build_summary_preview(summary)
+
+    @staticmethod
+    def _assert_classification_editable(doc) -> None:
+        """
+        문서 분류 수정 가능 상태인지 검증한다.
+        삭제 대기 문서는 수정할 수 없고, 처리 완료 문서만 수정할 수 있다.
+        """
+        if doc.lifecycle_status == DocumentLifecycleStatus.DELETE_PENDING:
+            raise AppException(ErrorCode.DOC_ALREADY_DELETE_PENDING)
+
+        if doc.lifecycle_status != DocumentLifecycleStatus.ACTIVE:
+            raise AppException(ErrorCode.DOC_NOT_FOUND)
+
+        if doc.processing_status != DocumentStatus.DONE:
+            raise AppException(ErrorCode.DOC_CLASSIFICATION_EDIT_NOT_ALLOWED)
 
     def get_list(
         self,
@@ -246,12 +262,18 @@ class DocumentService:
 
     def update_classification(
         self, doc_id: int, group_id: int, *, document_type: str, category: str
-    ) -> None:
-        doc = self.repository.get_by_id(doc_id)
+    ) -> dict[str, str]:
+        """
+        문서 분류를 수동 수정한다.
+        승인 상태는 변경하지 않으며, 승인 완료 문서는 수정 후 재인덱싱한다.
+        """
+        doc = self.repository.get_detail(doc_id)
         if not doc:
             raise AppException(ErrorCode.DOC_NOT_FOUND)
         if doc.group_id != group_id:
             raise AppException(ErrorCode.DOC_NOT_FOUND)
+
+        self._assert_classification_editable(doc)
 
         self.repository.update_classification(
             doc_id, document_type=document_type, category=category
@@ -263,6 +285,12 @@ class DocumentService:
             from tasks.group_document_task import index_approved_document
 
             index_approved_document.delay(doc_id)
+
+        return {
+            "message": "문서 분류가 수정되었습니다.",
+            "document_type": document_type,
+            "category": category,
+        }
 
     def get_unclassified_list(
         self, group_id: int, skip: int = 0, limit: int = 50

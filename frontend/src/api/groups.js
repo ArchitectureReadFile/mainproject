@@ -146,6 +146,14 @@ export async function deleteGroupDocument(groupId, docId) {
     await client.delete(`/groups/${groupId}/documents/${docId}`)
 }
 
+export async function updateDocumentClassification(groupId, docId, payload) {
+    const { data } = await client.patch(
+        `/groups/${groupId}/documents/${docId}/classification`,
+        payload
+    )
+    return data
+}
+
 export async function getPendingDocuments(
     groupId,
     {
@@ -167,8 +175,6 @@ export async function getPendingDocuments(
     })
     return data
 }
-
-
 
 
 /**
