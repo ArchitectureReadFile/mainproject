@@ -4,7 +4,7 @@ from errors import AppException, ErrorCode
 
 
 def test_social_login_success(client):
-    with patch("services.oauth_service.OAuthService.get_google_auth_url") as mock_url:
+    with patch("domains.oauth.service.OAuthService.get_google_auth_url") as mock_url:
         mock_url.return_value = "https://accounts.google.com/o/oauth2/v2/auth"
         response = client.get("/api/auth/social/google/login", follow_redirects=False)
         assert response.status_code == 307
@@ -12,7 +12,7 @@ def test_social_login_success(client):
 
 
 def test_social_login_failure_invalid_provider(client):
-    with patch("services.oauth_service.OAuthService.get_frontend_url") as mock_url:
+    with patch("domains.oauth.service.OAuthService.get_frontend_url") as mock_url:
         mock_url.return_value = "http://localhost:5173"
         response = client.get("/api/auth/social/invalid/login", follow_redirects=False)
         assert response.status_code == 307
@@ -21,7 +21,7 @@ def test_social_login_failure_invalid_provider(client):
 
 def test_social_callback_success(client):
     with patch(
-        "services.oauth_service.OAuthService.process_social_callback"
+        "domains.oauth.service.OAuthService.process_social_callback"
     ) as mock_process:
         mock_process.return_value = {
             "action": "login",
@@ -39,7 +39,7 @@ def test_social_callback_success(client):
 
 def test_social_callback_failure_process(client):
     with patch(
-        "services.oauth_service.OAuthService.process_social_callback"
+        "domains.oauth.service.OAuthService.process_social_callback"
     ) as mock_process:
         mock_process.return_value = {
             "action": "redirect",
@@ -54,7 +54,7 @@ def test_social_callback_failure_process(client):
 
 def test_unlink_social_account_success(authenticated_client):
     with patch(
-        "services.oauth_service.OAuthService.unlink_social_account"
+        "domains.oauth.service.OAuthService.unlink_social_account"
     ) as mock_unlink:
         response = authenticated_client.delete("/api/auth/social/google/unlink")
         assert response.status_code == 200
@@ -64,7 +64,7 @@ def test_unlink_social_account_success(authenticated_client):
 
 def test_unlink_social_account_failure_not_found(authenticated_client):
     with patch(
-        "services.oauth_service.OAuthService.unlink_social_account",
+        "domains.oauth.service.OAuthService.unlink_social_account",
         side_effect=AppException(ErrorCode.AUTH_FORBIDDEN),
     ):
         response = authenticated_client.delete("/api/auth/social/github/unlink")

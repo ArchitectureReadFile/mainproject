@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from schemas.knowledge import (
+from domains.knowledge.schemas import (
     KnowledgeRetrievalRequest,
     RetrievedKnowledgeItem,
     WorkspaceSelection,
@@ -38,7 +38,7 @@ def _item(
 
 @pytest.fixture
 def svc():
-    from services.knowledge.knowledge_retrieval_service import KnowledgeRetrievalService
+    from domains.knowledge.knowledge_retrieval_service import KnowledgeRetrievalService
 
     return KnowledgeRetrievalService()
 
@@ -86,7 +86,7 @@ class TestIncludeConditions:
 
 class TestWorkspaceFailClosed:
     def test_documents_mode_returns_empty(self):
-        from services.knowledge.workspace_knowledge_retriever import (
+        from domains.knowledge.workspace_knowledge_retriever import (
             WorkspaceKnowledgeRetriever,
         )
 
@@ -101,7 +101,7 @@ class TestWorkspaceFailClosed:
         )
 
         with patch(
-            "services.knowledge.workspace_knowledge_retriever.retrieve_group_documents"
+            "domains.knowledge.workspace_knowledge_retriever.retrieve_group_documents"
         ) as mock_retrieve:
             result = retriever.retrieve(req)
 
@@ -109,7 +109,7 @@ class TestWorkspaceFailClosed:
         mock_retrieve.assert_not_called()
 
     def test_all_mode_calls_retrieve(self):
-        from services.knowledge.workspace_knowledge_retriever import (
+        from domains.knowledge.workspace_knowledge_retriever import (
             WorkspaceKnowledgeRetriever,
         )
 
@@ -122,7 +122,7 @@ class TestWorkspaceFailClosed:
         )
 
         with patch(
-            "services.knowledge.workspace_knowledge_retriever.retrieve_group_documents",
+            "domains.knowledge.workspace_knowledge_retriever.retrieve_group_documents",
             return_value=[],
         ) as mock_retrieve:
             retriever.retrieve(req)

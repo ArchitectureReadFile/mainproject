@@ -1,6 +1,6 @@
 """tests/unit/test_precedent_chunk_builder.py"""
 
-from services.precedent.chunk_builder import (
+from domains.precedent.chunk_builder import (
     MAX_CHUNK_CHARS,
     build_chunks_from_precedent_document,
     build_precedent_document,

@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from schemas.knowledge import RetrievedKnowledgeItem
-from services.knowledge.answer_context_builder import AnswerContextBuilder
+from domains.knowledge.answer_context_builder import AnswerContextBuilder
+from domains.knowledge.schemas import RetrievedKnowledgeItem
 from settings.knowledge import (
     ANSWER_CONTEXT_PLATFORM_TEXT_MAX,
     ANSWER_CONTEXT_PLATFORM_TOP_K,

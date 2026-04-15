@@ -13,10 +13,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from domains.document.extract_service import DocumentExtractService, ExtractedDocument
+from domains.document.normalize_service import DocumentNormalizeService
 from errors import AppException, ErrorCode
-from services.document_extract_service import DocumentExtractService, ExtractedDocument
-from services.document_normalize_service import DocumentNormalizeService
-from services.ocr.ocr_service import OcrService
+from infra.ocr.ocr_service import OcrService
 from settings.chat import SESSION_DOCUMENT_BODY_MAX, SESSION_DOCUMENT_TABLE_MAX
 
 # ── 테스트용 OCR 스텁 ─────────────────────────────────────────────────────────
@@ -171,8 +171,8 @@ class TestNormalExtract:
             service.extract("/nonexistent/path.pdf")
         assert exc_info.value.error_code == ErrorCode.FILE_NOT_FOUND
 
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
+    @patch("domains.document.extract_service.os.path.exists", return_value=True)
+    @patch("domains.document.extract_service.tempfile.TemporaryDirectory")
     def test_success_returns_extracted_without_ocr(self, mock_tmpdir, _exists):
         mock_tmpdir.return_value = _ctx()
         extracted = _make_extracted(markdown="# 제목\n\n본문 내용입니다.")
@@ -185,8 +185,8 @@ class TestNormalExtract:
         assert result is extracted
         svc._convert.assert_called_once_with("/fake/file.pdf", "/tmp/fake")
 
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
+    @patch("domains.document.extract_service.os.path.exists", return_value=True)
+    @patch("domains.document.extract_service.tempfile.TemporaryDirectory")
     def test_raw_markdown_with_table_accepted(self, mock_tmpdir, _exists):
         mock_tmpdir.return_value = _ctx()
         extracted = _make_extracted(
@@ -200,8 +200,8 @@ class TestNormalExtract:
         result = svc.extract("/fake/file.pdf")
         assert result is extracted
 
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
+    @patch("domains.document.extract_service.os.path.exists", return_value=True)
+    @patch("domains.document.extract_service.tempfile.TemporaryDirectory")
     def test_json_content_fallback_accepted(self, mock_tmpdir, _exists):
         mock_tmpdir.return_value = _ctx()
         json_data = {"kids": [{"type": "paragraph", "content": "JSON 본문입니다."}]}
@@ -219,8 +219,8 @@ class TestNormalExtract:
 
 
 class TestOcrFallbackFromEmptyBody:
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
+    @patch("domains.document.extract_service.os.path.exists", return_value=True)
+    @patch("domains.document.extract_service.tempfile.TemporaryDirectory")
     def test_empty_body_triggers_ocr_and_returns(self, mock_tmpdir, _exists):
         mock_tmpdir.return_value = _ctx()
 
@@ -234,8 +234,8 @@ class TestOcrFallbackFromEmptyBody:
         assert result.json_data is None
         assert result.source_type == "ocr"
 
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
+    @patch("domains.document.extract_service.os.path.exists", return_value=True)
+    @patch("domains.document.extract_service.tempfile.TemporaryDirectory")
     def test_ocr_empty_raises_too_short(self, mock_tmpdir, _exists):
         mock_tmpdir.return_value = _ctx()
 
@@ -247,8 +247,8 @@ class TestOcrFallbackFromEmptyBody:
             svc.extract("/fake/scanned.pdf")
         assert exc_info.value.error_code == ErrorCode.DOC_PDF_TEXT_TOO_SHORT
 
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
+    @patch("domains.document.extract_service.os.path.exists", return_value=True)
+    @patch("domains.document.extract_service.tempfile.TemporaryDirectory")
     def test_ocr_exception_raises_internal_error(self, mock_tmpdir, _exists):
         mock_tmpdir.return_value = _ctx()
 
@@ -267,8 +267,8 @@ class TestOcrFallbackFromEmptyBody:
 
 
 class TestOcrFallbackFromConvertError:
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
+    @patch("domains.document.extract_service.os.path.exists", return_value=True)
+    @patch("domains.document.extract_service.tempfile.TemporaryDirectory")
     def test_convert_error_triggers_ocr_success(self, mock_tmpdir, _exists):
         mock_tmpdir.return_value = _ctx()
 
@@ -282,8 +282,8 @@ class TestOcrFallbackFromConvertError:
         assert result.source_type == "ocr"
         svc._load_results.assert_not_called()
 
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
+    @patch("domains.document.extract_service.os.path.exists", return_value=True)
+    @patch("domains.document.extract_service.tempfile.TemporaryDirectory")
     def test_convert_error_and_ocr_empty_raises_too_short(self, mock_tmpdir, _exists):
         mock_tmpdir.return_value = _ctx()
 
@@ -303,14 +303,14 @@ class TestSessionDocumentPayload:
 
     @pytest.fixture
     def payload_svc(self):
-        from services.chat.session_document_payload_service import (
+        from domains.chat.session_payload import (
             SessionDocumentPayloadService,
         )
 
         return SessionDocumentPayloadService()
 
     def _doc(self, body="", tables=None):
-        from schemas.document_schema import DocumentSchema, DocumentTableBlock
+        from domains.document.document_schema import DocumentSchema, DocumentTableBlock
 
         blocks = [
             DocumentTableBlock(table_id=f"table:{i}", text=t)

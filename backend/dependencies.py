@@ -4,20 +4,20 @@ from redis import Redis
 from sqlalchemy.orm import Session
 
 from database import get_db
+from domains.auth.repository import AuthRepository
+from domains.auth.service import AuthService
+from domains.chat.repository import ChatRepository
+from domains.chat.service import ChatService
+from domains.email.repository import EmailRepository
+from domains.email.service import EmailService
+from domains.notification.repository import NotificationRepository
+from domains.notification.service import NotificationService
+from domains.oauth.repository import OAuthRepository
+from domains.oauth.service import OAuthService
+from domains.workspace.repository import GroupRepository
+from domains.workspace.service import GroupService
 from models.model import User
 from redis_client import redis_client
-from repositories.auth_repository import AuthRepository
-from repositories.chat_repository import ChatRepository
-from repositories.email_repository import EmailRepository
-from repositories.group_repository import GroupRepository
-from repositories.notification_repository import NotificationRepository
-from repositories.oauth_repository import OAuthRepository
-from services.auth_service import AuthService
-from services.chat.chat_service import ChatService
-from services.email_service import EmailService
-from services.group_service import GroupService
-from services.notification_service import NotificationService
-from services.oauth_service import OAuthService
 
 cookie_scheme = APIKeyCookie(name="access_token", auto_error=False)
 

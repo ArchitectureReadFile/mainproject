@@ -33,14 +33,14 @@ class TestPlatformKnowledgeRetrieverMigrationFlag:
     """
 
     def _make_retriever(self):
-        from services.knowledge.platform_knowledge_retriever import (
+        from domains.knowledge.platform_knowledge_retriever import (
             PlatformKnowledgeRetriever,
         )
 
         return PlatformKnowledgeRetriever()
 
     def _make_request(self):
-        from schemas.knowledge import KnowledgeRetrievalRequest
+        from domains.knowledge.schemas import KnowledgeRetrievalRequest
 
         return KnowledgeRetrievalRequest(
             query="판례 검색", include_platform=True, top_k=3
@@ -53,7 +53,7 @@ class TestPlatformKnowledgeRetrieverMigrationFlag:
 
         with (
             patch(
-                "services.knowledge.platform_knowledge_retriever.use_legacy_precedent_corpus",
+                "domains.knowledge.platform_knowledge_retriever.use_legacy_precedent_corpus",
                 return_value=True,
             ),
             patch.object(
@@ -72,7 +72,7 @@ class TestPlatformKnowledgeRetrieverMigrationFlag:
 
         with (
             patch(
-                "services.knowledge.platform_knowledge_retriever.use_legacy_precedent_corpus",
+                "domains.knowledge.platform_knowledge_retriever.use_legacy_precedent_corpus",
                 return_value=False,
             ),
             patch.object(
@@ -108,7 +108,7 @@ class TestPlatformKnowledgeRetrieverMigrationFlag:
 
     def test_include_platform_false_returns_empty(self):
         """include_platform=False이면 두 corpus 모두 검색하지 않는다."""
-        from schemas.knowledge import KnowledgeRetrievalRequest
+        from domains.knowledge.schemas import KnowledgeRetrievalRequest
 
         retriever = self._make_retriever()
         req = KnowledgeRetrievalRequest(query="질문", include_platform=False)
@@ -140,12 +140,12 @@ class TestInterpretationMapperValidation:
     """
 
     def _normalize(self, payload: dict):
-        from services.platform.mappers.interpretation_mapper import normalize
+        from domains.platform_sync.mappers.interpretation_mapper import normalize
 
         return normalize(payload)
 
     def _build_chunks(self, doc, payload: dict):
-        from services.platform.mappers.interpretation_mapper import build_chunks
+        from domains.platform_sync.mappers.interpretation_mapper import build_chunks
 
         return build_chunks(doc, payload)
 
@@ -247,7 +247,7 @@ class TestPlatformDetailPayloadCanonicalization:
     """상세 API wrapper를 mapper 입력용 flat payload로 정리한다."""
 
     def test_precedent_detail_wrapper_is_unwrapped(self):
-        from services.platform.korea_law_open_api_client import (
+        from domains.platform_sync.korea_law_open_api_client import (
             canonicalize_detail_payload,
         )
 
@@ -266,7 +266,7 @@ class TestPlatformDetailPayloadCanonicalization:
         assert result["판시사항"] == "판시사항 본문"
 
     def test_interpretation_detail_wrapper_is_unwrapped(self):
-        from services.platform.korea_law_open_api_client import (
+        from domains.platform_sync.korea_law_open_api_client import (
             canonicalize_detail_payload,
         )
 
@@ -285,7 +285,7 @@ class TestPlatformDetailPayloadCanonicalization:
         assert result["회답"] == "회답"
 
     def test_admin_rule_detail_wrapper_is_unwrapped(self):
-        from services.platform.korea_law_open_api_client import (
+        from domains.platform_sync.korea_law_open_api_client import (
             canonicalize_detail_payload,
         )
 
@@ -304,7 +304,7 @@ class TestPlatformDetailPayloadCanonicalization:
         assert result["조문내용"] == ["제1조 내용"]
 
     def test_law_detail_nested_payload_is_flattened(self):
-        from services.platform.korea_law_open_api_client import (
+        from domains.platform_sync.korea_law_open_api_client import (
             canonicalize_detail_payload,
         )
 
@@ -348,10 +348,10 @@ class TestPlatformDetailPayloadCanonicalization:
 
 class TestPlatformNormalizeServiceWrappedDetails:
     def test_precedent_wrapped_detail_still_builds_chunks(self):
-        from services.platform.korea_law_open_api_client import (
+        from domains.platform_sync.korea_law_open_api_client import (
             canonicalize_detail_payload,
         )
-        from services.platform.platform_document_normalize_service import (
+        from domains.platform_sync.platform_document_normalize_service import (
             PlatformDocumentNormalizeService,
         )
 
@@ -378,10 +378,10 @@ class TestPlatformNormalizeServiceWrappedDetails:
         assert len(chunks) == 3
 
     def test_interpretation_wrapped_detail_still_builds_chunks(self):
-        from services.platform.korea_law_open_api_client import (
+        from domains.platform_sync.korea_law_open_api_client import (
             canonicalize_detail_payload,
         )
-        from services.platform.platform_document_normalize_service import (
+        from domains.platform_sync.platform_document_normalize_service import (
             PlatformDocumentNormalizeService,
         )
 
@@ -416,12 +416,12 @@ class TestAdminRuleMapperValidation:
     """admin_rule mapper validation 및 flatten 테스트."""
 
     def _normalize(self, payload: dict):
-        from services.platform.mappers.admin_rule_mapper import normalize
+        from domains.platform_sync.mappers.admin_rule_mapper import normalize
 
         return normalize(payload)
 
     def _build_chunks(self, doc, payload: dict):
-        from services.platform.mappers.admin_rule_mapper import build_chunks
+        from domains.platform_sync.mappers.admin_rule_mapper import build_chunks
 
         return build_chunks(doc, payload)
 
@@ -616,7 +616,7 @@ class TestAdminRuleMapperValidation:
 
 class TestPlatformIngestionFailurePolicy:
     def _make_service(self):
-        from services.platform.platform_knowledge_ingestion_service import (
+        from domains.platform_sync.platform_knowledge_ingestion_service import (
             PlatformKnowledgeIngestionService,
         )
 
@@ -632,14 +632,14 @@ class TestPlatformIngestionFailurePolicy:
         return db
 
     def test_disabled_source_type_raises_before_raw_save(self):
-        from services.platform.platform_knowledge_ingestion_service import (
+        from domains.platform_sync.platform_knowledge_ingestion_service import (
             PlatformIngestionDisabledError,
         )
 
         svc = self._make_service()
         db = self._mock_db()
         with patch(
-            "services.platform.platform_knowledge_ingestion_service.is_ingestion_enabled",
+            "domains.platform_sync.platform_knowledge_ingestion_service.is_ingestion_enabled",
             return_value=False,
         ):
             with pytest.raises(PlatformIngestionDisabledError, match="비활성"):
@@ -652,14 +652,14 @@ class TestPlatformIngestionFailurePolicy:
         svc._raw_service.upsert.assert_not_called()
 
     def test_disabled_admin_rule_raises(self):
-        from services.platform.platform_knowledge_ingestion_service import (
+        from domains.platform_sync.platform_knowledge_ingestion_service import (
             PlatformIngestionDisabledError,
         )
 
         svc = self._make_service()
         db = self._mock_db()
         with patch(
-            "services.platform.platform_knowledge_ingestion_service.is_ingestion_enabled",
+            "domains.platform_sync.platform_knowledge_ingestion_service.is_ingestion_enabled",
             return_value=False,
         ):
             with pytest.raises(PlatformIngestionDisabledError):
@@ -671,7 +671,7 @@ class TestPlatformIngestionFailurePolicy:
                 )
 
     def test_normalize_failure_raises_after_raw_saved(self):
-        from services.platform.platform_knowledge_ingestion_service import (
+        from domains.platform_sync.platform_knowledge_ingestion_service import (
             PlatformNormalizeError,
         )
 
@@ -691,7 +691,7 @@ class TestPlatformIngestionFailurePolicy:
         svc._indexing_service.index.assert_not_called()
 
     def test_empty_chunks_raises_not_succeeds(self):
-        from services.platform.platform_knowledge_ingestion_service import (
+        from domains.platform_sync.platform_knowledge_ingestion_service import (
             PlatformNormalizeError,
         )
 
@@ -772,13 +772,13 @@ class TestLawExternalIdCanonical:
         }
 
     def test_law_mapper_external_id_is_law_id(self):
-        from services.platform.mappers.law_mapper import normalize
+        from domains.platform_sync.mappers.law_mapper import normalize
 
         doc = normalize(self._make_law_payload("INTERNAL-LAW-ID"))
         assert doc.external_id == "INTERNAL-LAW-ID"
 
     def test_ingestion_forces_canonical_external_id(self):
-        from services.platform.platform_knowledge_ingestion_service import (
+        from domains.platform_sync.platform_knowledge_ingestion_service import (
             PlatformKnowledgeIngestionService,
         )
 
@@ -802,7 +802,7 @@ class TestLawExternalIdCanonical:
         assert doc_arg.external_id == canonical_id
 
     def test_ingestion_preserves_law_id_in_metadata(self):
-        from services.platform.platform_knowledge_ingestion_service import (
+        from domains.platform_sync.platform_knowledge_ingestion_service import (
             PlatformKnowledgeIngestionService,
         )
 
@@ -827,7 +827,7 @@ class TestLawExternalIdCanonical:
         assert doc_arg.metadata.get("law_id") == original_law_id
 
     def test_ingestion_same_id_no_override_needed(self):
-        from services.platform.platform_knowledge_ingestion_service import (
+        from domains.platform_sync.platform_knowledge_ingestion_service import (
             PlatformKnowledgeIngestionService,
         )
 
@@ -852,7 +852,7 @@ class TestLawExternalIdCanonical:
         assert doc_arg.metadata.get("law_id") in (None, same_id)
 
     def test_chunk_external_ids_match_canonical(self):
-        from services.platform.platform_knowledge_ingestion_service import (
+        from domains.platform_sync.platform_knowledge_ingestion_service import (
             PlatformKnowledgeIngestionService,
         )
 
@@ -877,10 +877,10 @@ class TestLawExternalIdCanonical:
             assert chunk.external_id == canonical_id
 
     def test_law_mapper_uses_flattened_basic_info_for_titles(self):
-        from services.platform.korea_law_open_api_client import (
+        from domains.platform_sync.korea_law_open_api_client import (
             canonicalize_detail_payload,
         )
-        from services.platform.mappers.law_mapper import normalize
+        from domains.platform_sync.mappers.law_mapper import normalize
 
         payload = {
             "법령": {
@@ -911,12 +911,12 @@ class TestLawExternalIdCanonical:
 
 class TestAdminRuleListStrMixedPayload:
     def _normalize(self, payload: dict):
-        from services.platform.mappers.admin_rule_mapper import normalize
+        from domains.platform_sync.mappers.admin_rule_mapper import normalize
 
         return normalize(payload)
 
     def _build_chunks(self, doc, payload: dict):
-        from services.platform.mappers.admin_rule_mapper import build_chunks
+        from domains.platform_sync.mappers.admin_rule_mapper import build_chunks
 
         return build_chunks(doc, payload)
 
@@ -1094,7 +1094,7 @@ class TestAdminRuleAnnexFormatter:
 
     def test_plain_text_classified_as_plain(self):
         """자연어 annex는 plain_text로 분류된다."""
-        from services.platform.mappers.admin_rule_annex_formatter import (
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import (
             classify_annex_text,
         )
 
@@ -1103,7 +1103,7 @@ class TestAdminRuleAnnexFormatter:
 
     def test_box_drawing_chars_classified_as_table(self):
         """box-drawing 문자가 많은 annex는 table 또는 diagram_like로 분류된다."""
-        from services.platform.mappers.admin_rule_annex_formatter import (
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import (
             classify_annex_text,
         )
 
@@ -1120,7 +1120,7 @@ class TestAdminRuleAnnexFormatter:
 
     def test_flowchart_keyword_with_steps_classified_as_flowchart(self):
         """흐름도 키워드 + 단계 패턴이 있으면 flowchart로 분류된다."""
-        from services.platform.mappers.admin_rule_annex_formatter import (
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import (
             classify_annex_text,
         )
 
@@ -1129,7 +1129,7 @@ class TestAdminRuleAnnexFormatter:
 
     def test_separator_lines_classified_as_table(self):
         """구분선 반복이 많으면 table로 분류된다."""
-        from services.platform.mappers.admin_rule_annex_formatter import (
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import (
             classify_annex_text,
         )
 
@@ -1140,7 +1140,7 @@ class TestAdminRuleAnnexFormatter:
 
     def test_plain_text_normalized_preserves_content(self):
         """plain_text annex는 내용이 유지되고 연속 공백/개행만 정리된다."""
-        from services.platform.mappers.admin_rule_annex_formatter import (
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import (
             normalize_annex_for_rag,
         )
 
@@ -1152,7 +1152,7 @@ class TestAdminRuleAnnexFormatter:
 
     def test_table_normalized_removes_box_chars(self):
         """table annex 정규화 결과에는 box-drawing 문자 비율이 현저히 줄어든다."""
-        from services.platform.mappers.admin_rule_annex_formatter import (
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import (
             _BOX_CHARS,
             classify_annex_text,
             normalize_annex_for_rag,
@@ -1176,7 +1176,7 @@ class TestAdminRuleAnnexFormatter:
 
     def test_flowchart_normalized_has_step_structure(self):
         """flowchart annex 정규화 결과는 단계형 구조를 갖는다."""
-        from services.platform.mappers.admin_rule_annex_formatter import (
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import (
             normalize_annex_for_rag,
         )
 
@@ -1187,7 +1187,7 @@ class TestAdminRuleAnnexFormatter:
 
     def test_empty_annex_returns_empty(self):
         """빈 annex는 빈 문자열을 반환한다."""
-        from services.platform.mappers.admin_rule_annex_formatter import (
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import (
             normalize_annex_for_rag,
         )
 
@@ -1198,7 +1198,7 @@ class TestAdminRuleAnnexFormatter:
 
     def test_short_annex_creates_single_chunk(self):
         """짧은 annex는 1개 chunk로 생성된다."""
-        from services.platform.mappers.admin_rule_annex_formatter import (
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import (
             build_annex_chunks_text,
         )
 
@@ -1208,7 +1208,7 @@ class TestAdminRuleAnnexFormatter:
 
     def test_very_long_annex_capped_at_max_chunks(self):
         """매우 긴 annex도 최대 2개 chunk로 제한된다."""
-        from services.platform.mappers.admin_rule_annex_formatter import (
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import (
             _MAX_ANNEX_CHUNKS,
             build_annex_chunks_text,
         )
@@ -1220,7 +1220,7 @@ class TestAdminRuleAnnexFormatter:
 
     def test_annex_type_returned_correctly(self):
         """build_annex_chunks_text는 (chunks, annex_type) 튜플을 반환한다."""
-        from services.platform.mappers.admin_rule_annex_formatter import (
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import (
             build_annex_chunks_text,
         )
 
@@ -1236,7 +1236,10 @@ class TestAdminRuleAnnexFormatter:
 
     def test_annex_chunk_has_annex_type_in_metadata(self):
         """build_chunks()로 생성된 annex chunk는 metadata에 annex_type을 갖는다."""
-        from services.platform.mappers.admin_rule_mapper import build_chunks, normalize
+        from domains.platform_sync.mappers.admin_rule_mapper import (
+            build_chunks,
+            normalize,
+        )
 
         payload = {
             "행정규칙기본정보": {
@@ -1261,8 +1264,11 @@ class TestAdminRuleAnnexFormatter:
 
     def test_table_annex_chunk_has_reduced_box_chars(self):
         """표형 별표가 mapper를 통과하면 chunk_text에 box 문자가 거의 없다."""
-        from services.platform.mappers.admin_rule_annex_formatter import _BOX_CHARS
-        from services.platform.mappers.admin_rule_mapper import build_chunks, normalize
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import _BOX_CHARS
+        from domains.platform_sync.mappers.admin_rule_mapper import (
+            build_chunks,
+            normalize,
+        )
 
         table_annex = (
             "┌────────────┬────────────┐\n│  구분       │  내용       │\n"
@@ -1292,7 +1298,10 @@ class TestAdminRuleAnnexFormatter:
 
     def test_plain_annex_chunk_count_is_one(self):
         """짧은 plain_text 별표는 annex chunk 1개로 생성된다."""
-        from services.platform.mappers.admin_rule_mapper import build_chunks, normalize
+        from domains.platform_sync.mappers.admin_rule_mapper import (
+            build_chunks,
+            normalize,
+        )
 
         payload = {
             "행정규칙기본정보": {
@@ -1319,10 +1328,13 @@ class TestAdminRuleAnnexFormatter:
 
     def test_very_long_annex_via_mapper_capped(self):
         """mapper를 통해도 매우 긴 별표는 최대 2개 annex chunk로 제한된다."""
-        from services.platform.mappers.admin_rule_annex_formatter import (
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import (
             _MAX_ANNEX_CHUNKS,
         )
-        from services.platform.mappers.admin_rule_mapper import build_chunks, normalize
+        from domains.platform_sync.mappers.admin_rule_mapper import (
+            build_chunks,
+            normalize,
+        )
 
         long_annex = "별표 항목 내용입니다. " * 800
         payload = {
@@ -1344,8 +1356,8 @@ class TestAdminRuleAnnexFormatter:
 
     def test_body_text_does_not_contain_raw_box_chars(self):
         """표형 별표의 box 문자가 body_text에 그대로 섞이지 않는다."""
-        from services.platform.mappers.admin_rule_annex_formatter import _BOX_CHARS
-        from services.platform.mappers.admin_rule_mapper import normalize
+        from domains.platform_sync.mappers.admin_rule_annex_formatter import _BOX_CHARS
+        from domains.platform_sync.mappers.admin_rule_mapper import normalize
 
         table_annex = (
             "┌────────────┬────────────┐\n│  구분       │  내용       │\n"
@@ -1370,7 +1382,10 @@ class TestAdminRuleAnnexFormatter:
 
     def test_rule_addendum_chunks_unaffected(self):
         """annex 전략 변경이 rule/addendum chunk 생성에 영향을 주지 않는다."""
-        from services.platform.mappers.admin_rule_mapper import build_chunks, normalize
+        from domains.platform_sync.mappers.admin_rule_mapper import (
+            build_chunks,
+            normalize,
+        )
 
         payload = {
             "행정규칙기본정보": {

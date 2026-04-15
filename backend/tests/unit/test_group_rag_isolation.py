@@ -15,8 +15,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from qdrant_client.http import models as qmodels
 
-from services.rag import bm25_store
-from services.rag.vector_store import _passes_filter
+from domains.rag import bm25_store
+from domains.rag.vector_store import _passes_filter
 
 # ── bm25_store corpus 분리 테스트 ─────────────────────────────────────────────
 
@@ -34,7 +34,7 @@ def fake_redis(monkeypatch):
     import fakeredis
 
     r = fakeredis.FakeRedis(decode_responses=True)
-    monkeypatch.setattr("services.rag.bm25_store._redis", r)
+    monkeypatch.setattr("domains.rag.bm25_store._redis", r)
     return r
 
 
@@ -130,10 +130,15 @@ def test_passes_filter_none():
 
 
 def _make_document(approval_status=None, stored_path="/tmp/fake.pdf"):
+    from models.model import DocumentLifecycleStatus, GroupStatus
+
     doc = MagicMock()
     doc.group_id = 1
     doc.original_filename = "test.pdf"
     doc.stored_path = stored_path
+    doc.lifecycle_status = DocumentLifecycleStatus.ACTIVE
+    doc.group = MagicMock()
+    doc.group.status = GroupStatus.ACTIVE
     if approval_status is None:
         doc.approval = None
     else:
@@ -142,12 +147,12 @@ def _make_document(approval_status=None, stored_path="/tmp/fake.pdf"):
     return doc
 
 
-@patch("tasks.group_document_task.index_group_document")
-@patch("tasks.group_document_task.DocumentRepository")
-@patch("tasks.group_document_task.SessionLocal")
+@patch("domains.document.index_task.index_group_document")
+@patch("domains.document.index_task.DocumentRepository")
+@patch("domains.document.index_task.SessionLocal")
 def test_task_skips_non_approved(mock_session, mock_repo_cls, mock_index):
+    from domains.document.index_task import index_approved_document
     from models.model import ReviewStatus
-    from tasks.group_document_task import index_approved_document
 
     mock_repo = mock_repo_cls.return_value
     mock_repo.get_by_id.return_value = _make_document(ReviewStatus.PENDING_REVIEW)
@@ -159,13 +164,13 @@ def test_task_skips_non_approved(mock_session, mock_repo_cls, mock_index):
     mock_index.assert_not_called()
 
 
-@patch("tasks.group_document_task.index_group_document", return_value=5)
-@patch("tasks.group_document_task.DocumentRepository")
-@patch("tasks.group_document_task.SessionLocal")
+@patch("domains.document.index_task.index_group_document", return_value=5)
+@patch("domains.document.index_task.DocumentRepository")
+@patch("domains.document.index_task.SessionLocal")
 @patch("os.path.exists", return_value=True)
 def test_task_indexes_approved(mock_exists, mock_session, mock_repo_cls, mock_index):
+    from domains.document.index_task import index_approved_document
     from models.model import ReviewStatus
-    from tasks.group_document_task import index_approved_document
 
     mock_repo = mock_repo_cls.return_value
     mock_repo.get_by_id.return_value = _make_document(ReviewStatus.APPROVED)
@@ -177,11 +182,11 @@ def test_task_indexes_approved(mock_exists, mock_session, mock_repo_cls, mock_in
     mock_index.assert_called_once()
 
 
-@patch("tasks.group_document_task.index_group_document")
-@patch("tasks.group_document_task.DocumentRepository")
-@patch("tasks.group_document_task.SessionLocal")
+@patch("domains.document.index_task.index_group_document")
+@patch("domains.document.index_task.DocumentRepository")
+@patch("domains.document.index_task.SessionLocal")
 def test_task_skips_missing_document(mock_session, mock_repo_cls, mock_index):
-    from tasks.group_document_task import index_approved_document
+    from domains.document.index_task import index_approved_document
 
     mock_repo = mock_repo_cls.return_value
     mock_repo.get_by_id.return_value = None

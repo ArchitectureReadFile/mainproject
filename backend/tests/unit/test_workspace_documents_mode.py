@@ -26,7 +26,7 @@ from unittest.mock import patch
 
 import pytest
 
-from schemas.knowledge import KnowledgeRetrievalRequest, WorkspaceSelection
+from domains.knowledge.schemas import KnowledgeRetrievalRequest, WorkspaceSelection
 
 # ── A. BM25 document_ids 필터 ────────────────────────────────────────────────
 
@@ -37,16 +37,16 @@ class TestBM25DocumentsFilter:
         import fakeredis
 
         r = fakeredis.FakeRedis(decode_responses=True)
-        monkeypatch.setattr("services.rag.bm25_store._redis", r)
+        monkeypatch.setattr("domains.rag.bm25_store._redis", r)
         return r
 
     def _insert(self, chunk_id, document_id, group_id, text):
-        from services.rag import bm25_store
+        from domains.rag import bm25_store
 
         bm25_store.upsert_document_chunk(chunk_id, document_id, group_id, text)
 
     def test_document_ids_whitelist_excludes_other_docs(self, fake_redis):
-        from services.rag import bm25_store
+        from domains.rag import bm25_store
 
         self._insert("gdoc:10:chunk:0", document_id=10, group_id=1, text="납세 고지서")
         self._insert("gdoc:20:chunk:0", document_id=20, group_id=1, text="납세 고지서")
@@ -60,7 +60,7 @@ class TestBM25DocumentsFilter:
         assert "gdoc:20:chunk:0" not in chunk_ids
 
     def test_all_mode_returns_all_group_docs(self, fake_redis):
-        from services.rag import bm25_store
+        from domains.rag import bm25_store
 
         self._insert("gdoc:10:chunk:0", document_id=10, group_id=1, text="납세 고지서")
         self._insert("gdoc:20:chunk:0", document_id=20, group_id=1, text="납세 고지서")
@@ -73,7 +73,7 @@ class TestBM25DocumentsFilter:
         assert "gdoc:20:chunk:0" in chunk_ids
 
     def test_empty_document_ids_returns_empty(self, fake_redis):
-        from services.rag import bm25_store
+        from domains.rag import bm25_store
 
         self._insert("gdoc:10:chunk:0", document_id=10, group_id=1, text="납세")
 
@@ -83,7 +83,7 @@ class TestBM25DocumentsFilter:
         assert results == []
 
     def test_document_id_not_in_group_returns_empty(self, fake_redis):
-        from services.rag import bm25_store
+        from domains.rag import bm25_store
 
         # doc 30은 group 2에 속함
         self._insert("gdoc:30:chunk:0", document_id=30, group_id=2, text="납세")
@@ -113,21 +113,21 @@ class TestRetrievalServiceWhitelist:
         }
 
     def test_documents_mode_filters_out_non_whitelisted(self):
-        from schemas.search import SearchMode
-        from services.rag.group_document_retrieval_service import (
+        from domains.rag.group_document_retrieval_service import (
             retrieve_group_documents,
         )
+        from domains.rag.schemas import SearchMode
 
         # Qdrant가 whitelist 밖 문서를 반환했다고 가정
         mock_hits = [self._make_hit(10), self._make_hit(99)]
 
         with (
             patch(
-                "services.rag.group_document_retrieval_service.embed_query",
+                "domains.rag.group_document_retrieval_service.embed_query",
                 return_value=[0.1] * 768,
             ),
-            patch("services.rag.group_document_retrieval_service.vector_store") as mv,
-            patch("services.rag.group_document_retrieval_service.bm25_store"),
+            patch("domains.rag.group_document_retrieval_service.vector_store") as mv,
+            patch("domains.rag.group_document_retrieval_service.bm25_store"),
         ):
             mv.search.return_value = mock_hits
 
@@ -144,20 +144,20 @@ class TestRetrievalServiceWhitelist:
         assert 99 not in doc_ids
 
     def test_all_mode_does_not_filter_by_document_id(self):
-        from schemas.search import SearchMode
-        from services.rag.group_document_retrieval_service import (
+        from domains.rag.group_document_retrieval_service import (
             retrieve_group_documents,
         )
+        from domains.rag.schemas import SearchMode
 
         mock_hits = [self._make_hit(10), self._make_hit(20)]
 
         with (
             patch(
-                "services.rag.group_document_retrieval_service.embed_query",
+                "domains.rag.group_document_retrieval_service.embed_query",
                 return_value=[0.1] * 768,
             ),
-            patch("services.rag.group_document_retrieval_service.vector_store") as mv,
-            patch("services.rag.group_document_retrieval_service.bm25_store"),
+            patch("domains.rag.group_document_retrieval_service.vector_store") as mv,
+            patch("domains.rag.group_document_retrieval_service.bm25_store"),
         ):
             mv.search.return_value = mock_hits
 
@@ -177,18 +177,18 @@ class TestRetrievalServiceWhitelist:
         """mode='documents'일 때 Qdrant query_filter에 MatchAny 조건이 들어가는지."""
         from qdrant_client.http import models as qmodels
 
-        from schemas.search import SearchMode
-        from services.rag.group_document_retrieval_service import (
+        from domains.rag.group_document_retrieval_service import (
             retrieve_group_documents,
         )
+        from domains.rag.schemas import SearchMode
 
         with (
             patch(
-                "services.rag.group_document_retrieval_service.embed_query",
+                "domains.rag.group_document_retrieval_service.embed_query",
                 return_value=[0.1] * 768,
             ),
-            patch("services.rag.group_document_retrieval_service.vector_store") as mv,
-            patch("services.rag.group_document_retrieval_service.bm25_store"),
+            patch("domains.rag.group_document_retrieval_service.vector_store") as mv,
+            patch("domains.rag.group_document_retrieval_service.bm25_store"),
         ):
             mv.search.return_value = []
 
@@ -227,10 +227,10 @@ class TestWorkspaceKnowledgeRetrieverDocumentsMode:
         mode="documents" + document_ids 있음 → 현재 fail-closed.
         retrieve_group_documents 호출하지 않고 빈 결과 반환.
         """
-        from schemas.search import SearchMode
-        from services.knowledge.workspace_knowledge_retriever import (
+        from domains.knowledge.workspace_knowledge_retriever import (
             WorkspaceKnowledgeRetriever,
         )
+        from domains.rag.schemas import SearchMode
 
         retriever = WorkspaceKnowledgeRetriever()
         req = KnowledgeRetrievalRequest(
@@ -243,7 +243,7 @@ class TestWorkspaceKnowledgeRetrieverDocumentsMode:
         )
 
         with patch(
-            "services.knowledge.workspace_knowledge_retriever.retrieve_group_documents"
+            "domains.knowledge.workspace_knowledge_retriever.retrieve_group_documents"
         ) as mock_retrieve:
             results = retriever.retrieve(req, search_mode=SearchMode.dense)
 
@@ -252,10 +252,10 @@ class TestWorkspaceKnowledgeRetrieverDocumentsMode:
 
     def test_all_mode_calls_retrieve_with_no_document_ids(self):
         """mode="all" → retrieve_group_documents 호출, document_ids=None."""
-        from schemas.search import SearchMode
-        from services.knowledge.workspace_knowledge_retriever import (
+        from domains.knowledge.workspace_knowledge_retriever import (
             WorkspaceKnowledgeRetriever,
         )
+        from domains.rag.schemas import SearchMode
 
         retriever = WorkspaceKnowledgeRetriever()
         req = KnowledgeRetrievalRequest(
@@ -266,7 +266,7 @@ class TestWorkspaceKnowledgeRetrieverDocumentsMode:
         )
 
         with patch(
-            "services.knowledge.workspace_knowledge_retriever.retrieve_group_documents",
+            "domains.knowledge.workspace_knowledge_retriever.retrieve_group_documents",
             return_value=[],
         ) as mock_retrieve:
             retriever.retrieve(req, search_mode=SearchMode.dense)
@@ -277,7 +277,7 @@ class TestWorkspaceKnowledgeRetrieverDocumentsMode:
 
     def test_documents_mode_empty_ids_returns_empty_without_retrieve(self):
         """빈 document_ids도 retrieve_group_documents를 호출하지 않고 빈 결과."""
-        from services.knowledge.workspace_knowledge_retriever import (
+        from domains.knowledge.workspace_knowledge_retriever import (
             WorkspaceKnowledgeRetriever,
         )
 
@@ -290,7 +290,7 @@ class TestWorkspaceKnowledgeRetrieverDocumentsMode:
         )
 
         with patch(
-            "services.knowledge.workspace_knowledge_retriever.retrieve_group_documents"
+            "domains.knowledge.workspace_knowledge_retriever.retrieve_group_documents"
         ) as mock_retrieve:
             results = retriever.retrieve(req)
 

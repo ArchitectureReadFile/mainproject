@@ -12,6 +12,8 @@ from sqlalchemy.pool import StaticPool
 
 import database
 from database import Base, get_db
+from domains.auth.router import get_current_user
+from domains.auth.service import AuthService
 from main import app
 from models.model import (
     Document,
@@ -30,8 +32,6 @@ from models.model import (
     utc_now_naive,
 )
 from redis_client import redis_client
-from routers.auth import get_current_user
-from services.auth_service import AuthService
 from tests.dummy_data import documents, groups, summaries, users
 
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
@@ -61,10 +61,10 @@ def fake_redis():
 @pytest.fixture(autouse=True)
 def stub_async_side_effects(monkeypatch, fake_redis):
     """테스트 중 Redis/Celery 외부 부수효과를 no-op으로 막는다."""
-    import services.group_service as group_service_module
-    import tasks.file_cleanup_task as file_cleanup_task_module
-    from services.notification_service import NotificationService
-    from tasks.group_document_task import deindex_document, index_approved_document
+    import domains.document.file_cleanup_task as file_cleanup_task_module
+    import domains.workspace.service as group_service_module
+    from domains.document.index_task import deindex_document, index_approved_document
+    from domains.notification.service import NotificationService
 
     monkeypatch.setattr(
         NotificationService,
@@ -74,12 +74,12 @@ def stub_async_side_effects(monkeypatch, fake_redis):
     monkeypatch.setattr(
         deindex_document,
         "delay",
-        lambda document_id: None,
+        lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(
         index_approved_document,
         "delay",
-        lambda document_id: None,
+        lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(group_service_module, "redis_client", fake_redis)
     monkeypatch.setattr(file_cleanup_task_module, "redis_client", fake_redis)

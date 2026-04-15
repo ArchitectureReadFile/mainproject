@@ -6,10 +6,10 @@ DocumentNormalizeService + DocumentSummaryPayloadService 단위 테스트.
 
 import pytest
 
-from schemas.document_schema import DocumentSchema, DocumentTableBlock
-from services.document_extract_service import ExtractedDocument
-from services.document_normalize_service import DocumentNormalizeService
-from services.summary.document_summary_payload_service import (
+from domains.document.document_schema import DocumentSchema, DocumentTableBlock
+from domains.document.extract_service import ExtractedDocument
+from domains.document.normalize_service import DocumentNormalizeService
+from domains.document.summary_payload import (
     DocumentSummaryPayloadService,
 )
 
