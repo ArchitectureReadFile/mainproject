@@ -149,8 +149,8 @@ export default function NotificationBell() {
                 const isInvite = type === 'WORKSPACE_INVITED'
                 const status = n.inviteStatus
 
-                const showButtons = isInvite && !status && !n.is_read
-                const isClickable = !isInvite || status === 'accepted' || (n.is_read && status !== 'rejected')
+                const showButtons = isInvite && !status
+                const isClickable = !isInvite || status === 'accepted' || (status !== 'rejected')
 
                 return (
                   <div
@@ -187,7 +187,7 @@ export default function NotificationBell() {
                           </div>
                         )}
 
-                        {(status === 'accepted' || (n.is_read && isInvite && status !== 'rejected')) && (
+                        {status === 'accepted' && (
                           <div className="flex items-center gap-1 mt-2">
                             <Check size={10} className="text-blue-600" />
                             <p className="text-[10px] text-blue-600 font-black">승인 완료</p>
