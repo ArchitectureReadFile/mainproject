@@ -888,6 +888,18 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_OWNER)
 
         self.repository.change_member_role(target_membership, role)
+
+        self.notification_service.create_notification_sync(
+            user_id=target_id,
+            actor_user_id=changer_id,
+            group_id=group_id,
+            type=NotificationType.WORKSPACE_MEMBER_UPDATE,
+            title="워크스페이스 권한 변경 알림",
+            body=f"'{group.name}' 워크스페이스 권한이 {role.value}(으)로 변경되었습니다.",
+            target_type="group",
+            target_id=group_id,
+        )
+
         self.db.commit()
 
     def transfer_owner(self, user_id: int, group_id: int, target_id: int) -> None:
@@ -912,6 +924,29 @@ class GroupService:
             raise AppException(ErrorCode.GROUP_NOT_PREMIUM)
 
         self.repository.transfer_owner(group, user_id, target_id)
+
+        self.notification_service.create_notification_sync(
+            user_id=user_id,
+            actor_user_id=user_id,
+            group_id=group_id,
+            type=NotificationType.WORKSPACE_MEMBER_UPDATE,
+            title="워크스페이스 오너 양도 알림",
+            body=f"'{group.name}' 워크스페이스 오너 권한을 양도했습니다. 이제 ADMIN 권한으로 참여합니다.",
+            target_type="group",
+            target_id=group_id,
+        )
+
+        self.notification_service.create_notification_sync(
+            user_id=target_id,
+            actor_user_id=user_id,
+            group_id=group_id,
+            type=NotificationType.WORKSPACE_MEMBER_UPDATE,
+            title="워크스페이스 오너 양도 알림",
+            body=f"'{group.name}' 워크스페이스의 새 OWNER가 되었습니다.",
+            target_type="group",
+            target_id=group_id,
+        )
+
         self.db.commit()
 
     def leave_group(self, user_id: int, group_id: int) -> None:
