@@ -969,7 +969,7 @@ class GroupService:
 
     def leave_group(self, user_id: int, group_id: int) -> None:
         """현재 사용자가 OWNER가 아닌 경우 워크스페이스를 탈퇴"""
-        _, role = self.assert_view_permission(user_id, group_id)
+        group, role = self.assert_view_permission(user_id, group_id)
 
         if role == MembershipRole.OWNER:
             raise AppException(ErrorCode.GROUP_OWNER_CANNOT_LEAVE)
@@ -978,5 +978,30 @@ class GroupService:
         if not membership:
             raise AppException(ErrorCode.GROUP_MEMBER_NOT_FOUND)
 
+        leaving_user = self.repository.get_user_by_id(user_id)
+        active_members = self.repository.get_members(group_id)
+
         self.repository.remove_member(membership)
+
+        for member, user in active_members:
+            if user.id == user_id:
+                continue
+
+            if member.role not in (
+                MembershipRole.OWNER,
+                MembershipRole.ADMIN,
+            ):
+                continue
+
+            self.notification_service.create_notification_sync(
+                user_id=user.id,
+                actor_user_id=user_id,
+                group_id=group_id,
+                type=NotificationType.WORKSPACE_MEMBER_UPDATE,
+                title="워크스페이스 멤버 탈퇴 알림",
+                body=f"{leaving_user.username}님이 '{group.name}' 워크스페이스에서 탈퇴했습니다.",
+                target_type="group",
+                target_id=group_id,
+            )
+
         self.db.commit()
