@@ -335,7 +335,7 @@ export default function LoginSignupForm({ view, setView, onClose }) {
               type="button"
               variant="outline"
               className="w-11 h-11 rounded-full p-0  bg-muted/5 hover:border-muted-foreground/40 hover:bg-muted/10 transition-all shadow-none"
-              onClick={() => window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/auth/social/google/login`}
+              onClick={() => window.location.href = `/api/auth/social/google/login`}
             >
               <svg width="18" height="18" viewBox="0 0 18 18">
                 <path d="M17.64 9.2c0-.63-.06-1.25-.16-1.84H9v3.49h4.84a4.14 4.14 0 0 1-1.8 2.71v2.26h2.91c1.71-1.58 2.69-3.9 2.69-6.62z" fill="#4285F4" />
@@ -348,7 +348,7 @@ export default function LoginSignupForm({ view, setView, onClose }) {
               type="button"
               variant="outline"
               className="w-11 h-11 rounded-full p-0  bg-muted/5 hover:border-muted-foreground/40 hover:bg-muted/10 transition-all shadow-none"
-              onClick={() => window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/auth/social/github/login`}
+              onClick={() => window.location.href = `/api/auth/social/github/login`}
             >
               <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" className="text-muted-foreground">
                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
