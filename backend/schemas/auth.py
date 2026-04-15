@@ -80,10 +80,6 @@ class UpdatePasswordRequest(BaseModel):
         return v
 
 
-class UpdateEmailRequest(BaseModel):
-    new_email: EmailStr = Field(..., min_length=5, max_length=255)
-
-
 class SubscribePremiumRequest(BaseModel):
     confirm: bool = True
 

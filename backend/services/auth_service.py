@@ -26,7 +26,6 @@ from schemas.auth import (
     SignupRequest,
     SubscribePremiumRequest,
     SubscriptionResponse,
-    UpdateEmailRequest,
     UpdatePasswordRequest,
     UserResponse,
 )
@@ -238,30 +237,6 @@ class AuthService:
             self.auth_repo.commit()
         else:
             pass
-
-    def update_email(
-        self,
-        redis_client: Redis,
-        user_id: int,
-        payload: UpdateEmailRequest,
-    ) -> tuple[UserResponse, str, str]:
-        new_email = payload.new_email.strip().lower()
-
-        user = self.auth_repo.get_user_by_id(user_id)
-        if not user:
-            raise AppException(ErrorCode.USER_NOT_FOUND)
-
-        if new_email != user.email:
-            if not redis_client.get(f"email_verified:{new_email}"):
-                raise AppException(ErrorCode.USER_EMAIL_NOT_VERIFIED)
-
-            user.email = new_email
-            self.auth_repo.commit()
-
-            redis_client.delete(f"email_verified:{new_email}")
-
-        access_token, refresh_token = self._issue_tokens(redis_client, new_email)
-        return self.to_user_response(user), access_token, refresh_token
 
     def hash_password(self, password: str) -> str:
         if len(password.encode("utf-8")) > 72:

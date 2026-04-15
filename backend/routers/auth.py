@@ -16,7 +16,6 @@ from schemas.auth import (
     ResetPasswordRequest,
     SignupRequest,
     SubscribePremiumRequest,
-    UpdateEmailRequest,
     UpdatePasswordRequest,
     UpdateUsernameRequest,
     UserResponse,
@@ -146,21 +145,6 @@ def update_password(
     auth_service: AuthService = Depends(get_auth_service),
 ):
     auth_service.update_password(current_user.id, payload)
-
-
-@router.patch("/email", response_model=UserResponse)
-def update_email(
-    payload: UpdateEmailRequest,
-    response: Response,
-    redis: Redis = Depends(get_redis),
-    current_user: User = Depends(get_current_user),
-    auth_service: AuthService = Depends(get_auth_service),
-):
-    user_resp, access_token, refresh_token = auth_service.update_email(
-        redis, current_user.id, payload
-    )
-    CookieService.set_auth_cookies(response, access_token, refresh_token)
-    return user_resp
 
 
 @router.post("/subscription/subscribe", response_model=UserResponse)

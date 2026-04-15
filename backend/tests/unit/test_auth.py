@@ -342,21 +342,6 @@ def test_update_password_failure_invalid_credentials(authenticated_client):
     assert response.status_code == 401
 
 
-def test_update_email_success(authenticated_client, fake_redis):
-    new_email = "new_valid@example.com"
-    fake_redis.set(f"email_verified:{new_email}", "1")
-    payload = {"new_email": new_email}
-    response = authenticated_client.patch("/api/auth/email", json=payload)
-    assert response.status_code == 200
-    assert response.json()["email"] == new_email
-
-
-def test_update_email_failure_not_verified(authenticated_client):
-    payload = {"new_email": "unverified@example.com"}
-    response = authenticated_client.patch("/api/auth/email", json=payload)
-    assert response.status_code == 401
-
-
 def test_subscribe_premium_success(authenticated_client):
     payload = {"confirm": True}
     response = authenticated_client.post(
