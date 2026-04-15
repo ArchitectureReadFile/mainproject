@@ -1,5 +1,5 @@
 """
-services/admin_service.py
+domains/admin/service.py
 
 어드민 관련 비즈니스 로직.
 - 통계/사용량 조회

@@ -1,5 +1,5 @@
 """
-services/rag/vector_store.py
+domains/rag/vector_store.py
 
 벡터 DB 인터페이스 레이어.
 현재 구현체: Qdrant
@@ -265,6 +265,77 @@ def delete(precedent_id: int) -> None:
 def delete_document(document_id: int) -> None:
     _delete_by_field("document_id", document_id)
     logger.info("Qdrant delete 완료: document_id=%s", document_id)
+
+
+def get_document_chunk_ids(document_id: int) -> set[str]:
+    """document_id에 속한 현재 chunk_id 집합을 반환한다."""
+    client = _get_client()
+    existing = [c.name for c in client.get_collections().collections]
+    if QDRANT_COLLECTION not in existing:
+        return set()
+
+    chunk_ids: set[str] = set()
+    offset = None
+
+    while True:
+        points, offset = client.scroll(
+            collection_name=QDRANT_COLLECTION,
+            scroll_filter=qmodels.Filter(
+                must=[
+                    qmodels.FieldCondition(
+                        key="document_id",
+                        match=qmodels.MatchValue(value=document_id),
+                    )
+                ]
+            ),
+            with_payload=True,
+            with_vectors=False,
+            limit=256,
+            offset=offset,
+        )
+        for point in points:
+            payload = point.payload or {}
+            chunk_id = payload.get("chunk_id")
+            if chunk_id:
+                chunk_ids.add(chunk_id)
+        if offset is None:
+            break
+
+    return chunk_ids
+
+
+def delete_document_chunks(document_id: int, chunk_ids: set[str]) -> None:
+    """document_id 범위에서 지정한 stale chunk_id만 삭제한다."""
+    if not chunk_ids:
+        return
+
+    client = _get_client()
+    existing = [c.name for c in client.get_collections().collections]
+    if QDRANT_COLLECTION not in existing:
+        return
+
+    client.delete(
+        collection_name=QDRANT_COLLECTION,
+        points_selector=qmodels.FilterSelector(
+            filter=qmodels.Filter(
+                must=[
+                    qmodels.FieldCondition(
+                        key="document_id",
+                        match=qmodels.MatchValue(value=document_id),
+                    ),
+                    qmodels.FieldCondition(
+                        key="chunk_id",
+                        match=qmodels.MatchAny(any=sorted(chunk_ids)),
+                    ),
+                ]
+            )
+        ),
+    )
+    logger.info(
+        "Qdrant stale chunk delete 완료: document_id=%s (%d chunks)",
+        document_id,
+        len(chunk_ids),
+    )
 
 
 def _delete_by_field(field: str, value: int) -> None:

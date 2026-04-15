@@ -1,3 +1,3 @@
 """
-services/platform/mappers/__init__.py
+domains/platform_sync/mappers/__init__.py
 """

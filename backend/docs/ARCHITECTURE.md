@@ -1,6 +1,6 @@
 # Backend Architecture — Document Pipeline & Chat Knowledge Flow
 
-> 작성 기준: 문서 분류 시스템 구현 완료 시점
+> 작성 기준: 문서 분류 + normalized cache + 승인 인덱싱 정합화 완료 시점
 > 대상 독자: 신규 합류 개발자, 구조 파악이 필요한 팀원
 
 ---
@@ -13,34 +13,29 @@ PDF 업로드부터 분류/요약/인덱싱까지의 흐름.
 PDF 파일
   │
   ▼
-DocumentExtractService          services/document_extract_service.py
-  - opendataloader-pdf hybrid OCR 호출
-  - scanned/image PDF 포함 단일 추출 경로
-  - 반환: ExtractedDocument(markdown, json_data, source_type)
+DocumentSchemaResolver.get_or_create()    domains/document/document_schema_resolver.py
+  - normalized cache(runtime/normalized_documents/{id}.json)를 먼저 확인
+  - cache hit: ExtractedDocument 생략, DocumentSchema 직접 반환
+  - cache miss: ExtractService → NormalizeService 호출 후 저장
+  - 반환: DocumentSchema (source of truth)
   │
   ▼
-DocumentNormalizeService        services/document_normalize_service.py
-  - extractor가 넘긴 source_type 사용 (odl | ocr)
-  - body_text, table_blocks, pages, metadata 생성
-  - 반환: DocumentSchema
-  │
-  ▼
-DocumentClassificationService   services/document_classification_service.py
+DocumentClassificationService             domains/document/classification_service.py
   - title + body_text(최대 3000자) → LLM 단일 호출
   - 반환: {document_type, category}
   - 허용값 외 응답 및 LLM 오류 → "미분류" fallback (파이프라인 중단 없음)
   │
   ▼
-Document.document_type          repositories/document_repository.py
-Document.category               update_classification() → DB commit
+Document.document_type                    domains/document/repository.py
+Document.category                         update_classification() → DB commit
   (source of truth)
   │
   ▼
-DocumentSummaryPayloadService   services/summary/document_summary_payload_service.py
+DocumentSummaryPayloadService             domains/document/summary_payload.py
   - [본문]/[표] LLM 입력 문자열 조립
   │
   ▼
-LLMService.summarize()          services/summary/llm_service.py
+LLMService.summarize()                    domains/document/summary_llm_service.py
   - summary_text, key_points 생성
   - document_type는 추출하지 않음 (분류는 별도 단계에서 완료)
   │
@@ -48,6 +43,11 @@ LLMService.summarize()          services/summary/llm_service.py
 SummaryRepository.create_summary()
   - summary_text, key_points 저장
   - metadata: {"source": "group_document_summary"} (보조 기록)
+  │
+  ▼
+processing_status = DONE → approval 상태 확인
+  - APPROVED 이면 index_approved_document.delay() 호출
+  - 미승인이면 스킵 (approve_document() 쪽에서 enqueue)
   │
   ▼
 DONE
@@ -65,35 +65,60 @@ DONE
 - `document_type`, `category` → `Document` 모델이 유일한 source of truth
 - summary metadata는 보조 기록 전용이며, 어떤 화면/서비스도 분류 기준으로 읽지 않는다
 - PDF 생성, 목록/상세 응답, 운영 조회 전부 `Document.document_type` / `Document.category` 직접 참조
+- **DocumentSchema는 처리 중간 산출물이다. 오직 `Document` 모델만이 source of truth다.**
 
 ### 핵심 계약
 
 | 타입 | 위치 | 역할 |
 |---|---|---|
-| `ExtractedDocument` | `document_extract_service.py` | 추출기 원본 (raw) |
-| `DocumentSchema` | `schemas/document_schema.py` | 정규화된 공통 소비 계약 |
-| `DocumentTableBlock` | `schemas/document_schema.py` | 표 단위 객체 |
-| `DocumentPage` | `schemas/document_schema.py` | 페이지 단위 (v1: 전체 = 1페이지) |
+| `ExtractedDocument` | `domains/document/extract_service.py` | 추출기 원본 (raw) |
+| `DocumentSchema` | `domains/document/document_schema.py` | 정규화된 공통 소비 계약 |
+| `DocumentTableBlock` | `domains/document/document_schema.py` | 표 단위 객체 |
+| `DocumentPage` | `domains/document/document_schema.py` | 페이지 단위 (v1: 전체 = 1페이지) |
 
 ---
 
 ## 2. 승인 후 RAG 인덱싱
 
 승인(APPROVE) 전에는 RAG 인덱싱을 수행하지 않는다.
-승인 시점에 `index_approved_document` Celery task가 호출된다.
+승인 시점 또는 process 완료 시점에 `index_approved_document` Celery task가 호출된다.
+
+**인덱싱 enqueue 시점 규칙:**
+
+| 시나리오 | 인덱싱 enqueue 시점 |
+|---|---|
+| 일반 승인 (처리 완료 후 승인) | `approve_document()` 시점 — processing_status==DONE 확인 후 |
+| 조기 승인 (승인 후 시간이 지나 처리 완료) | `process_file()` 완료 시점 — APPROVED 확인 후 |
+| auto-approved 업로드 (OWNER/ADMIN) | 동일: `process_file()` 완료 시점에 APPROVED 확인 후 |
 
 ```
+[approve_document() 경로 — processing_status==DONE 일 때]
 DocumentReviewService.approve_document()
   │
   ├─ DocumentApproval.status = APPROVED → DB commit
   │
-  └─ index_approved_document.delay(document_id)   tasks/group_document_task.py
-       │
-       ▼
-     index_group_document()     services/rag/group_document_indexing_service.py
-       - extract → normalize → chunk
-       - document.document_type / document.category → 각 chunk payload에 포함
-       - Qdrant + BM25 저장
+  └─ doc.processing_status == DONE
+       └─▶ index_approved_document.delay(doc.id)
+
+[process_file() 완료 경로 — auto-approved / 조기 승인 포함]
+ProcessService.process_file()
+  │
+  ├─ processing_status = DONE → DB commit
+  │
+  └─ approval.status == APPROVED 확인
+       └─▶ index_approved_document.delay(document_id)
+
+[index task]
+index_approved_document.delay(document_id)    domains/document/index_task.py
+  │
+  ├─ lifecycle_status / group_status stale 확인
+  ├─ approval.status == APPROVED 재확인 (guard)
+  │
+  ▼
+index_group_document()    domains/rag/group_document_indexing_service.py
+  - DocumentSchemaResolver.get_or_create() → DocumentSchema(cache)
+  - document.document_type / document.category → 각 chunk payload에 포함
+  - Qdrant + BM25 저장
 ```
 
 ### chunk payload 계약
@@ -110,7 +135,8 @@ DocumentReviewService.approve_document()
 | `category` | `Document.category` 값 (metadata) |
 
 `document_type` / `category`는 현재 chunk payload metadata로 저장된다.
-검색 boost 연결은 별도 설계 후 추가 예정이다.
+인덱싱 시점에는 반드시 DB에 저장된 값이어야 하므로,
+process_file 완료 후 enqueue하는 구조가 stale metadata 인덱싱을 방지한다.
 
 ---
 
@@ -147,7 +173,7 @@ GET /groups/{group_id}/documents/unclassified
 사용자 메시지
   │
   ▼
-ChatProcessor.process_chat()     services/chat/chat_processor.py
+ChatProcessor.process_chat()     domains/chat/processor.py
   │
   ├─ KnowledgeRetrievalRequest 생성
   │    include_platform=True (항상)
@@ -155,7 +181,7 @@ ChatProcessor.process_chat()     services/chat/chat_processor.py
   │    include_session=bool(reference_document_text)
   │
   ▼
-KnowledgeRetrievalService        services/knowledge/knowledge_retrieval_service.py
+KnowledgeRetrievalService        domains/knowledge/knowledge_retrieval_service.py
   │  (sort → dedupe → 반환)
   │
   ├──▶ PlatformKnowledgeRetriever    platform/  판례 RAG (항상 호출)
@@ -169,7 +195,7 @@ KnowledgeRetrievalService        services/knowledge/knowledge_retrieval_service.
          reference_document_text → RetrievedKnowledgeItem (score=1.0)
   │
   ▼
-AnswerContextBuilder.build()     services/knowledge/answer_context_builder.py
+AnswerContextBuilder.build()     domains/knowledge/answer_context_builder.py
   - [플랫폼 지식] / [워크스페이스 문서] / [임시 문서] 블록 조립
   - source별 top-k 및 텍스트 길이 제한
   │
@@ -280,14 +306,16 @@ backend/
 │   │   ├── extract_service.py      ExtractedDocument 생성
 │   │   ├── normalize_service.py    ExtractedDocument → DocumentSchema
 │   │   ├── classification_service.py  DocumentSchema → document_type / category
-│   │   ├── summary_process.py      요약 파이프라인 진입점 (classify → save → summarize → save)
+│   │   ├── document_schema_resolver.py  normalized cache 진입점 (cache hit/miss → DocumentSchema)
+│   │   ├── normalized_document_store.py  cache 저장소 (.json/.tmp/.lock 관리)
+│   │   ├── summary_process.py      요약 파이프라인 진입점 (cache → classify → summarize → DONE → index enqueue)
 │   │   ├── summary_payload.py      DocumentSchema → LLM 입력
 │   │   ├── summary_llm_service.py  LLM 요약 호출
 │   │   └── repository.py           update_classification() — 분류 저장 단일 진입점
 │   │
 │   ├── rag/
 │   │   ├── document_chunk_service.py           DocumentSchema → chunk 리스트
-│   │   ├── group_document_indexing_service.py  extract → normalize → index
+│   │   ├── group_document_indexing_service.py  DocumentSchema(cache) → chunk → index
 │   │   │                                       chunk payload에 document_type/category 포함
 │   │   └── group_document_retrieval_service.py group/document 범위 검색
 │   │
@@ -311,3 +339,58 @@ backend/
 └── models/
     └── model.py                전체 ORM 모델 (domain 분리 전까지 현위치 유지)
 ```
+
+---
+
+## 9. Normalized Document Cache Lifecycle
+
+normalized document cache는 `runtime/normalized_documents/{document_id}.json`에 저장되며
+요약과 인덱싱 양쪽에서 공유한다.
+
+### 재사용 조건 (세 조건 모두 충족 시 cache 재사용)
+
+| 조건 | 설명 |
+|---|---|
+| `schema_version` 일치 | DocumentSchema 구조 버전 (`v1` 고정) |
+| `normalization_version` 일치 | NormalizeService 구현 버전 |
+| source fingerprint 일치 | 파일 size/mtime/sha256 모두 동일 |
+
+### fingerprint 비교 전략
+
+```
+1단계 (fast path): os.stat 기반 size + mtime 비교
+  └─ 일치 → sha256 계산 없이 즉시 cache 재사용
+  └─ 불일치 → 2단계
+
+2단계 (slow path): sha256 포함 full fingerprint 계산
+  └─ 일치 → cache 재사용
+  └─ 불일치 → extract → normalize → 저장
+```
+
+### 파일 구조
+
+| 파일 | 역할 |
+|---|---|
+| `{id}.json` | normalized DocumentSchema 본체 |
+| `{id}.json.tmp` | atomic write 중간 파일. 정상 완료 시 자동 정리된다. |
+| `{id}.lock` | fcntl 동시 작성 차단용. 중단 시 남을 수 있으나 안전하게 재사용 가능하다. |
+
+### cache cleanup lifecycle
+
+```
+문서 최종 삭제 (DELETED 상태 전환)
+  │
+  ▼
+enqueue_document_file_cleanup(document_id)
+  │
+  ▼
+cleanup_document_files Celery task
+  - stored_path 삭제
+  - preview_pdf_path 삭제
+  - NormalizedDocumentStore.get_cleanup_paths(document_id)
+      └─ {id}.json, {id}.json.tmp, {id}.lock 삭제 (없으면 skip)
+```
+
+- cleanup은 idempotent: 파일이 없어도 예외 없이 skip
+- cache 소실된 뒤 다시 필요하면 extract/normalize 시 자동 복구
+- 이 파일들은 언제든 삭제해도 안전하다 (DB와 원본 파일이 source of truth)

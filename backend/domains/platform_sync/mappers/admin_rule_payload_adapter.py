@@ -1,5 +1,5 @@
 """
-services/platform/mappers/admin_rule_payload_adapter.py
+domains/platform_sync/mappers/admin_rule_payload_adapter.py
 
 행정규칙(AdmRulService) 응답을 mapper가 읽기 쉬운 canonical payload로 정리한다.
 

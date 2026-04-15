@@ -1,5 +1,5 @@
 """
-services/platform/mappers/admin_rule_mapper.py
+domains/platform_sync/mappers/admin_rule_mapper.py
 
 국가법령정보 행정규칙 API 응답 → PlatformDocumentSchema 정규화.
 

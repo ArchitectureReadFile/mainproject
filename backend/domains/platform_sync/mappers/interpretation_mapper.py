@@ -1,5 +1,5 @@
 """
-services/platform/mappers/interpretation_mapper.py
+domains/platform_sync/mappers/interpretation_mapper.py
 
 국가법령정보 법령해석례 API 응답 → PlatformDocumentSchema 정규화.
 

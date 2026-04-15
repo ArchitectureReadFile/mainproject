@@ -1,5 +1,5 @@
 """
-services/chat/session_document_payload_service.py
+domains/chat/session_payload.py
 
 DocumentSchema → 세션 저장용 단일 텍스트 조립.
 

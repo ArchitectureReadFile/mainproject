@@ -1,5 +1,5 @@
 """
-services/platform/korea_law_open_api_client.py
+domains/platform_sync/korea_law_open_api_client.py
 
 국가법령정보 공동활용 Open API 호출 클라이언트.
 

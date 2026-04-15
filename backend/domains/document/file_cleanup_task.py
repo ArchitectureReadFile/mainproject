@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 from celery_app import celery_app
 from database import SessionLocal
+from domains.document.normalized_document_store import NormalizedDocumentStore
 from models.model import Document
 from redis_client import redis_client
 
@@ -42,7 +43,11 @@ def _normalize_local_path(path: str) -> str:
 
 
 def _get_document_file_paths(document: Document) -> list[str]:
-    """문서에서 삭제 대상 로컬 파일 경로를 중복 없이 수집한다."""
+    """문서에서 삭제 대상 로컬 파일 경로를 중복 없이 수집한다.
+
+    stored_path, preview_pdf_path 외에
+    normalized document cache (.json / .json.tmp / .lock)도 포함한다.
+    """
     seen: set[str] = set()
     paths: list[str] = []
 
@@ -56,6 +61,14 @@ def _get_document_file_paths(document: Document) -> list[str]:
 
         seen.add(normalized)
         paths.append(normalized)
+
+    # normalized document cache: document_id 기준 .json / .json.tmp / .lock
+    store = NormalizedDocumentStore()
+    for cache_path in store.get_cleanup_paths(document.id):
+        path_str = str(cache_path)
+        if path_str not in seen:
+            seen.add(path_str)
+            paths.append(path_str)
 
     return paths
 

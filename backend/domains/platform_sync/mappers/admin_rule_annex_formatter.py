@@ -1,5 +1,5 @@
 """
-services/platform/mappers/admin_rule_annex_formatter.py
+domains/platform_sync/mappers/admin_rule_annex_formatter.py
 
 행정규칙 별표(annex) 원문을 RAG 검색용 텍스트로 정규화한다.
 

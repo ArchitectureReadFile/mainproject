@@ -1,5 +1,5 @@
 """
-services/platform/platform_knowledge_indexing_service.py
+domains/platform_sync/platform_knowledge_indexing_service.py
 
 Platform Knowledge normalized document → DB 저장 + BM25/Qdrant 적재.
 

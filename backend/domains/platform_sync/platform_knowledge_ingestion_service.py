@@ -1,5 +1,5 @@
 """
-services/platform/platform_knowledge_ingestion_service.py
+domains/platform_sync/platform_knowledge_ingestion_service.py
 
 공공 API 호출 → raw 저장 → normalize → chunk → index orchestration.
 

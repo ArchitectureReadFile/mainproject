@@ -1,5 +1,5 @@
 """
-services/platform/platform_document_normalize_service.py
+domains/platform_sync/platform_document_normalize_service.py
 
 공공 API raw payload → PlatformDocumentSchema + PlatformChunkSchema 정규화.
 

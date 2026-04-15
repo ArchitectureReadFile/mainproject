@@ -1,5 +1,5 @@
 """
-services/platform/mappers/precedent_mapper.py
+domains/platform_sync/mappers/precedent_mapper.py
 
 국가법령정보 판례 API 응답 → PlatformDocumentSchema 정규화.
 

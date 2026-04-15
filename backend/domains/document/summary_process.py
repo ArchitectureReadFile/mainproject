@@ -1,16 +1,34 @@
+"""domains/document/summary_process.py
+
+문서 처리 파이프라인 진입점 (Celery task 호출 경로).
+
+흐름: extract/normalize(cache) → classify → summarize → DONE → index enqueue
+
+■ normalized document cache 재사용:
+    DocumentSchemaResolver.get_or_create()를 통해 DocumentSchema를 얻는다.
+    직접 DocumentExtractService / DocumentNormalizeService를 호출하지 않는다.
+    cache hit 시 원본 파일 I/O를 생략한다.
+
+■ 승인 연동 계약 (auto-approved 및 early-approved 포함):
+    processing_status == DONE 설정 직후 approval 상태를 다시 확인한다.
+    - APPROVED 이면 즉시 index_approved_document.delay() 호출
+    - 미승인이면 스킵 (이후 approve_document() 쪽에서 enqueue)
+    이 계약 덕분에 auto-approved 업로드 / 조기 승인 두 경우 모두 정상 인덱싱된다.
+"""
+
 import logging
+import os
 
 from database import SessionLocal
 from domains.document.classification_service import DocumentClassificationService
-from domains.document.extract_service import DocumentExtractService
-from domains.document.normalize_service import DocumentNormalizeService
+from domains.document.document_schema_resolver import DocumentSchemaResolver
 from domains.document.repository import DocumentRepository
 from domains.document.summary_llm_service import LLMService
 from domains.document.summary_payload import (
     DocumentSummaryPayloadService,
 )
 from domains.document.summary_repository import SummaryRepository
-from models.model import DocumentStatus
+from models.model import DocumentStatus, ReviewStatus
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +36,7 @@ logger = logging.getLogger(__name__)
 class ProcessService:
     def __init__(self):
         self.llm = LLMService()
-        self.extractor = DocumentExtractService()
-        self.normalizer = DocumentNormalizeService()
+        self.document_resolver = DocumentSchemaResolver()
         self.classifier = DocumentClassificationService()
         self.summary_payload = DocumentSummaryPayloadService()
 
@@ -55,13 +72,21 @@ class ProcessService:
                 repository.update_status(document_id, DocumentStatus.PROCESSING)
                 db.commit()
 
-            # 1. extract → normalize
-            extracted = self.extractor.extract(file_path)
-            document = self.normalizer.normalize(extracted)
+            # 1. normalized document 로드 또는 생성
+            document = self.document_resolver.get_or_create(
+                document_id=document_id,
+                file_path=file_path,
+            )
 
             # 2. classify
+            current_document = repository.get_by_id(document_id)
+            title = (
+                current_document.original_filename
+                if current_document and current_document.original_filename
+                else os.path.basename(file_path)
+            )
             classification = self.classifier.classify(
-                title=document.metadata.get("title"),
+                title=title,
                 body_text=document.body_text,
             )
             logger.info(
@@ -99,6 +124,25 @@ class ProcessService:
 
             repository.update_status(document_id, DocumentStatus.DONE)
             db.commit()
+
+            # 처리 완료 후 approval 상태를 다시 확인해 APPROVED면 인덱싱 enqueue
+            # (auto-approved 문서와 조기 승인 문서 모두 이 경로를 통해 인덱싱됨)
+            current_doc = repository.get_by_id(document_id)
+            approval = getattr(current_doc, "approval", None) if current_doc else None
+            if approval is not None and approval.status == ReviewStatus.APPROVED:
+                from domains.document.index_task import index_approved_document
+
+                index_approved_document.delay(document_id)
+                logger.info(
+                    "[process_file] APPROVED 확인 후 index enqueue: doc_id=%s",
+                    document_id,
+                )
+            else:
+                logger.info(
+                    "[process_file] 인덱싱 스킵 (approval_status=%s): doc_id=%s",
+                    approval.status.value if approval else "no_approval",
+                    document_id,
+                )
 
         except Exception as e:
             db.rollback()

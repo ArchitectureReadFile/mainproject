@@ -81,11 +81,11 @@ class TestIncludeConditions:
         assert any(i.knowledge_type == "session" for i in result)
 
 
-# ── workspace fail-closed ─────────────────────────────────────────────────────
+# ── workspace retrieval contract ──────────────────────────────────────────────
 
 
-class TestWorkspaceFailClosed:
-    def test_documents_mode_returns_empty(self):
+class TestWorkspaceRetrievalContract:
+    def test_documents_mode_calls_retrieve_with_whitelist(self):
         from domains.knowledge.workspace_knowledge_retriever import (
             WorkspaceKnowledgeRetriever,
         )
@@ -101,14 +101,16 @@ class TestWorkspaceFailClosed:
         )
 
         with patch(
-            "domains.knowledge.workspace_knowledge_retriever.retrieve_group_documents"
+            "domains.knowledge.workspace_knowledge_retriever.retrieve_group_documents",
+            return_value=[],
         ) as mock_retrieve:
             result = retriever.retrieve(req)
 
         assert result == []
-        mock_retrieve.assert_not_called()
+        mock_retrieve.assert_called_once()
+        assert mock_retrieve.call_args[1]["document_ids"] == [1, 2]
 
-    def test_all_mode_calls_retrieve(self):
+    def test_all_mode_calls_retrieve_without_whitelist(self):
         from domains.knowledge.workspace_knowledge_retriever import (
             WorkspaceKnowledgeRetriever,
         )
@@ -128,6 +130,7 @@ class TestWorkspaceFailClosed:
             retriever.retrieve(req)
 
         mock_retrieve.assert_called_once()
+        assert mock_retrieve.call_args[1]["document_ids"] is None
 
 
 # ── dedupe (6단계 보정: sort → dedupe 순서 보장) ──────────────────────────────

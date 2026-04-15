@@ -1,5 +1,5 @@
 """
-services/rag/bm25_store.py
+domains/rag/bm25_store.py
 
 BM25 키워드 검색 레이어. chunk 단위 저장.
 
@@ -383,6 +383,40 @@ def delete_document(document_id: int) -> None:
     logger.info(
         "BM25 delete (그룹문서) 완료: document_id=%s (%d chunks)",
         document_id,
+        len(chunk_ids),
+    )
+
+
+def get_document_chunk_ids(document_id: int) -> set[str]:
+    """document_id에 속한 현재 BM25 chunk_id 집합을 반환한다."""
+    r = _get_redis()
+    return set(r.smembers(f"{_DID_KEY_PREFIX}{document_id}"))
+
+
+def delete_document_chunks(
+    document_id: int, group_id: int, chunk_ids: set[str]
+) -> None:
+    """document_id/group_id 범위에서 지정한 stale chunk_id만 삭제한다."""
+    if not chunk_ids:
+        return
+
+    r = _get_redis()
+    did_key = f"{_DID_KEY_PREFIX}{document_id}"
+    gid_key = f"{_GID_KEY_PREFIX}{group_id}"
+
+    for chunk_id in chunk_ids:
+        r.hdel(_D_DOCS_KEY, chunk_id)
+        r.lrem(_D_IDS_KEY, 1, chunk_id)
+        r.srem(did_key, chunk_id)
+        r.srem(gid_key, chunk_id)
+
+    if r.scard(did_key) == 0:
+        r.delete(did_key)
+    r.incr(_D_REV_KEY)
+    logger.info(
+        "BM25 stale chunk delete 완료: document_id=%s, group_id=%s (%d chunks)",
+        document_id,
+        group_id,
         len(chunk_ids),
     )
 

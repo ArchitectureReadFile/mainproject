@@ -1,5 +1,5 @@
 """
-services/document_normalize_service.py
+domains/document/normalize_service.py
 
 ExtractedDocument → DocumentSchema 정규화 계층.
 
@@ -31,6 +31,10 @@ _NORMALIZATION_VERSION = "v1"
 
 
 class DocumentNormalizeService:
+    @property
+    def normalization_version(self) -> str:
+        return _NORMALIZATION_VERSION
+
     def normalize(self, extracted: ExtractedDocument) -> DocumentSchema:
         source_type = extracted.source_type
 
@@ -112,6 +116,7 @@ class DocumentNormalizeService:
         pages: list[DocumentPage],
     ) -> dict:
         return {
+            "schema_version": "v1",
             "extraction_source": source_type,
             "has_tables": len(table_blocks) > 0,
             "page_count": len(pages),

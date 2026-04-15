@@ -1,5 +1,5 @@
 """
-services/summary/document_summary_payload_service.py
+domains/document/summary_payload.py
 
 DocumentSchema -> summary LLM 입력 문자열 조립.
 

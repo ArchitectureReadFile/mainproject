@@ -1,5 +1,5 @@
 """
-services/admin_platform_service.py
+domains/admin/platform_service.py
 
 어드민 공공 데이터 source 전체 최신화 서비스.
 
