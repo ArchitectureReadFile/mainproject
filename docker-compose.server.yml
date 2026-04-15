@@ -11,10 +11,10 @@
 # server overlay에서 모든 서비스를 동일한 app-network로 명시해 서비스명 통신을 보장한다.
 # db, redis, qdrant 포함 전 서비스가 app-network에 속한다.
 #
-# [업로드 볼륨 구조]
-# backend_uploads named volume을 backend 계열 전 서비스에 /app/uploads로 공유한다.
-# backend가 저장한 파일을 document_worker 등 celery worker가 동일 경로로 읽을 수 있어야 하기 때문.
-# 프론트엔드 업스트림 포트: frontend:80 (운영 이미지는 nginx 정적 서빙, 개발용 변경 시 함께 수정 필요)
+# [런타임 볼륨 구조]
+# backend_runtime named volume을 backend 계열 전 서비스에 /app/runtime으로 공유한다.
+# uploads / exports / cache / celery beat schedule을 한 루트에서 일관되게 관리하기 위함이다.
+# 프론트엔드 업스트림 포트: frontend:3000 (운영 이미지는 nginx 정적 서빙)
 
 services:
   # ───────────────────────────────────────────
@@ -33,7 +33,7 @@ services:
 
   # ───────────────────────────────────────────
   # Backend: production command, 외부 env 참조
-  # backend_uploads volume을 /app/uploads에 마운트해 worker와 파일 공유
+  # backend_runtime volume을 /app/runtime에 마운트해 worker와 런타임 산출물을 공유
   # ───────────────────────────────────────────
   backend:
     image: ${DOCKER_HUB_USER}/jiyun-backend:latest
@@ -42,10 +42,11 @@ services:
     env_file: !override
       - D:/jiyun-env/backend.env
     environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
       - TZ=UTC
     restart: unless-stopped
     volumes:
-      - backend_uploads:/app/uploads
+      - backend_runtime:/app/runtime
     ports: []
     networks:
       - app-network
@@ -55,7 +56,7 @@ services:
   # chat      → 병렬 처리
   # document  → 한 번에 1개 (업로드 파일 직접 접근 필수)
   # platform  → 한 번에 1개
-  # 모두 backend_uploads volume을 동일 경로(/app/uploads)로 마운트
+  # 모두 backend_runtime volume을 동일 경로(/app/runtime)로 마운트
   # ───────────────────────────────────────────
   chat_worker:
     image: ${DOCKER_HUB_USER}/jiyun-backend:latest
@@ -64,9 +65,10 @@ services:
     env_file: !override
       - D:/jiyun-env/backend.env
     environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
       - TZ=UTC
     volumes:
-      - backend_uploads:/app/uploads
+      - backend_runtime:/app/runtime
     networks:
       - app-network
 
@@ -77,9 +79,10 @@ services:
     env_file: !override
       - D:/jiyun-env/backend.env
     environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
       - TZ=UTC
     volumes:
-      - backend_uploads:/app/uploads
+      - backend_runtime:/app/runtime
     networks:
       - app-network
 
@@ -90,22 +93,24 @@ services:
     env_file: !override
       - D:/jiyun-env/backend.env
     environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
       - TZ=UTC
     volumes:
-      - backend_uploads:/app/uploads
+      - backend_runtime:/app/runtime
     networks:
       - app-network
 
   celery_beat:
     image: ${DOCKER_HUB_USER}/jiyun-backend:latest
     container_name: celery_beat_container
-    command: celery -A celery_app beat --loglevel=info
+    command: celery -A celery_app beat --loglevel=info --schedule runtime/celery/beat-schedule
     env_file: !override
       - D:/jiyun-env/backend.env
     environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
       - TZ=UTC
     volumes:
-      - backend_uploads:/app/uploads
+      - backend_runtime:/app/runtime
     networks:
       - app-network
 
@@ -125,6 +130,17 @@ services:
 
   qdrant:
     ports: []
+    networks:
+      - app-network
+
+  odl_hybrid:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: odl_hybrid_container
+    command: opendataloader-pdf-hybrid --host 0.0.0.0 --port 5002 --force-ocr --ocr-lang ko,en
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - TZ=UTC
     networks:
       - app-network
 
@@ -181,4 +197,4 @@ networks:
     driver: bridge
 
 volumes:
-  backend_uploads:
+  backend_runtime:

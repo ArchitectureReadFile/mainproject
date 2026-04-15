@@ -1,6 +1,6 @@
-import { Badge } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
-import { Card, CardFooter, CardHeader } from '@/components/ui/Card'
+import { Badge } from '@/shared/ui/badge'
+import { Button } from '@/shared/ui/Button'
+import { Card, CardFooter, CardHeader } from '@/shared/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -8,10 +8,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
-import { Label } from '@/components/ui/Label'
-import { Textarea } from '@/components/ui/Textarea'
+} from '@/shared/ui/Dialog'
+import { Input } from '@/shared/ui/Input'
+import { Label } from '@/shared/ui/label'
+import { Textarea } from '@/shared/ui/textarea'
 import {
   Calendar,
   FileText,
@@ -24,8 +24,8 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createGroup, getMyGroups } from '../../api/groups'
-import { calcKoreanDday, formatKoreanDate } from '@/lib/datetime'
+import { createGroup, getMyGroups } from '@/shared/api/groups'
+import { calcKoreanDday, formatKoreanDate } from '@/shared/lib/datetime'
 
 const ROLE_STYLE = {
   OWNER: { label: 'OWNER', variant: 'default' },

@@ -1,4 +1,4 @@
-import client from '@/api/client'
+import client from '@/shared/api/client'
 
 export const sendVerificationCode = async (email) => {
   const response = await client.post('/email/send-verification-code', { email })

@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/Button'
+import { Button } from '@/shared/ui/Button'
 import { CheckCircle, Clock3, FileText, Loader2, X, XCircle } from 'lucide-react'
 
 function getDisplayState(it) {

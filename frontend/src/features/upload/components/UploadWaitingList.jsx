@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/Button'
+import { Button } from '@/shared/ui/Button'
 import { FileText, X } from 'lucide-react'
 
 export default function UploadWaitingList({ items, onRemove }) {

@@ -86,16 +86,16 @@ class PlatformKnowledgeIndexingService:
             )
             return pd, 0
 
-        # 2. 기존 인덱스 정리 (재인덱싱 안전)
-        self._deindex_chunks(db, pd.id)
-
-        # 3. chunk_id_str 생성 및 DB 저장
-        db_chunks = self._upsert_chunks(db, pd, chunks)
-        db.flush()
-
-        # 4. 배치 임베딩
+        # 2. 배치 임베딩을 먼저 완료한다.
         texts = [c.chunk_text for c in chunks]
         embeddings = embed_passages(texts)
+
+        # 3. 새 인덱스 준비가 끝난 뒤 기존 인덱스 교체
+        self._deindex_chunks(db, pd.id)
+
+        # 4. chunk_id_str 생성 및 DB 저장
+        db_chunks = self._upsert_chunks(db, pd, chunks)
+        db.flush()
 
         # 5. Qdrant + BM25 적재
         for db_chunk, chunk, embedding in zip(db_chunks, chunks, embeddings):

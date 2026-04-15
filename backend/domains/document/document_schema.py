@@ -62,8 +62,8 @@ class DocumentSchema:
     └──────────────────────────────────────────────┘
 
     source_type:
-        "odl" - opendataloader-pdf 경로 (raw_markdown + raw_json 있음)
-        "ocr" - OCR fallback 경로 (raw_text만 있음)
+        "odl" - 현재 기본 추출 경로 (opendataloader-pdf hybrid OCR 포함)
+        "ocr" - 레거시/호환용 값. 신규 추출에서는 더 이상 기본 사용하지 않음
 
     분류(document_type / category)는 DocumentClassificationService가
     DocumentSchema와 별개로 Document 모델에 직접 저장한다.

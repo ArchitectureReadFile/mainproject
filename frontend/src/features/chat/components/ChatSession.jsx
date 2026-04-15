@@ -1,6 +1,6 @@
-import { Avatar, AvatarFallback } from "@/components/ui/Avatar.jsx";
-import { Button } from "@/components/ui/Button.jsx";
-import { Input } from "@/components/ui/Input.jsx";
+import { Avatar, AvatarFallback } from "@/shared/ui/avatar.jsx";
+import { Button } from "@/shared/ui/Button.jsx";
+import { Input } from "@/shared/ui/Input.jsx";
 import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -16,7 +16,7 @@ import {
   IoSend,
   IoStop
 } from 'react-icons/io5';
-import { getMyGroups } from '../../../api/groups';
+import { getMyGroups } from '@/shared/api/groups';
 import { useChat } from '../hooks/useChat.js';
 
 export default function ChatSession({ session, onBack, onClose, onUpdateSession }) {
@@ -263,7 +263,7 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
                     onClick={() => fileInputRef.current?.click()}
                     className="w-full text-left px-3 py-2.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg flex items-center gap-2 transition-colors border border-dashed border-blue-200 dark:border-blue-800 mb-2 font-medium"
                   >
-                    <IoCloudUploadOutline size={18} /> 내 PC에서 새 파일 업로드
+                    <IoCloudUploadOutline size={18} /> 파일 업로드
                   </button>
                 </>
               )}

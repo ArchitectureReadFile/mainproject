@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { IoAdd, IoTrashOutline, IoPencilOutline, IoCheckmarkOutline, IoClose } from 'react-icons/io5';
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Button } from "@/shared/ui/Button";
+import { Input } from "@/shared/ui/Input";
 import { useChatSessions } from '../hooks/useChatSessions';
 
 export default function ChatList({ onSelectRoom, onClose, refreshTrigger }) {

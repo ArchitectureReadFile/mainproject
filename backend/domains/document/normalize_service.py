@@ -4,7 +4,7 @@ services/document_normalize_service.py
 ExtractedDocument → DocumentSchema 정규화 계층.
 
 책임:
-    - extractor가 넘긴 source_type 사용 (odl | ocr)
+    - extractor가 넘긴 source_type 사용 (현재 기본은 odl, ocr는 레거시 호환용)
     - raw_* 필드 세팅
     - body_text 생성 (ODL: markdown 우선 → json fallback / OCR: raw_text)
     - table_blocks 생성 (ODL json에서만 추출, OCR는 빈 리스트)
@@ -60,7 +60,7 @@ class DocumentNormalizeService:
     ) -> tuple[str | None, dict | list | None, str | None]:
         if source_type == "odl":
             return extracted.markdown or None, extracted.json_data, None
-        # ocr: OCR 원문은 raw_text로 보존 (raw_markdown에 섞지 않음)
+        # ocr: 레거시 호환용. OCR 원문은 raw_text로 보존 (raw_markdown에 섞지 않음)
         return None, None, extracted.markdown or None
 
     # ── body_text ─────────────────────────────────────────────────────────────
@@ -123,7 +123,7 @@ class DocumentNormalizeService:
 
 # ── 내부 헬퍼 ─────────────────────────────────────────────────────────────────
 # ODL JSON에서 body/table을 파싱하는 구현체.
-# DocumentExtractService의 OCR fallback 판단용 헬퍼와 형태가 유사하지만
+# DocumentExtractService의 body 유무 판단용 헬퍼와 형태가 유사하지만
 # 역할이 다르다: 여기서는 "정규화된 DocumentSchema 생성"이 목적이다.
 
 

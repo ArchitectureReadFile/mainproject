@@ -30,10 +30,6 @@ WORKDIR /app
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir \
-    -i https://www.paddlepaddle.org.cn/packages/stable/cpu/ \
-    paddlepaddle==3.2.0
-
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .

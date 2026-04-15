@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/Button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Button } from '@/shared/ui/Button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { LinkIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'

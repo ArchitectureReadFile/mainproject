@@ -1,14 +1,14 @@
-import { getGroupDocuments, getMembers } from '@/api/groups'
-import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
-import { Label } from '@/components/ui/Label'
+import { getGroupDocuments, getMembers } from '@/shared/api/groups'
+import { Button } from '@/shared/ui/Button'
+import { Card } from '@/shared/ui/card'
+import { Label } from '@/shared/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/shared/ui/select'
 import { FileText, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 

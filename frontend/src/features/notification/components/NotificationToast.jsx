@@ -1,10 +1,10 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useState } from 'react'
-import { MessageSquare, Users, FileText, ShieldAlert, Trash2, Check, Loader2, UserMinus, AtSign } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { cn } from '@/lib/utils'
-import { acceptInvite, declineInvite } from '@/api/groups'
+import { MessageSquare, Users, FileText, FileCheck, ShieldAlert, Trash2, Check, Loader2, UserMinus, AtSign, UserCheck, ShieldCheck } from 'lucide-react'
+import { Button } from '@/shared/ui/Button'
+import { cn } from '@/shared/lib/utils'
+import { acceptInvite, declineInvite } from '@/shared/api/groups'
 import { useNotification } from '../context/NotificationContext'
 
 export default function NotificationToast({ notification, onNavigate, onClose }) {
@@ -58,11 +58,14 @@ export default function NotificationToast({ notification, onNavigate, onClose })
     switch (type) {
       case 'AI_ANSWER_COMPLETE': return { color: 'blue', label: 'AI 답변 완료', icon: MessageSquare }
       case 'WORKSPACE_INVITED': return { color: 'green', label: '워크스페이스 초대', icon: Users }
+      case 'WORKSPACE_MEMBER_UPDATE': return { color: 'green', label: '멤버 변경', icon: UserCheck }
       case 'DOCUMENT_UPLOAD_REQUESTED': return { color: 'orange', label: '문서 검토 요청', icon: FileText }
       case 'WORKSPACE_KICKED': return { color: 'red', label: '워크스페이스 추방', icon: UserMinus }
       case 'WORKSPACE_DELETE_NOTICE': return { color: 'red', label: '워크스페이스 삭제 알림', icon: ShieldAlert }
       case 'DOCUMENT_DELETED': return { color: 'zinc', label: '문서 삭제 알림', icon: Trash2 }
       case 'COMMENT_MENTIONED': return { color: 'purple', label: '댓글 멘션 알림', icon: AtSign }
+      case 'WORKSPACE_STATUS_UPDATE': return { color: 'blue', label: '워크스페이스 상태 변경', icon: ShieldCheck }
+      case 'DOCUMENT_REVIEW_RESULT': return { color: 'blue', label: '문서 검토 결과', icon: FileCheck }
       default: return { color: 'zinc', label: '새로운 알림', icon: MessageSquare }
     }
   }

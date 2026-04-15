@@ -1,5 +1,5 @@
-import { fetchAdminPlatformFailures, stopAdminPlatform, syncAdminPlatform } from "@/api/admin";
-import { ERROR_CODE, getErrorMessageByCode } from "@/lib/errors";
+import { fetchAdminPlatformFailures, stopAdminPlatform, syncAdminPlatform } from "@/shared/api/admin";
+import { ERROR_CODE, getErrorMessageByCode } from "@/shared/lib/errors";
 import { AlertTriangle, CheckCircle2, Clock3, Database, RefreshCcw, Rows3, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
