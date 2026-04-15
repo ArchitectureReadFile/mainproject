@@ -457,6 +457,19 @@ class GroupService:
         for document_id in document_ids:
             index_approved_document.delay(document_id)
 
+    def _get_unique_notification_user_ids(self, *user_ids: int | None) -> list[int]:
+        """알림 대상 사용자 ID 목록에서 빈 값과 중복을 제거한다."""
+        result: list[int] = []
+
+        for user_id in user_ids:
+            if user_id is None:
+                continue
+            if user_id in result:
+                continue
+            result.append(user_id)
+
+        return result
+
     def create_group(
         self, owner_user_id: int, name: str, description: Optional[str]
     ) -> GroupDetailResponse:
@@ -716,7 +729,31 @@ class GroupService:
 
         self.assert_group_writable(group)
 
+        invited_user = self.repository.get_user_by_id(user_id)
+        invited_by_user_id = membership.invited_by_user_id
+
         self.repository.accept_invite(membership)
+
+        notification_user_ids = self._get_unique_notification_user_ids(
+            invited_by_user_id,
+            group.owner_user_id,
+        )
+
+        for notification_user_id in notification_user_ids:
+            if notification_user_id == user_id:
+                continue
+
+            self.notification_service.create_notification_sync(
+                user_id=notification_user_id,
+                actor_user_id=user_id,
+                group_id=group_id,
+                type=NotificationType.WORKSPACE_MEMBER_UPDATE,
+                title="워크스페이스 초대 수락 알림",
+                body=f"{invited_user.username}님이 '{group.name}' 워크스페이스 초대를 수락했습니다.",
+                target_type="group",
+                target_id=group_id,
+            )
+
         self.db.commit()
 
     def decline_invite(self, user_id: int, group_id: int) -> None:

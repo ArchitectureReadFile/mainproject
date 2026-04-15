@@ -341,6 +341,10 @@ class GroupRepository:
         """유저명으로 유저 조회"""
         return self.db.query(User).filter(User.username == username).first()
 
+    def get_user_by_id(self, user_id: int) -> Optional[User]:
+        """유저 ID로 유저를 조회한다."""
+        return self.db.query(User).filter(User.id == user_id).first()
+
     def get_member_any_status(
         self, user_id: int, group_id: int
     ) -> Optional[GroupMember]:
