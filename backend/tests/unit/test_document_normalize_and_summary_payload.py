@@ -153,6 +153,68 @@ class TestPages:
         doc = normalizer.normalize(_odl(markdown="", json_data={}))
         assert doc.pages == []
 
+    def test_real_pages_restored_from_odl_json(self, normalizer):
+        json_data = {
+            "type": "document",
+            "kids": [
+                {
+                    "type": "page",
+                    "page_no": 1,
+                    "kids": [
+                        {"type": "paragraph", "content": "1페이지 본문"},
+                    ],
+                },
+                {
+                    "type": "page",
+                    "page_no": 2,
+                    "kids": [
+                        {"type": "paragraph", "content": "2페이지 본문"},
+                    ],
+                },
+            ],
+        }
+        doc = normalizer.normalize(_odl(markdown="", json_data=json_data))
+        assert [p.page_number for p in doc.pages] == [1, 2]
+        assert doc.pages[0].text == "1페이지 본문"
+        assert doc.pages[1].text == "2페이지 본문"
+        assert doc.pages[0].metadata.get("estimated") is False
+        assert doc.pages[1].metadata.get("estimated") is False
+
+    def test_real_pages_attach_tables_by_page(self, normalizer):
+        json_data = {
+            "type": "document",
+            "kids": [
+                {
+                    "type": "page",
+                    "page_no": 1,
+                    "kids": [
+                        {
+                            "type": "table",
+                            "rows": [
+                                {
+                                    "cells": [
+                                        {"kids": [{"content": "항목"}]},
+                                        {"kids": [{"content": "금액"}]},
+                                    ]
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "type": "page",
+                    "page_no": 2,
+                    "kids": [
+                        {"type": "paragraph", "content": "2페이지 본문"},
+                    ],
+                },
+            ],
+        }
+        doc = normalizer.normalize(_odl(markdown="", json_data=json_data))
+        assert [p.page_number for p in doc.pages] == [1, 2]
+        assert doc.pages[0].table_ids == ["table:0"]
+        assert doc.pages[1].table_ids == []
+
 
 class TestMetadata:
     def test_metadata_fields_present(self, normalizer):

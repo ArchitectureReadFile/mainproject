@@ -30,6 +30,12 @@ WORKDIR /app
 
 COPY requirements.txt .
 
+# GPU 서버에서는 torch의 CUDA wheel 축을 명시적으로 고정한다.
+# 기본 PyPI 해석 경로는 cu126 조합으로 풀릴 수 있어 서버에서 CUDA 불일치를 만들었다.
+RUN pip install --no-cache-dir \
+    --index-url https://download.pytorch.org/whl/cu128 \
+    torch==2.10.0
+
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
