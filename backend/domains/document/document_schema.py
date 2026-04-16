@@ -54,6 +54,28 @@ class DocumentPage:
 
 
 @dataclass
+class DocumentSection:
+    """
+    ODL raw_json 기반으로 추출한 구조 단위.
+
+    heading     : 섹션 제목 (없으면 None)
+    paragraphs  : 이 섹션에 속하는 문단 텍스트 리스트
+    table_ids   : 이 섹션에 속하는 DocumentTableBlock.table_id 리스트
+    page_start  : 시작 페이지 번호 (1-indexed, 알 수 없으면 None)
+    page_end    : 끝 페이지 번호 (알 수 없으면 None)
+
+    raw_json이 없거나 구조 파싱에 실패하면 sections=[] 로 두고
+    chunker가 body_text fallback으로 내려간다.
+    """
+
+    heading: str | None
+    paragraphs: list[str] = field(default_factory=list)
+    table_ids: list[str] = field(default_factory=list)
+    page_start: int | None = None
+    page_end: int | None = None
+
+
+@dataclass
 class DocumentSchema:
     """
     추출 후 공통 소비 계약.
@@ -66,6 +88,10 @@ class DocumentSchema:
     source_type:
         "odl" - 현재 기본 추출 경로 (opendataloader-pdf hybrid OCR 포함)
         "ocr" - 레거시/호환용 값. 신규 추출에서는 더 이상 기본 사용하지 않음
+
+    sections:
+        ODL raw_json 기반 구조 정보. chunker가 section-aware chunking에 사용.
+        raw_json이 없거나 구조 파싱 실패 시 빈 리스트 → body_text fallback.
 
     분류(document_type / category)는 DocumentClassificationService가
     DocumentSchema와 별개로 Document 모델에 직접 저장한다.
@@ -83,6 +109,7 @@ class DocumentSchema:
     body_text: str = ""
     table_blocks: list[DocumentTableBlock] = field(default_factory=list)
     pages: list[DocumentPage] = field(default_factory=list)
+    sections: list[DocumentSection] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -111,6 +138,7 @@ class DocumentSchema:
             DocumentTableBlock(**item) for item in data.get("table_blocks", [])
         ]
         pages = [DocumentPage(**item) for item in data.get("pages", [])]
+        sections = [DocumentSection(**item) for item in data.get("sections", [])]
         metadata = dict(data.get("metadata") or {})
         schema_version = data.get("schema_version")
         if schema_version is not None:
@@ -128,5 +156,6 @@ class DocumentSchema:
             body_text=str(data.get("body_text", "")),
             table_blocks=table_blocks,
             pages=pages,
+            sections=sections,
             metadata=dict(metadata),
         )

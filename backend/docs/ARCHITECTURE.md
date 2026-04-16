@@ -138,6 +138,23 @@ index_group_document()    domains/rag/group_document_indexing_service.py
 인덱싱 시점에는 반드시 DB에 저장된 값이어야 하므로,
 process_file 완료 후 enqueue하는 구조가 stale metadata 인덱싱을 방지한다.
 
+### group document chunking 전략
+
+현재 그룹 문서 chunking은 아래 우선순위를 따른다.
+
+| 전략 | 설명 |
+|---|---|
+| `section` | `DocumentSchema.sections` 기반. heading을 `section_title` anchor로 사용하고, 같은 섹션 문단을 병합하며 표는 별도 chunk로 분리 |
+| `page` | `DocumentPage` 기반. 실제 page 정보가 있을 때만 사용하고, page별 body/table chunk를 생성 |
+| `text` | `body_text` 문단/길이 기반 fallback |
+
+선택 규칙:
+- `DOCUMENT_CHUNK_STRATEGY=auto` 이면 `section → page → text` 순으로 시도
+- `section` 강제 시에도 `sections=[]` 이면 `text`로 downgrade
+- `page` 강제 시에도 `pages`가 없거나 전부 `estimated=True` 이면 `text`로 downgrade
+
+현재 `NormalizeService._build_pages()`는 v1 단순화 구현이라, page 전략은 **실제 page 정보가 들어온 문서에서만** 의미가 있다.
+
 ---
 
 ## 3. 분류 수동 수정
@@ -253,6 +270,7 @@ WorkspaceKnowledgeRetriever.retrieve()
 | 항목 | 현재 상태 | 다음 과제 |
 |---|---|---|
 | `pages` 분리 | v1: 전체 문서 = 1페이지로 단순화 | ODL page 정보 실제 분리 |
+| group document chunking | `section → page → text` 전략 계층 + env override 지원 | 실제 page-aware 품질 개선 및 section heuristics 고도화 |
 | 분류 수정 이력 | 1차 미구현 | 2차에서 수정 이력 저장 검토 |
 | 검색 boost | chunk payload에 분류값 저장 완료 | 질문 측 category 근거 설계 후 연결 예정 |
 | workspace `mode="documents"` | 지원 (BM25 + Qdrant whitelist) | folder/category 확장 가능 |

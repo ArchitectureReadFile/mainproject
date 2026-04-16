@@ -8,6 +8,7 @@ ExtractedDocument → DocumentSchema 정규화 계층.
     - raw_* 필드 세팅
     - body_text 생성 (ODL: markdown 우선 → json fallback / OCR: raw_text)
     - table_blocks 생성 (ODL json에서만 추출, OCR는 빈 리스트)
+    - sections 생성 (ODL raw_json 기반 구조 파싱. 실패 시 빈 리스트)
     - pages 생성 (v1: 전체 문서를 page 1 하나로 단순화)
     - metadata 기본값 생성
 
@@ -16,18 +17,41 @@ ExtractedDocument → DocumentSchema 정규화 계층.
     - truncate / 길이 정책
     - chunk 분할 (→ DocumentChunkService)
     - 분류 (→ DocumentClassificationService)
+
+ODL JSON 구조 관찰:
+    ODL이 반환하는 JSON의 node type 예시:
+        "page"      - 페이지 경계. page_no 속성 포함
+        "heading"   - 제목/소제목. content 텍스트 포함
+        "paragraph" - 일반 문단. content 텍스트 포함
+        "table"     - 표. rows/cells 구조
+        "list"      - 목록. kids에 list-item 포함
+        "list-item" - 목록 항목
+    kids 배열로 계층 구조를 가질 수 있다.
+    page_no가 없는 경우도 있으므로 현재 페이지 추적은 순서 기반으로 fallback.
 """
 
 from __future__ import annotations
 
+import logging
+
 from domains.document.document_schema import (
     DocumentPage,
     DocumentSchema,
+    DocumentSection,
     DocumentTableBlock,
 )
 from domains.document.extract_service import ExtractedDocument
 
-_NORMALIZATION_VERSION = "v1"
+logger = logging.getLogger(__name__)
+
+_NORMALIZATION_VERSION = "v2"
+
+# ODL JSON에서 heading으로 취급하는 type 집합
+_HEADING_TYPES = {"heading", "title", "subtitle", "section-header", "chapter"}
+# body 텍스트로 취급하는 type 집합
+_BODY_TYPES = {"paragraph", "text", "list", "list-item", "caption", "footnote"}
+# 무시하는 type 집합
+_SKIP_TYPES = {"image", "figure", "picture"}
 
 
 class DocumentNormalizeService:
@@ -43,8 +67,11 @@ class DocumentNormalizeService:
         )
         body_text = self._build_body_text(extracted, source_type)
         table_blocks = self._build_table_blocks(extracted, source_type)
+        sections = self._build_sections(extracted, source_type, table_blocks)
         pages = self._build_pages(body_text, table_blocks)
-        metadata = self._build_metadata(source_type, body_text, table_blocks, pages)
+        metadata = self._build_metadata(
+            source_type, body_text, table_blocks, pages, sections
+        )
 
         return DocumentSchema(
             source_type=source_type,
@@ -54,6 +81,7 @@ class DocumentNormalizeService:
             body_text=body_text,
             table_blocks=table_blocks,
             pages=pages,
+            sections=sections,
             metadata=metadata,
         )
 
@@ -64,7 +92,6 @@ class DocumentNormalizeService:
     ) -> tuple[str | None, dict | list | None, str | None]:
         if source_type == "odl":
             return extracted.markdown or None, extracted.json_data, None
-        # ocr: 레거시 호환용. OCR 원문은 raw_text로 보존 (raw_markdown에 섞지 않음)
         return None, None, extracted.markdown or None
 
     # ── body_text ─────────────────────────────────────────────────────────────
@@ -72,7 +99,6 @@ class DocumentNormalizeService:
     def _build_body_text(self, extracted: ExtractedDocument, source_type: str) -> str:
         if source_type == "ocr":
             return (extracted.markdown or "").strip()
-        # ODL: markdown 우선, 비면 json fallback
         body = (extracted.markdown or "").strip()
         if not body:
             body = _extract_body_from_json(extracted.json_data)
@@ -86,6 +112,28 @@ class DocumentNormalizeService:
         if source_type == "ocr" or not extracted.json_data:
             return []
         return _extract_table_blocks(extracted.json_data)
+
+    # ── sections ─────────────────────────────────────────────────────────────
+
+    def _build_sections(
+        self,
+        extracted: ExtractedDocument,
+        source_type: str,
+        table_blocks: list[DocumentTableBlock],
+    ) -> list[DocumentSection]:
+        """
+        ODL raw_json 기반으로 구조화된 섹션 목록을 생성한다.
+
+        파싱 실패 또는 raw_json 없음 → 빈 리스트 반환.
+        chunker가 sections=[] 이면 body_text fallback으로 내려간다.
+        """
+        if source_type == "ocr" or not extracted.json_data:
+            return []
+        try:
+            return _extract_sections(extracted.json_data, table_blocks)
+        except Exception as exc:
+            logger.warning("[normalize] sections 파싱 실패, fallback: %s", exc)
+            return []
 
     # ── pages ─────────────────────────────────────────────────────────────────
 
@@ -114,6 +162,7 @@ class DocumentNormalizeService:
         body_text: str,
         table_blocks: list[DocumentTableBlock],
         pages: list[DocumentPage],
+        sections: list[DocumentSection],
     ) -> dict:
         return {
             "schema_version": "v1",
@@ -122,14 +171,167 @@ class DocumentNormalizeService:
             "page_count": len(pages),
             "body_char_count": len(body_text),
             "table_count": len(table_blocks),
+            "section_count": len(sections),
             "normalization_version": _NORMALIZATION_VERSION,
         }
 
 
-# ── 내부 헬퍼 ─────────────────────────────────────────────────────────────────
-# ODL JSON에서 body/table을 파싱하는 구현체.
-# DocumentExtractService의 body 유무 판단용 헬퍼와 형태가 유사하지만
-# 역할이 다르다: 여기서는 "정규화된 DocumentSchema 생성"이 목적이다.
+# ── 섹션 파싱 ─────────────────────────────────────────────────────────────────
+
+
+def _extract_sections(
+    json_data: dict | list,
+    table_blocks: list[DocumentTableBlock],
+) -> list[DocumentSection]:
+    """
+    ODL JSON을 순회하며 heading 경계 기준으로 섹션을 구성한다.
+
+    알고리즘:
+    1. JSON 트리를 DFS로 순회하며 FlatNode 스트림 생성
+       (type, content/rows, page_no)
+    2. heading을 만날 때마다 새 섹션 시작
+    3. table은 현재 섹션에 table_id 추가
+    4. paragraph/text 등은 현재 섹션의 paragraphs에 추가
+    5. 마지막 버퍼 flush
+
+    table_blocks는 table_id 매핑을 위해 순서대로 전달된다.
+    """
+    # table_id 역방향 매핑을 위해 ODL JSON에서 table 등장 순서대로 table_blocks와 대응
+    table_iter = iter(table_blocks)
+
+    flat_nodes = _flatten_json(json_data)
+
+    sections: list[DocumentSection] = []
+    current_heading: str | None = None
+    current_paragraphs: list[str] = []
+    current_table_ids: list[str] = []
+    current_page_start: int | None = None
+    current_page_end: int | None = None
+    current_page: int | None = None
+
+    def flush():
+        nonlocal current_heading, current_paragraphs, current_table_ids
+        nonlocal current_page_start, current_page_end
+        if not current_paragraphs and not current_table_ids:
+            return
+        sections.append(
+            DocumentSection(
+                heading=current_heading,
+                paragraphs=list(current_paragraphs),
+                table_ids=list(current_table_ids),
+                page_start=current_page_start,
+                page_end=current_page_end,
+            )
+        )
+        current_heading = None
+        current_paragraphs = []
+        current_table_ids = []
+        current_page_start = current_page
+        current_page_end = current_page
+
+    for node_type, content, page_no in flat_nodes:
+        # 페이지 추적
+        if page_no is not None:
+            current_page = page_no
+            if current_page_start is None:
+                current_page_start = page_no
+            current_page_end = page_no
+
+        if node_type in _HEADING_TYPES:
+            flush()
+            current_heading = content
+            current_page_start = current_page
+            current_page_end = current_page
+
+        elif node_type == "table":
+            tb = next(table_iter, None)
+            if tb is not None:
+                current_table_ids.append(tb.table_id)
+                if current_page is not None:
+                    current_page_end = current_page
+
+        elif node_type in _BODY_TYPES:
+            if content and content.strip():
+                current_paragraphs.append(content.strip())
+                if current_page is not None:
+                    current_page_end = current_page
+
+        # _SKIP_TYPES 및 기타는 무시
+
+    flush()
+    return sections
+
+
+def _flatten_json(
+    node: dict | list,
+    current_page: int | None = None,
+) -> list[tuple[str, str | None, int | None]]:
+    """
+    JSON 트리를 DFS로 순회하여 (type, content, page_no) 플랫 리스트로 변환.
+
+    page_no는 "page" 타입 노드를 만날 때 갱신된다.
+    page_no가 없는 노드는 None으로 전달 (현재 페이지 추적은 호출측에서).
+    """
+    results: list[tuple[str, str | None, int | None]] = []
+
+    if isinstance(node, list):
+        for item in node:
+            results.extend(_flatten_json(item, current_page))
+        return results
+
+    if not isinstance(node, dict):
+        return results
+
+    node_type = node.get("type", "")
+
+    # 페이지 경계 노드
+    if node_type == "page":
+        page_no = node.get("page_no") or node.get("page_number")
+        if page_no is not None:
+            try:
+                current_page = int(page_no)
+            except (ValueError, TypeError):
+                pass
+        results.append(("page", None, current_page))
+        for child in node.get("kids", []):
+            results.extend(_flatten_json(child, current_page))
+        return results
+
+    # 표 노드: 내부 순회 없이 table 이벤트만 emit
+    if node_type == "table":
+        results.append(("table", None, current_page))
+        return results
+
+    # heading / paragraph 등: content 추출
+    content = node.get("content")
+    if isinstance(content, str):
+        results.append((node_type, content, current_page))
+    elif node_type in _HEADING_TYPES | _BODY_TYPES:
+        # content가 없는 경우 kids에서 텍스트 수집
+        collected = _collect_text_from_kids(node.get("kids", []))
+        if collected:
+            results.append((node_type, collected, current_page))
+
+    # 자식 순회 (table 제외 — 위에서 이미 return)
+    for child in node.get("kids", []):
+        results.extend(_flatten_json(child, current_page))
+
+    return results
+
+
+def _collect_text_from_kids(kids: list) -> str:
+    """kids 리스트에서 텍스트를 평탄하게 수집한다."""
+    parts = []
+    for kid in kids:
+        if not isinstance(kid, dict):
+            continue
+        content = kid.get("content")
+        if isinstance(content, str) and content.strip():
+            parts.append(content.strip())
+    return " ".join(parts)
+
+
+# ── 기존 헬퍼 (body_text / table_blocks 생성용) ───────────────────────────────
 
 
 def _extract_body_from_json(json_data: dict | list | None) -> str:
