@@ -27,14 +27,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
+COPY constraints-cpu.txt .
 
 # CPU-only 운영으로 고정한다.
-# sentence-transformers가 torch를 필요로 하므로
-# Docker 빌드에서 CPU wheel을 명시 설치해 재현 가능성을 유지한다.
+# opendataloader/docling, sentence-transformers가 torch를 전이 의존성으로 끌어올 수 있어
+# requirements 전체 설치를 CPU index + constraints로 함께 잠근다.
 RUN pip install --no-cache-dir \
-    --index-url https://download.pytorch.org/whl/cpu \
-    torch==2.10.0
-
-RUN pip install --no-cache-dir -r requirements.txt
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -c constraints-cpu.txt \
+    -r requirements.txt
 
 COPY . .

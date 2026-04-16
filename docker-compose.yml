@@ -58,7 +58,7 @@ services:
       - ./backend:/app
     environment:
       - TZ=UTC
-    command: opendataloader-pdf-hybrid --host 0.0.0.0 --port 5002 --force-ocr --ocr-lang ko,en
+    command: opendataloader-pdf-hybrid --host 0.0.0.0 --port 5002 --ocr-lang ko,en
 
   db:
     image: mariadb:10.11
