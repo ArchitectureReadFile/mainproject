@@ -1,1 +1,0 @@
-opendataloader-pdf[hybrid]==2.0.2

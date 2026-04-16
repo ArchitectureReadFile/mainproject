@@ -141,7 +141,6 @@ services:
       - D:/jiyun-env/backend.env
     environment: !override
       - TZ=UTC
-    gpus: all
     networks:
       - app-network
 
