@@ -31,10 +31,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 )
 def signup(
     payload: SignupRequest,
+    response: Response,
     redis: Redis = Depends(get_redis),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    return auth_service.signup(redis, payload)
+    user_resp, access_token, refresh_token = auth_service.signup(redis, payload)
+    CookieService.set_auth_cookies(response, access_token, refresh_token)
+    return user_resp
 
 
 @router.post("/login", response_model=UserResponse)

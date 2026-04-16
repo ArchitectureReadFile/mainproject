@@ -50,7 +50,7 @@ class AuthService:
     def __init__(self, auth_repo: AuthRepository):
         self.auth_repo = auth_repo
 
-    def signup(self, redis_client: Redis, payload: SignupRequest) -> UserResponse:
+    def signup(self, redis_client: Redis, payload: SignupRequest) -> tuple:
         email = payload.email.strip().lower()
 
         verification_data = redis_client.get(f"email_verified:{email}")
@@ -89,7 +89,10 @@ class AuthService:
         self.auth_repo.create_subscription(subscription)
 
         redis_client.delete(f"email_verified:{email}")
-        return self.to_user_response(user)
+
+        access_token, refresh_token = self._issue_tokens(redis_client, email)
+
+        return self.to_user_response(user), access_token, refresh_token
 
     def login(self, redis_client: Redis, payload: LoginRequest, client_ip: str):
         email = payload.email.strip().lower()
