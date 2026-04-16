@@ -184,25 +184,32 @@ export function useUploadQueue({
       return isSameFile(it, target.file)
     })
 
-    if (!targetItem) return
-
-    if (targetItem.uploadStatus === 'waiting') {
+    // 1. 로컬 waiting 항목 — 서버 요청 없이 바로 제거
+    if (targetItem?.uploadStatus === 'waiting') {
       setItems((prev) => prev.filter((it) => !isSameFile(it, targetItem.file)))
       return
     }
 
+    // 2. PENDING 서버 문서 삭제
+    //    - 로컬 items에 없는 restored 항목도 docId + serverDoc 기준으로 처리
     if (target.docId && target.serverDoc?.status === 'PENDING') {
       try {
         await deleteGroupDocument(groupId, target.docId)
-        setItems((prev) => prev.filter((it) => {
-          if (it.docId) return it.docId !== target.docId
-          return !isSameFile(it, targetItem.file)
-        }))
+        setItems((prev) =>
+          prev.filter((it) => {
+            if (it.docId) return it.docId !== target.docId
+            if (targetItem) return !isSameFile(it, targetItem.file)
+            return true
+          })
+        )
         toast.success('요약 대기 중인 파일을 삭제했습니다.')
       } catch (err) {
         toast.error(err?.message || '파일 삭제에 실패했습니다.')
       }
+      return
     }
+
+    // 3. targetItem 자체가 없고 위 조건도 해당 없으면 no-op
   }, [groupId, items, setItems])
 
   const isAbortError = useCallback((err) => (

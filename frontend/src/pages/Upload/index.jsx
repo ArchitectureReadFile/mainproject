@@ -17,6 +17,7 @@ import FileStatusItem from '../../features/upload/components/FileStatusItem.jsx'
 import UploadSummaryCards from '../../features/upload/components/UploadSummaryCards.jsx'
 import { useUpload } from '../../features/upload/context/UploadContext.jsx'
 import { MAX_FILES } from '../../features/upload/uploadState.js'
+import { serverDocToItem } from '../../features/upload/utils/serverDocToItem.js'
 
 const STATUS_POLLING_INTERVAL = 5000
 
@@ -119,9 +120,12 @@ function UploadPageInner({ myRole }) {
   }, [serverDocuments, syncServerStatuses])
 
   useEffect(() => {
+    // 새로고침 직후에는 uploadItems가 비어 있고 statusCounts도 아직 0일 수 있으므로
+    // serverDocuments.length 도 조건에 포함해 복원 항목이 있을 때도 폴링을 유지한다.
     const hasTrackableItems =
       uploadItems.length > 0 ||
-      statusCounts.inProgress > 0
+      statusCounts.inProgress > 0 ||
+      serverDocuments.length > 0
 
     if (!hasTrackableItems) return
 
@@ -130,21 +134,30 @@ function UploadPageInner({ myRole }) {
     }, STATUS_POLLING_INTERVAL)
 
     return () => window.clearInterval(timerId)
-  }, [uploadItems.length, statusCounts.inProgress, loadServerDocuments])
+  }, [uploadItems.length, statusCounts.inProgress, serverDocuments.length, loadServerDocuments])
 
   const recentItems = useMemo(() => {
-    return [...uploadItems]
-      .map((item) => {
-        const serverDoc = item.docId
-          ? serverDocuments.find((doc) => doc.id === item.docId)
-          : null
+    // 1. 로컬 uploadItems에 serverDoc 붙이기 (추가 순서 유지 → 나중에 reverse로 최신이 위)
+    const localDocIds = new Set(
+      uploadItems.filter((it) => it.docId).map((it) => it.docId)
+    )
 
-        return {
-          ...item,
-          serverDoc,
-        }
-      })
-      .reverse()
+    const localWithServer = uploadItems.map((item) => {
+      const serverDoc = item.docId
+        ? serverDocuments.find((doc) => doc.id === item.docId) ?? null
+        : null
+      return { ...item, serverDoc }
+    })
+
+    // 2. 서버에는 있지만 로컬에 없는 항목 — 새로고침 복원
+    //    서버 응답 순서(오래된 것 먼저)를 유지해 reverse 후 최신이 위가 되게 한다.
+    const restoredItems = serverDocuments
+      .filter((doc) => !localDocIds.has(doc.id))
+      .map(serverDocToItem)
+
+    // 복원 항목(오래된 순) + 로컬 항목(추가 순) 를 각각 reverse하지 않고
+    // 전체를 한 번만 reverse → 로컬 최신이 맨 위, 복원 최신이 그 아래
+    return [...restoredItems, ...localWithServer].reverse()
   }, [uploadItems, serverDocuments])
 
   const handleStartUpload = async () => {
@@ -272,7 +285,7 @@ function UploadPageInner({ myRole }) {
           <ul className="flex flex-col gap-2">
             {recentItems.map((it) => (
               <FileStatusItem
-                key={`${it.file.name}-${it.uploadStatus}-${it.serverDoc?.status ?? 'NONE'}`}
+                key={it.docId ?? `local-${it.file.name}`}
                 it={it}
                 onRemove={removeItem}
               />

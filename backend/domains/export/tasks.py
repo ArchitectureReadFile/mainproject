@@ -10,7 +10,7 @@ sys.path.insert(0, "/app")
 from celery_app import celery_app
 from database import SessionLocal
 from domains.export.repository import ExportRepository
-from models.model import ExportJobStatus, utc_now_naive
+from models.model import DocumentLifecycleStatus, ExportJobStatus, utc_now_naive
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,10 @@ def _build_document_arcname(document) -> str:
     approval_status = _normalize_approval_status(document)
     category = _normalize_category(getattr(document, "category", None))
     entry_name = _build_document_entry_name(document)
+
+    if document.lifecycle_status == DocumentLifecycleStatus.DELETE_PENDING:
+        return f"휴지통/{approval_status}/{category}/{entry_name}"
+
     return f"{approval_status}/{category}/{entry_name}"
 
 
