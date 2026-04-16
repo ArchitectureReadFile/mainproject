@@ -28,20 +28,11 @@ WORKDIR /app
 
 COPY requirements.txt .
 
-# paddlepaddle를 먼저 명시적으로 설치한다.
-# paddleocr가 내부 의존성으로 paddleX를 설치할 때
-# 이미 설치된 paddlepaddle 버전 기준으로 맞춰지므로
-# PaddlePredictorOption API 불일치 문제를 방지한다.
+# CPU-only 운영으로 고정한다.
+# sentence-transformers가 torch를 필요로 하므로
+# Docker 빌드에서 CPU wheel을 명시 설치해 재현 가능성을 유지한다.
 RUN pip install --no-cache-dir \
-    -i https://www.paddlepaddle.org.cn/packages/stable/cpu/ \
-    paddlepaddle==3.2.0
-
-# GPU 서버에서는 torch의 CUDA wheel 축이 중요하다.
-# 기본 PyPI torch==2.7.0 경로는 cu126 조합으로 풀릴 수 있어
-# ODL hybrid GPU 런타임에서 CUDA 불일치를 유발했다.
-# 따라서 Docker 빌드 시 torch는 cu128 wheel로 명시 설치한다.
-RUN pip install --no-cache-dir \
-    --index-url https://download.pytorch.org/whl/cu128 \
+    --index-url https://download.pytorch.org/whl/cpu \
     torch==2.10.0
 
 RUN pip install --no-cache-dir -r requirements.txt
