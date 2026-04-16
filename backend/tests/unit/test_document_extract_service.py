@@ -226,10 +226,10 @@ class TestHybridConvertOptions:
         clear=False,
     )
     def test_convert_uses_hybrid_options(self, mock_convert):
-        """env 문자열 → int 변환 → odl.convert 호출 인자로 전달되는 흐름을 검증한다.
+        """env 문자열이 그대로 odl.convert 호출 인자로 전달되는 흐름을 검증한다.
 
         ODL_HYBRID_TIMEOUT은 milliseconds 단위로 해석된다.
-        env에서 읽은 문자열은 int로 캐스팅되어 odl.convert에 전달된다.
+        런타임 라이브러리 계약에 맞춰 문자열로 전달한다.
         """
         svc = DocumentExtractService()
 
@@ -244,7 +244,7 @@ class TestHybridConvertOptions:
             hybrid="docling-fast",
             hybrid_mode="balanced",
             hybrid_url="http://odl_hybrid:5002",
-            hybrid_timeout=240000,  # int, milliseconds
+            hybrid_timeout="240000",  # string, milliseconds
             hybrid_fallback=True,
         )
 
