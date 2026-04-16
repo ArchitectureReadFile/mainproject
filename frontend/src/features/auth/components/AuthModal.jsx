@@ -12,7 +12,7 @@ export default function AuthModal({ mode, open, onClose }) {
   }, [open, mode])
 
   const titles = {
-    login:          '로그인하여 스마트한 법률 상담의 시작해보세요.',
+    login:          '로그인하여 스마트한 법률 상담을 시작해보세요.',
     signup:         '지금 가입하고 더 편리한 분석을 경험하세요.',
     confirmAccount: '가입하신 정보를 확인하여 계정을 찾아드릴게요.',
     resetPassword:  '본인 인증 후 비밀번호를 재설정해 주세요.',
