@@ -136,7 +136,7 @@ services:
   odl_hybrid:
     image: ${DOCKER_HUB_USER}/jiyun-backend:latest
     container_name: odl_hybrid_container
-    command: opendataloader-pdf-hybrid --host 0.0.0.0 --port 5002 --force-ocr --ocr-lang ko,en
+    command: opendataloader-pdf-hybrid --host 0.0.0.0 --port 5002 --ocr-lang ko,en
     env_file: !override
       - D:/jiyun-env/backend.env
     environment: !override
