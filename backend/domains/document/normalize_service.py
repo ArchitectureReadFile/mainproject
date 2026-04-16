@@ -68,7 +68,7 @@ class DocumentNormalizeService:
         body_text = self._build_body_text(extracted, source_type)
         table_blocks = self._build_table_blocks(extracted, source_type)
         sections = self._build_sections(extracted, source_type, table_blocks)
-        pages = self._build_pages(body_text, table_blocks)
+        pages = self._build_pages(extracted, source_type, body_text, table_blocks)
         metadata = self._build_metadata(
             source_type, body_text, table_blocks, pages, sections
         )
@@ -138,11 +138,26 @@ class DocumentNormalizeService:
     # ── pages ─────────────────────────────────────────────────────────────────
 
     def _build_pages(
-        self, body_text: str, table_blocks: list[DocumentTableBlock]
+        self,
+        extracted: ExtractedDocument,
+        source_type: str,
+        body_text: str,
+        table_blocks: list[DocumentTableBlock],
     ) -> list[DocumentPage]:
-        """v1: 전체 문서를 page 1 하나로 단순화. page 단위 분리는 추후 과제."""
+        """
+        ODL raw_json에 실제 page 정보가 있으면 page-aware 복원을 수행한다.
+        page 경계가 없거나 파싱이 불가능하면 기존 estimated page 1 fallback을 유지한다.
+        """
         if not body_text and not table_blocks:
             return []
+
+        if source_type == "odl" and extracted.json_data:
+            try:
+                real_pages = _extract_pages(extracted.json_data, table_blocks)
+                if real_pages:
+                    return real_pages
+            except Exception as exc:
+                logger.warning("[normalize] pages 파싱 실패, fallback: %s", exc)
 
         all_table_ids = [tb.table_id for tb in table_blocks]
         return [
@@ -329,6 +344,68 @@ def _collect_text_from_kids(kids: list) -> str:
         if isinstance(content, str) and content.strip():
             parts.append(content.strip())
     return " ".join(parts)
+
+
+def _extract_pages(
+    json_data: dict | list,
+    table_blocks: list[DocumentTableBlock],
+) -> list[DocumentPage]:
+    """
+    ODL raw_json에서 실제 page 단위 텍스트/표 귀속을 복원한다.
+
+    계약:
+    - page 노드(page_no/page_number)가 실제로 존재할 때만 real page로 간주
+    - body 텍스트는 page 번호가 명시된 노드만 해당 페이지에 적재
+    - table은 등장 순서대로 table_blocks와 매핑해 해당 page에 귀속
+    - 결과 page는 estimated=False 로 표시
+    """
+    flat_nodes = _flatten_json(json_data)
+    table_iter = iter(table_blocks)
+
+    page_buffers: dict[int, dict[str, list[str]]] = {}
+    saw_real_page = False
+
+    def ensure_page(page_no: int) -> dict[str, list[str]]:
+        bucket = page_buffers.get(page_no)
+        if bucket is None:
+            bucket = {"texts": [], "table_ids": []}
+            page_buffers[page_no] = bucket
+        return bucket
+
+    for node_type, content, page_no in flat_nodes:
+        if node_type == "page" and page_no is not None:
+            saw_real_page = True
+            ensure_page(page_no)
+            continue
+
+        if page_no is None:
+            continue
+
+        bucket = ensure_page(page_no)
+
+        if node_type == "table":
+            tb = next(table_iter, None)
+            if tb is not None:
+                bucket["table_ids"].append(tb.table_id)
+        elif node_type in _BODY_TYPES:
+            if content and content.strip():
+                bucket["texts"].append(content.strip())
+
+    if not saw_real_page:
+        return []
+
+    pages: list[DocumentPage] = []
+    for page_no in sorted(page_buffers):
+        bucket = page_buffers[page_no]
+        pages.append(
+            DocumentPage(
+                page_number=page_no,
+                text="\n".join(bucket["texts"]).strip(),
+                table_ids=list(bucket["table_ids"]),
+                metadata={"estimated": False},
+            )
+        )
+    return pages
 
 
 # ── 기존 헬퍼 (body_text / table_blocks 생성용) ───────────────────────────────

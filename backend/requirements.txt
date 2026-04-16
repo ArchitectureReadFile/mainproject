@@ -27,7 +27,8 @@ beautifulsoup4==4.13.4
 
 # RAG dependencies
 sentence-transformers==3.4.1
-torch==2.7.0
+# torch는 Dockerfile에서 CUDA wheel(cu128)로 명시 설치한다.
+# requirements.txt에 고정하면 서버 GPU 이미지에서 cu126 wheel이 선택될 수 있다.
 qdrant-client==1.13.3
 rank_bm25==0.2.2
 soynlp==0.0.493
