@@ -6,7 +6,10 @@ DocumentNormalizeService + DocumentSummaryPayloadService 단위 테스트.
 
 import pytest
 
-from domains.document.document_schema import DocumentSchema, DocumentTableBlock
+from domains.document.document_schema import (
+    DocumentSchema,
+    DocumentTableBlock,
+)
 from domains.document.extract_service import ExtractedDocument
 from domains.document.normalize_service import DocumentNormalizeService
 from domains.document.summary_payload import (
@@ -150,6 +153,68 @@ class TestPages:
         doc = normalizer.normalize(_odl(markdown="", json_data={}))
         assert doc.pages == []
 
+    def test_real_pages_restored_from_odl_json(self, normalizer):
+        json_data = {
+            "type": "document",
+            "kids": [
+                {
+                    "type": "page",
+                    "page_no": 1,
+                    "kids": [
+                        {"type": "paragraph", "content": "1페이지 본문"},
+                    ],
+                },
+                {
+                    "type": "page",
+                    "page_no": 2,
+                    "kids": [
+                        {"type": "paragraph", "content": "2페이지 본문"},
+                    ],
+                },
+            ],
+        }
+        doc = normalizer.normalize(_odl(markdown="", json_data=json_data))
+        assert [p.page_number for p in doc.pages] == [1, 2]
+        assert doc.pages[0].text == "1페이지 본문"
+        assert doc.pages[1].text == "2페이지 본문"
+        assert doc.pages[0].metadata.get("estimated") is False
+        assert doc.pages[1].metadata.get("estimated") is False
+
+    def test_real_pages_attach_tables_by_page(self, normalizer):
+        json_data = {
+            "type": "document",
+            "kids": [
+                {
+                    "type": "page",
+                    "page_no": 1,
+                    "kids": [
+                        {
+                            "type": "table",
+                            "rows": [
+                                {
+                                    "cells": [
+                                        {"kids": [{"content": "항목"}]},
+                                        {"kids": [{"content": "금액"}]},
+                                    ]
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "type": "page",
+                    "page_no": 2,
+                    "kids": [
+                        {"type": "paragraph", "content": "2페이지 본문"},
+                    ],
+                },
+            ],
+        }
+        doc = normalizer.normalize(_odl(markdown="", json_data=json_data))
+        assert [p.page_number for p in doc.pages] == [1, 2]
+        assert doc.pages[0].table_ids == ["table:0"]
+        assert doc.pages[1].table_ids == []
+
 
 class TestMetadata:
     def test_metadata_fields_present(self, normalizer):
@@ -159,7 +224,13 @@ class TestMetadata:
         assert m["has_tables"] is True
         assert m["table_count"] == 1
         assert m["body_char_count"] == len(doc.body_text)
-        assert m["normalization_version"] == "v1"
+        assert m["normalization_version"] == "v2"
+
+    def test_normalization_version_v2(self, normalizer):
+        """normalization_version이 v2여야 한다."""
+        doc = normalizer.normalize(_odl(markdown="본문", json_data={}))
+        assert doc.metadata["normalization_version"] == "v2"
+        assert doc.normalization_version == "v2"
 
     def test_ocr_metadata(self, normalizer):
         doc = normalizer.normalize(_ocr("텍스트"))
@@ -212,3 +283,126 @@ class TestSummaryPayloadService:
         result = payload_service.build(doc)
         assert "raw markdown" not in result
         assert "normalized body" in result
+
+
+# ── sections 파싱 테스트 ──────────────────────────────────────────────────────────────────
+
+
+class TestNormalizeSections:
+    def _norm(self, json_data):
+        from domains.document.extract_service import ExtractedDocument
+
+        ext = ExtractedDocument(markdown="", json_data=json_data, source_type="odl")
+        return DocumentNormalizeService().normalize(ext)
+
+    def test_heading_paragraph_creates_section(self):
+        """heading + paragraph 구조가 섬션 1개로 파싱되어야 한다."""
+        json_data = {
+            "type": "document",
+            "kids": [
+                {"type": "heading", "content": "제1조 목적"},
+                {"type": "paragraph", "content": "이 계약의 목적은..."},
+            ],
+        }
+        doc = self._norm(json_data)
+        assert len(doc.sections) == 1
+        assert doc.sections[0].heading == "제1조 목적"
+        assert "이 계약의 목적은..." in doc.sections[0].paragraphs
+
+    def test_multiple_headings_create_multiple_sections(self):
+        """heading이 여러 개면 각각 섬션으로 분리되어야 한다."""
+        json_data = {
+            "type": "document",
+            "kids": [
+                {"type": "heading", "content": "제1조"},
+                {"type": "paragraph", "content": "내용1"},
+                {"type": "heading", "content": "제2조"},
+                {"type": "paragraph", "content": "내용2"},
+            ],
+        }
+        doc = self._norm(json_data)
+        assert len(doc.sections) == 2
+        assert doc.sections[0].heading == "제1조"
+        assert doc.sections[1].heading == "제2조"
+
+    def test_content_before_first_heading_becomes_headingless_section(self):
+        """heading 전 내용은 heading=None 인 섬션으로 생성되어야 한다."""
+        json_data = {
+            "type": "document",
+            "kids": [
+                {"type": "paragraph", "content": "서문 내용"},
+                {"type": "heading", "content": "제1조"},
+                {"type": "paragraph", "content": "본문"},
+            ],
+        }
+        doc = self._norm(json_data)
+        assert len(doc.sections) == 2
+        assert doc.sections[0].heading is None
+        assert "서문 내용" in doc.sections[0].paragraphs
+
+    def test_table_in_section_has_table_id(self):
+        """JSON에 table이 있으면 해당 섬션의 table_ids에 포함되어야 한다."""
+        json_data = {
+            "type": "document",
+            "kids": [
+                {"type": "heading", "content": "계약 금액"},
+                {
+                    "type": "table",
+                    "rows": [
+                        {
+                            "cells": [
+                                {"kids": [{"content": "항목"}]},
+                                {"kids": [{"content": "금액"}]},
+                            ]
+                        }
+                    ],
+                },
+            ],
+        }
+        doc = self._norm(json_data)
+        assert doc.sections
+        # table이 있는 섬션에 table_id 포함
+        sections_with_tables = [s for s in doc.sections if s.table_ids]
+        assert sections_with_tables
+
+    def test_no_json_returns_empty_sections(self):
+        """raw_json이 없으면 sections가 빈 리스트여야 한다."""
+        from domains.document.extract_service import ExtractedDocument
+
+        ext = ExtractedDocument(markdown="본문", json_data=None, source_type="odl")
+        doc = DocumentNormalizeService().normalize(ext)
+        assert doc.sections == []
+
+    def test_section_count_in_metadata(self):
+        """metadata에 section_count가 포함되어야 한다."""
+        json_data = {
+            "type": "document",
+            "kids": [
+                {"type": "heading", "content": "제1조"},
+                {"type": "paragraph", "content": "본문"},
+            ],
+        }
+        doc = self._norm(json_data)
+        assert doc.metadata.get("section_count") == len(doc.sections)
+
+    def test_sections_roundtrip_serialization(self):
+        """sections가 to_dict/from_dict 라운드트립에서 보존되어야 한다."""
+        json_data = {
+            "type": "document",
+            "kids": [
+                {"type": "heading", "content": "제1조"},
+                {"type": "paragraph", "content": "본문 내용"},
+            ],
+        }
+        doc = self._norm(json_data)
+        assert doc.sections
+
+        d = doc.to_dict()
+        restored = DocumentSchema.from_dict(d)
+
+        assert len(restored.sections) == len(doc.sections)
+        assert restored.sections[0].heading == doc.sections[0].heading
+        assert restored.sections[0].paragraphs == doc.sections[0].paragraphs
+        assert restored.sections[0].table_ids == doc.sections[0].table_ids
+        assert restored.sections[0].page_start == doc.sections[0].page_start
+        assert restored.sections[0].page_end == doc.sections[0].page_end

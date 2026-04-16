@@ -27,15 +27,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
+COPY constraints-cpu.txt .
 
-# paddlepaddle를 먼저 명시적으로 설치한다.
-# paddleocr가 내부 의존성으로 paddleX를 설치할 때
-# 이미 설치된 paddlepaddle 버전 기준으로 맞춰지므로
-# PaddlePredictorOption API 불일치 문제를 방지한다.
+# CPU-only 운영으로 고정한다.
+# opendataloader/docling, sentence-transformers가 torch를 전이 의존성으로 끌어올 수 있어
+# requirements 전체 설치를 CPU index + constraints로 함께 잠근다.
 RUN pip install --no-cache-dir \
-    -i https://www.paddlepaddle.org.cn/packages/stable/cpu/ \
-    paddlepaddle==3.2.0
-
-RUN pip install --no-cache-dir -r requirements.txt
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -c constraints-cpu.txt \
+    -r requirements.txt
 
 COPY . .

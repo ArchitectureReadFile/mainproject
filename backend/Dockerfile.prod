@@ -29,8 +29,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
+COPY constraints-cpu.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt
+# CPU-only 운영으로 고정한다.
+# opendataloader/docling, sentence-transformers가 torch를 전이 의존성으로 끌어올 수 있어
+# requirements 전체 설치를 CPU index + constraints로 함께 잠근다.
+RUN pip install --no-cache-dir \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -c constraints-cpu.txt \
+    -r requirements.txt
 
 COPY . .
 
