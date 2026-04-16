@@ -14,16 +14,16 @@ celery_app = Celery(
     broker=REDIS_URL,
     backend=REDIS_URL,
     include=[
-        "tasks.upload_task",
-        "tasks.chat_task",
-        "tasks.group_document_task",
-        "tasks.precedent_task",
-        "tasks.platform_sync_task",
+        "domains.document.upload_task",
+        "domains.chat.tasks",
+        "domains.document.index_task",
+        "domains.platform_sync.precedent_task",
+        "domains.platform_sync.sync_task",
         "tasks.subscription_task",
-        "tasks.export_task",
-        "tasks.workspace_deletion_task",
-        "tasks.document_deletion_task",
-        "tasks.file_cleanup_task",
+        "domains.export.tasks",
+        "domains.workspace.tasks",
+        "domains.document.deletion_task",
+        "domains.document.file_cleanup_task",
     ],
 )
 
@@ -37,12 +37,24 @@ celery_app.conf.update(
     task_track_started=True,
     task_default_queue="platform_queue",
     task_routes={
+        # chat
         "tasks.chat_task.process_chat_message": {"queue": "chat_queue"},
-        "tasks.upload_task.process_next_pending_document": {"queue": "document_queue"},
+        # document — task name은 각 task 파일의 name= 인자와 일치해야 함
+        "domains.document.upload_task.process_next_pending_document": {
+            "queue": "document_queue"
+        },
         "tasks.group_document_task.index_approved_document": {
             "queue": "document_queue"
         },
         "tasks.group_document_task.deindex_document": {"queue": "document_queue"},
+        "tasks.document_deletion_task.finalize_pending_documents": {
+            "queue": "document_queue"
+        },
+        "tasks.file_cleanup_task.cleanup_document_files": {"queue": "document_queue"},
+        "tasks.workspace_deletion_task.finalize_pending_workspaces": {
+            "queue": "document_queue"
+        },
+        # platform
         "tasks.platform_sync_task.run_platform_source_sync": {
             "queue": "platform_queue"
         },
@@ -52,13 +64,6 @@ celery_app.conf.update(
         "tasks.precedent_task.index_precedent": {"queue": "platform_queue"},
         "tasks.precedent_task.delete_precedent_index": {"queue": "platform_queue"},
         "tasks.subscription_task.reconcile_subscriptions": {"queue": "platform_queue"},
-        "tasks.workspace_deletion_task.finalize_pending_workspaces": {
-            "queue": "document_queue"
-        },
-        "tasks.document_deletion_task.finalize_pending_documents": {
-            "queue": "document_queue"
-        },
-        "tasks.file_cleanup_task.cleanup_document_files": {"queue": "document_queue"},
     },
     beat_schedule={
         "reconcile-subscriptions-every-hour": {

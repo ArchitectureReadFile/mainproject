@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
-import { deleteGroupDocument } from '@/api/groups'
+import { deleteGroupDocument } from '@/shared/api/groups'
 import { uploadDocumentApi } from '../api/uploadApi.js'
 import {
   isSameFile,

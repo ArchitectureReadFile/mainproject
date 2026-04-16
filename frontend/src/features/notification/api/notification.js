@@ -1,4 +1,4 @@
-import client from '../../../api/client'
+import client from '@/shared/api/client'
 
 export const getNotifications = (skip = 0, limit = 20) => {
   return client.get(`/notifications`, { params: { skip, limit } })

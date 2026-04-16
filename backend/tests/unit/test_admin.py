@@ -25,6 +25,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlalchemy.orm import Session
 
+from domains.auth.router import get_current_user
+from domains.auth.service import AuthService
 from main import app
 from models.model import (
     Group,
@@ -38,8 +40,6 @@ from models.model import (
     User,
 )
 from models.platform_knowledge import PlatformSyncFailure, PlatformSyncRun
-from routers.auth import get_current_user
-from services.auth_service import AuthService
 
 auth_service = AuthService(None)
 
@@ -296,7 +296,7 @@ class TestAdminPlatformSync:
             }
 
         monkeypatch.setattr(
-            "routers.admin.admin_platform_service.get_admin_platform_summary",
+            "domains.admin.router.admin_platform_service.get_admin_platform_summary",
             _fake_summary,
         )
 
@@ -326,7 +326,7 @@ class TestAdminPlatformSync:
             }
 
         monkeypatch.setattr(
-            "routers.admin.admin_platform_service.enqueue_platform_source_sync",
+            "domains.admin.router.admin_platform_service.enqueue_platform_source_sync",
             _fake_sync,
         )
 
@@ -404,7 +404,7 @@ class TestAdminPlatformSyncStop:
 
     def test_cancelled_does_not_become_running(self, db_session):
         """cancelled run은 _update_run_progress를 호출해도 running으로 바뀌지 않는다."""
-        from services.admin_platform_service import _update_run_progress
+        from domains.admin.platform_service import _update_run_progress
 
         run = _make_sync_run(db_session, "law", "cancelled")
         _update_run_progress(
@@ -428,24 +428,24 @@ class TestAdminPlatformSyncFailureType:
     """
 
     def _run_sync(self, db_session, run, *, patch_client, patch_ingestion=None):
-        from services.admin_platform_service import execute_platform_source_sync
+        from domains.admin.platform_service import execute_platform_source_sync
 
         with patch(
-            "services.admin_platform_service.SessionLocal",
+            "domains.admin.platform_service.SessionLocal",
             return_value=db_session,
         ):
             db_session.close = lambda: None
 
             patches = [
                 patch(
-                    "services.admin_platform_service.KoreaLawOpenApiClient",
+                    "domains.admin.platform_service.KoreaLawOpenApiClient",
                     return_value=patch_client,
                 ),
             ]
             if patch_ingestion is not None:
                 patches.append(
                     patch(
-                        "services.admin_platform_service.PlatformKnowledgeIngestionService",
+                        "domains.admin.platform_service.PlatformKnowledgeIngestionService",
                         return_value=patch_ingestion,
                     )
                 )
@@ -516,7 +516,7 @@ class TestAdminPlatformSyncFailureType:
 
     def test_normalize_failure_is_normalize_error(self, db_session):
         """PlatformNormalizeError → normalize_error."""
-        from services.platform.platform_knowledge_ingestion_service import (
+        from domains.platform_sync.platform_knowledge_ingestion_service import (
             PlatformNormalizeError,
         )
 

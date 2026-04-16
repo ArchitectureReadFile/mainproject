@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/Button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Button } from '@/shared/ui/Button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { LinkIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -44,7 +44,7 @@ export default function SocialSection() {
 
   const handleLink = (provider) => {
     setLocalErrors(prev => ({ ...prev, [provider]: '' }))
-    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/auth/social/${provider}/login`
+    window.location.href = `/api/auth/social/${provider}/login`
   }
 
   const isGoogleLinked = user?.social_providers?.includes('google')

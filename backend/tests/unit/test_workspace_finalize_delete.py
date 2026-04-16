@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from domains.workspace.tasks import finalize_pending_workspaces
 from models.model import (
     Document,
     DocumentLifecycleStatus,
@@ -9,7 +10,6 @@ from models.model import (
     GroupStatus,
     utc_now_naive,
 )
-from tasks.workspace_deletion_task import finalize_pending_workspaces
 
 
 # UT-GRP-017-01 삭제 예정일이 지난 OWNER_DELETE_REQUEST 상태의 워크스페이스는 DELETED 상태로 최종 전환된다.
@@ -31,11 +31,11 @@ def test_finalize_pending_workspaces_marks_workspace_deleted(db_session, monkeyp
     db_session.commit()
 
     monkeypatch.setattr(
-        "tasks.workspace_deletion_task.SessionLocal",
+        "domains.workspace.tasks.SessionLocal",
         lambda: db_session,
     )
     monkeypatch.setattr(
-        "tasks.workspace_deletion_task.enqueue_document_file_cleanup",
+        "domains.workspace.tasks.enqueue_document_file_cleanup",
         lambda document_ids: [],
     )
 
@@ -69,11 +69,11 @@ def test_finalize_pending_workspaces_skips_not_due_workspace(db_session, monkeyp
     db_session.commit()
 
     monkeypatch.setattr(
-        "tasks.workspace_deletion_task.SessionLocal",
+        "domains.workspace.tasks.SessionLocal",
         lambda: db_session,
     )
     monkeypatch.setattr(
-        "tasks.workspace_deletion_task.enqueue_document_file_cleanup",
+        "domains.workspace.tasks.enqueue_document_file_cleanup",
         lambda document_ids: [],
     )
 
@@ -121,11 +121,11 @@ def test_finalize_pending_workspaces_marks_child_documents_deleted(
     db_session.commit()
 
     monkeypatch.setattr(
-        "tasks.workspace_deletion_task.SessionLocal",
+        "domains.workspace.tasks.SessionLocal",
         lambda: db_session,
     )
     monkeypatch.setattr(
-        "tasks.workspace_deletion_task.enqueue_document_file_cleanup",
+        "domains.workspace.tasks.enqueue_document_file_cleanup",
         lambda document_ids: document_ids,
     )
 
@@ -180,11 +180,11 @@ def test_finalize_pending_workspaces_keeps_child_documents_of_non_due_workspace(
     db_session.commit()
 
     monkeypatch.setattr(
-        "tasks.workspace_deletion_task.SessionLocal",
+        "domains.workspace.tasks.SessionLocal",
         lambda: db_session,
     )
     monkeypatch.setattr(
-        "tasks.workspace_deletion_task.enqueue_document_file_cleanup",
+        "domains.workspace.tasks.enqueue_document_file_cleanup",
         lambda document_ids: [],
     )
 

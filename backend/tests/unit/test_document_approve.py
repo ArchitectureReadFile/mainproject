@@ -1,5 +1,8 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
 
+from domains.auth.service import AuthService
 from errors import ErrorCode
 from models.model import (
     Document,
@@ -14,7 +17,6 @@ from models.model import (
     ReviewStatus,
     User,
 )
-from services.auth_service import AuthService
 from tests.dummy_data import groups, users
 
 auth_service = AuthService(None)
@@ -239,3 +241,141 @@ def test_approve_document_unauthenticated(client):
     """비로그인 사용자는 문서 승인 요청이 차단되는지 검증한다."""
     res = client.post(f"/api/groups/{GROUP_ID}/documents/601/approve")
     assert res.status_code == 401
+
+
+# UT-DOC-012-06 processing_status==DONE 상태에서 승인시 index가 enqueue된다.
+@pytest.mark.parametrize(
+    ("logged_in_user", "member_role"),
+    [(users[0], MembershipRole.OWNER)],
+    indirect=["logged_in_user"],
+)
+def test_approve_document_enqueues_index_when_done(
+    client, db_session, logged_in_user, member_role
+):
+    """processing_status==DONE 상태로 승인시 index_approved_document.delay가 호출되는지 검증."""
+    uploader_data = uploader_user.copy()
+    uploader_data["password"] = auth_service.hash_password(uploader_data["password"])
+    uploader = User(**uploader_data)
+    db_session.add(uploader)
+    db_session.flush()
+
+    db_session.add(
+        Group(
+            id=GROUP_ID,
+            owner_user_id=logged_in_user.id,
+            name=groups[0]["name"],
+            description=groups[0]["description"],
+            status=GroupStatus.ACTIVE,
+        )
+    )
+    db_session.flush()
+    db_session.add(
+        GroupMember(
+            user_id=logged_in_user.id,
+            group_id=GROUP_ID,
+            role=member_role,
+            status=MembershipStatus.ACTIVE,
+        )
+    )
+    db_session.add(
+        GroupMember(
+            user_id=uploader.id,
+            group_id=GROUP_ID,
+            role=MembershipRole.VIEWER,
+            status=MembershipStatus.ACTIVE,
+        )
+    )
+    db_session.add(
+        Document(
+            id=611,
+            group_id=GROUP_ID,
+            uploader_user_id=uploader.id,
+            original_filename="done_doc.pdf",
+            stored_path="/tmp/test_docs/done_doc.pdf",
+            processing_status=DocumentStatus.DONE,
+            lifecycle_status=DocumentLifecycleStatus.ACTIVE,
+        )
+    )
+    db_session.add(
+        DocumentApproval(
+            document_id=611,
+            status=ReviewStatus.PENDING_REVIEW,
+        )
+    )
+    db_session.commit()
+
+    with patch("domains.document.review_service.index_approved_document") as mock_task:
+        mock_task.delay = MagicMock()
+        res = client.post(f"/api/groups/{GROUP_ID}/documents/611/approve")
+
+    assert res.status_code == 200
+    mock_task.delay.assert_called_once_with(611)
+
+
+# UT-DOC-012-07 processing_status!=DONE 상태에서 승인시 index가 enqueue되지 않는다.
+@pytest.mark.parametrize(
+    ("logged_in_user", "member_role"),
+    [(users[0], MembershipRole.OWNER)],
+    indirect=["logged_in_user"],
+)
+def test_approve_document_does_not_enqueue_index_when_not_done(
+    client, db_session, logged_in_user, member_role
+):
+    """processing_status!=DONE 상태 승인시 index_approved_document.delay가 호출되지 않는지 검증."""
+    uploader_data = uploader_user.copy()
+    uploader_data["password"] = auth_service.hash_password(uploader_data["password"])
+    uploader = User(**uploader_data)
+    db_session.add(uploader)
+    db_session.flush()
+
+    db_session.add(
+        Group(
+            id=GROUP_ID,
+            owner_user_id=logged_in_user.id,
+            name=groups[0]["name"],
+            description=groups[0]["description"],
+            status=GroupStatus.ACTIVE,
+        )
+    )
+    db_session.flush()
+    db_session.add(
+        GroupMember(
+            user_id=logged_in_user.id,
+            group_id=GROUP_ID,
+            role=member_role,
+            status=MembershipStatus.ACTIVE,
+        )
+    )
+    db_session.add(
+        GroupMember(
+            user_id=uploader.id,
+            group_id=GROUP_ID,
+            role=MembershipRole.VIEWER,
+            status=MembershipStatus.ACTIVE,
+        )
+    )
+    db_session.add(
+        Document(
+            id=612,
+            group_id=GROUP_ID,
+            uploader_user_id=uploader.id,
+            original_filename="pending_doc.pdf",
+            stored_path="/tmp/test_docs/pending_doc.pdf",
+            processing_status=DocumentStatus.PROCESSING,  # DONE 아님
+            lifecycle_status=DocumentLifecycleStatus.ACTIVE,
+        )
+    )
+    db_session.add(
+        DocumentApproval(
+            document_id=612,
+            status=ReviewStatus.PENDING_REVIEW,
+        )
+    )
+    db_session.commit()
+
+    with patch("domains.document.review_service.index_approved_document") as mock_task:
+        mock_task.delay = MagicMock()
+        res = client.post(f"/api/groups/{GROUP_ID}/documents/612/approve")
+
+    assert res.status_code == 200
+    mock_task.delay.assert_not_called()

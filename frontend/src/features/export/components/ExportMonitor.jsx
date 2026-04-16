@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { getExportJob, getExportDownloadUrl } from '@/api/exports'
+import { getExportJob, getExportDownloadUrl } from '@/shared/api/exports'
 import ExportStatusToast from './ExportStatusToast'
 import {
     clearStoredExportIntent,

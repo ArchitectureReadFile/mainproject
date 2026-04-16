@@ -2,6 +2,7 @@ from datetime import timedelta
 
 import pytest
 
+from domains.auth.service import AuthService
 from models.model import (
     Group,
     GroupMember,
@@ -15,7 +16,6 @@ from models.model import (
     User,
     utc_now_naive,
 )
-from services.auth_service import AuthService
 from tests.dummy_data import users
 
 auth_service = AuthService(None)

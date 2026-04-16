@@ -1,20 +1,20 @@
 import {
     getGroupDetail, requestDeleteGroup, cancelDeleteGroup, getMembers, inviteMember,
     removeMember, changeMemberRole, transferOwner, leaveGroup, getGroupDocuments,
-} from '@/api/groups'
+} from '@/shared/api/groups'
 import {
     calcKoreanDday,
     formatKoreanDate,
     formatKoreanDateTime,
-} from '@/lib/datetime'
+} from '@/shared/lib/datetime'
 import {
     createExportJob,
     getExportDownloadUrl,
     getExportJob,
     getLatestExportJob,
-} from '@/api/exports'
+} from '@/shared/api/exports'
 import { setStoredExportIntent } from '@/features/export/utils/exportIntent'
-import { ConfirmModal } from '@/components/ui/confirm-modal'
+import { ConfirmModal } from '@/shared/ui/confirm-modal'
 import {
     AlertTriangle, Download, FileText, Home, Loader2,
     Trash2, Undo2, Users, ArrowLeft, Lock,
@@ -23,13 +23,13 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import UploadPage from '@/pages/Upload/index'
 import DocumentsTab from '@/pages/Workspace/DocumentsTab'
-import { Badge } from '@/components/ui/Badge'
+import { Badge } from '@/shared/ui/badge'
 import { useAuth } from '@/features/auth/index'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
+import { Button } from '@/shared/ui/Button'
+import { Input } from '@/shared/ui/Input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/shared/ui/tooltip'
 import { UploadProvider } from '@/features/upload/context/UploadContext'
 import ApprovalsTab from '@/pages/Workspace/ApprovalsTab'
 import TrashTab from '@/pages/Workspace/TrashTab'

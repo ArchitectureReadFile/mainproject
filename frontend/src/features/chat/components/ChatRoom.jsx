@@ -11,9 +11,9 @@ import {
   IoCloudUploadOutline,
   IoEllipsisHorizontal
 } from 'react-icons/io5';
-import { Button } from "@/components/ui/Button.jsx";
-import { Input } from "@/components/ui/Input.jsx";
-import { Avatar, AvatarFallback } from "@/components/ui/Avatar.jsx";
+import { Button } from "@/shared/ui/Button.jsx";
+import { Input } from "@/shared/ui/Input.jsx";
+import { Avatar, AvatarFallback } from "@/shared/ui/avatar.jsx";
 import { useChat } from '../hooks/useChat.js';
 
 export default function ChatRoom({ sessionId, onBack, onClose }) {

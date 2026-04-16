@@ -1,0 +1,163 @@
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
+
+from database import get_db
+from dependencies import get_auth_service, get_notification_service
+from domains.auth.router import get_current_user
+from domains.auth.service import AuthService
+from domains.notification.service import NotificationService
+from domains.workspace.repository import GroupRepository
+from domains.workspace.schemas import (
+    GroupCreateRequest,
+    GroupDetailResponse,
+    InvitedMemberResponse,
+    MemberInviteRequest,
+    MemberListResponse,
+    MemberRoleChangeRequest,
+    MyGroupsResponse,
+)
+from domains.workspace.service import GroupService
+from models.model import User
+
+router = APIRouter(prefix="/groups", tags=["groups"])
+
+
+def get_group_service(
+    db: Session = Depends(get_db),
+    auth_service: AuthService = Depends(get_auth_service),
+    notification_service: NotificationService = Depends(get_notification_service),
+) -> GroupService:
+    return GroupService(GroupRepository(db), auth_service, notification_service, db)
+
+
+@router.post(
+    "", response_model=GroupDetailResponse, status_code=status.HTTP_201_CREATED
+)
+def create_group(
+    payload: GroupCreateRequest,
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    return service.create_group(current_user.id, payload.name, payload.description)
+
+
+@router.get("", response_model=MyGroupsResponse)
+def get_my_groups(
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    return service.get_my_groups(current_user.id)
+
+
+@router.get("/{group_id}", response_model=GroupDetailResponse)
+def get_group_detail(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    return service.get_group_detail(current_user.id, group_id)
+
+
+@router.delete("/{group_id}", response_model=GroupDetailResponse)
+def request_delete_group(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    return service.request_delete_group(current_user.id, group_id)
+
+
+@router.post("/{group_id}/cancel-delete", response_model=GroupDetailResponse)
+def cancel_delete_group(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    return service.cancel_delete_group(current_user.id, group_id)
+
+
+@router.get("/{group_id}/members", response_model=MemberListResponse)
+def get_members(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    return service.get_members(current_user.id, group_id)
+
+
+@router.post(
+    "/{group_id}/members",
+    response_model=InvitedMemberResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def invite_member(
+    group_id: int,
+    payload: MemberInviteRequest,
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    return service.invite_member(
+        group_id, current_user.id, payload.username, payload.role
+    )
+
+
+@router.post("/{group_id}/members/accept", status_code=status.HTTP_204_NO_CONTENT)
+def accept_invite(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    service.accept_invite(current_user.id, group_id)
+
+
+@router.post("/{group_id}/members/decline", status_code=status.HTTP_204_NO_CONTENT)
+def decline_invite(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    service.decline_invite(current_user.id, group_id)
+
+
+@router.delete(
+    "/{group_id}/members/{target_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def remove_member(
+    group_id: int,
+    target_id: int,
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    service.remove_member(target_id, group_id, current_user.id)
+
+
+@router.patch("/{group_id}/members/{target_id}", status_code=status.HTTP_204_NO_CONTENT)
+def change_member_role(
+    group_id: int,
+    target_id: int,
+    payload: MemberRoleChangeRequest,
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    service.change_member_role(current_user.id, target_id, group_id, payload.role)
+
+
+@router.post(
+    "/{group_id}/members/{target_id}/transfer", status_code=status.HTTP_204_NO_CONTENT
+)
+def transfer_owner(
+    group_id: int,
+    target_id: int,
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    service.transfer_owner(current_user.id, group_id, target_id)
+
+
+@router.post("/{group_id}/leave", status_code=status.HTTP_204_NO_CONTENT)
+def leave_group(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    service: GroupService = Depends(get_group_service),
+):
+    service.leave_group(current_user.id, group_id)

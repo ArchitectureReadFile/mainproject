@@ -9,20 +9,20 @@ __pycache__/
 # DB
 *.db
 
-# 출력물
+# 런타임 산출물 (runtime/ 하위로 정리 예정)
 output/
 uploads/
+celerybeat-schedule
+celerybeat-schedule.db
+data/exports/
+runtime/
+
+# 캐시
+.model_cache/
+.pytest_cache/
+.ruff_cache/
+services/rag/chroma_data/
 
 # 임시/실험 파일
 *_ex.py
 .playwright-cli/
-
-# RAG 벡터 데이터
-.model_cache/
-services/rag/chroma_data/
-
-# 런타임 산출물
-/celerybeat-schedule
-
-# export 런타임 산출물
-data/exports/

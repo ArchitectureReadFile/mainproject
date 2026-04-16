@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import nongdamgom from '../../../assets/nongdamgom.png';
-import { Card } from "@/components/ui/Card.jsx";
+import nongdamgom from '@/shared/assets/nongdamgom.png';
+import { Card } from "@/shared/ui/card.jsx";
 import ChatList from './ChatList';
 import ChatSession from './ChatSession';
 

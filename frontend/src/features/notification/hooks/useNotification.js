@@ -145,15 +145,25 @@ export const useNotification = () => {
         case 'WORKSPACE_INVITED':
           navigate(`/workspace/${groupId}?tab=workspace`)
           break
+        case 'WORKSPACE_MEMBER_UPDATE':
+          navigate(`/workspace/${groupId}?tab=members`)
+          break
         case 'DOCUMENT_UPLOAD_REQUESTED':
-          navigate(`/workspace/${groupId}?tab=approval`)
+          navigate(`/workspace/${groupId}?tab=approvals`)
           break
         case 'DOCUMENT_DELETED':
           navigate(`/workspace/${groupId}?tab=trash`)
           break
         case 'WORKSPACE_DELETE_NOTICE':
+        case 'WORKSPACE_STATUS_UPDATE':
           navigate(`/workspace/${groupId}?tab=workspace`)
+          break
       }
+    }
+
+    if (n.target_type === 'group_document' && n.group_id && n.target_id) {
+      navigate(`/workspace/${n.group_id}/documents/${n.target_id}`)
+      return
     }
   }, [navigate, markAsRead])
 

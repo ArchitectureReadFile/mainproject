@@ -1,5 +1,6 @@
 import pytest
 
+from domains.auth.service import AuthService
 from errors import ErrorCode
 from models.model import (
     Document,
@@ -14,7 +15,6 @@ from models.model import (
     ReviewStatus,
     User,
 )
-from services.auth_service import AuthService
 from tests.dummy_data import groups, users
 
 auth_service = AuthService(None)
@@ -64,7 +64,7 @@ def test_update_document_classification_success_for_owner_or_admin(
     admin_client, db_session, monkeypatch
 ):
     """OWNER 또는 ADMIN은 처리 완료된 활성 문서의 문서 유형과 카테고리를 정상 수정할 수 있는지 검증한다."""
-    from tasks.group_document_task import index_approved_document
+    from domains.document.index_task import index_approved_document
 
     called_document_ids = []
     monkeypatch.setattr(

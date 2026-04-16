@@ -2,7 +2,7 @@
 
 import pytest
 
-from services.rag.grouping_service import (
+from domains.rag.grouping_service import (
     TOP_CHUNKS_PER_PRECEDENT,
     group_chunks_by_precedent,
 )

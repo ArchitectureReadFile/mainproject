@@ -7,7 +7,7 @@ from tests.dummy_data import email_verification_data
 def test_send_verification_code_success(client, fake_redis):
     email = email_verification_data["payload"]["valid_email"]
 
-    with patch("services.email_service.EmailService._send_email") as mock_send:
+    with patch("domains.email.service.EmailService._send_email") as mock_send:
         response = client.post(
             "/api/email/send-verification-code", json={"email": email}
         )
@@ -26,7 +26,7 @@ def test_send_verification_code_failure_smtp_error(client, fake_redis):
     email = email_verification_data["payload"]["valid_email"]
 
     with patch(
-        "services.email_service.EmailService._send_email",
+        "domains.email.service.EmailService._send_email",
         side_effect=Exception("SMTP Failed"),
     ):
         response = client.post(

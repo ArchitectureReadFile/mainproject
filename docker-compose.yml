@@ -11,6 +11,7 @@ x-backend-common: &backend-common
     - REDIS_HOST=redis
     - QDRANT_HOST=qdrant
     - QDRANT_PORT=6333
+    - ODL_HYBRID_URL=http://odl_hybrid:5002
     - TZ=UTC
   depends_on:
     db:
@@ -45,6 +46,19 @@ services:
     ports:
       - "8000:8000"
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  odl_hybrid:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: odl_hybrid_container
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    environment:
+      - TZ=UTC
+    command: opendataloader-pdf-hybrid --host 0.0.0.0 --port 5002 --force-ocr --ocr-lang ko,en
 
   db:
     image: mariadb:10.11
@@ -155,7 +169,7 @@ services:
     container_name: celery_beat_container
     env_file:
       - ./backend/.env
-    command: celery -A celery_app beat --loglevel=info
+    command: celery -A celery_app beat --loglevel=info --schedule runtime/celery/beat-schedule
 
 volumes:
   ollama_data:

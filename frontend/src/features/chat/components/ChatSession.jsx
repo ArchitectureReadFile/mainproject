@@ -1,6 +1,6 @@
-import { Avatar, AvatarFallback } from "@/components/ui/Avatar.jsx";
-import { Button } from "@/components/ui/Button.jsx";
-import { Input } from "@/components/ui/Input.jsx";
+import { Avatar, AvatarFallback } from "@/shared/ui/avatar.jsx";
+import { Button } from "@/shared/ui/Button.jsx";
+import { Input } from "@/shared/ui/Input.jsx";
 import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -16,7 +16,7 @@ import {
   IoSend,
   IoStop
 } from 'react-icons/io5';
-import { getMyGroups } from '../../../api/groups';
+import { getMyGroups } from '@/shared/api/groups';
 import { useChat } from '../hooks/useChat.js';
 
 export default function ChatSession({ session, onBack, onClose, onUpdateSession }) {

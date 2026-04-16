@@ -1,9 +1,9 @@
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Label } from '@/components/ui/Label';
+import { Button } from '@/shared/ui/Button';
+import { Input } from '@/shared/ui/Input';
+import { Label } from '@/shared/ui/label';
 import { AlertCircle, ChevronLeft, Mail, ShieldCheck, UserCheck, CheckCircle2 } from 'lucide-react';
 import { useEffect, useRef, useState } from "react";
-import { getErrorMessageByCode } from "../../../../lib/errors";
+import { getErrorMessageByCode } from "@/shared/lib/errors";
 import { confirmAccount } from "../../api/authApi";
 import { sendVerificationCode, verifyCode } from "../../api/emailApi";
 

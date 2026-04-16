@@ -1,8 +1,8 @@
-import { Button } from '@/components/ui/Button'
-import { Card, CardContent } from '@/components/ui/Card'
-import { Label } from '@/components/ui/Label'
-import { cn } from '@/lib/utils'
-import { BellRing, FileUp, Inbox, Info, MessageSquare, ShieldAlert, Trash2, Users, AtSign } from 'lucide-react'
+import { Button } from '@/shared/ui/Button'
+import { Card, CardContent } from '@/shared/ui/card'
+import { Label } from '@/shared/ui/label'
+import { cn } from '@/shared/lib/utils'
+import { BellRing, FileCheck, FileUp, Inbox, Info, MessageSquare, ShieldAlert, Trash2, Users, AtSign, UserCheck, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { getNotificationSettings, updateNotificationSetting } from '../../../features/notification/api/notification'
 
@@ -23,6 +23,8 @@ export default function NotificationSection() {
       title: '워크스페이스',
       items: [
         { type: 'WORKSPACE_INVITED', label: '워크스페이스 초대', icon: Users, desc: '새로운 워크스페이스에 초대받았을 때 알림' },
+        { type: 'WORKSPACE_MEMBER_UPDATE', label: '멤버 변경', icon: UserCheck, desc: '초대 수락, 권한 변경 등 워크스페이스 멤버 변경 알림' },
+        { type: 'WORKSPACE_STATUS_UPDATE', label: '상태 변경', icon: ShieldCheck, desc: '삭제 취소 등 워크스페이스 상태가 변경되었을 때 알림' },
         { type: 'WORKSPACE_DELETE_NOTICE', label: '워크스페이스 삭제', icon: ShieldAlert, desc: '소속된 워크스페이스가 삭제될 예정일 때 알림' }
       ]
     },
@@ -31,6 +33,7 @@ export default function NotificationSection() {
       items: [
         { type: 'COMMENT_MENTIONED', label: '댓글 멘션 알림', icon: AtSign, desc: '문서 댓글에서 누군가 나를 멘션했을 때 알림' },
         { type: 'DOCUMENT_UPLOAD_REQUESTED', label: '문서 검토 요청', icon: FileUp, desc: '내가 문서 승인자로 지정되었을 때 알림' },
+        { type: 'DOCUMENT_REVIEW_RESULT', label: '문서 검토 결과', icon: FileCheck, desc: '내가 업로드한 문서가 승인 또는 반려되었을 때 알림' },
         { type: 'DOCUMENT_DELETED', label: '문서 삭제 알림', icon: Trash2, desc: '내 문서가 관리자에 의해 삭제되었을 때 알림' }
       ]
     }

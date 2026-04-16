@@ -1,4 +1,4 @@
-import { Card } from '@/components/ui/Card'
+import { Card } from '@/shared/ui/card'
 import { CheckCircle2, Clock3, XCircle } from 'lucide-react'
 
 const STATUS_CARDS = [

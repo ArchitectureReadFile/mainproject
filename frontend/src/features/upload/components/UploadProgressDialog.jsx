@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/Button'
+import { Button } from '@/shared/ui/Button'
 import {
   Dialog,
   DialogContent,
@@ -6,7 +6,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/Dialog'
+} from '@/shared/ui/Dialog'
 import FileStatusItem from './FileStatusItem.jsx'
 
 export default function UploadProgressDialog({

@@ -2,43 +2,22 @@
 tests/unit/test_document_extract_service.py
 
 DocumentExtractService 단위 테스트.
-외부 의존성(opendataloader_pdf, 파일시스템, OCR)은 mock으로 격리한다.
-
-12단계: document_input_builder 제거에 따라
-extract_body_from_markdown / extract_body_from_json 테스트는
-DocumentNormalizeService 기준으로 교체됐다.
+외부 의존성(opendataloader_pdf, 파일시스템)은 mock으로 격리한다.
 """
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from domains.document.extract_service import DocumentExtractService, ExtractedDocument
+from domains.document.normalize_service import DocumentNormalizeService
 from errors import AppException, ErrorCode
-from services.document_extract_service import DocumentExtractService, ExtractedDocument
-from services.document_normalize_service import DocumentNormalizeService
-from services.ocr.ocr_service import OcrService
 from settings.chat import SESSION_DOCUMENT_BODY_MAX, SESSION_DOCUMENT_TABLE_MAX
-
-# ── 테스트용 OCR 스텁 ─────────────────────────────────────────────────────────
-
-
-class _StubOcrService(OcrService):
-    def __init__(self, text: str = "", raise_exc: Exception | None = None):
-        self._text = text
-        self._raise_exc = raise_exc
-
-    def extract_text(self, file_path: str) -> str:
-        if self._raise_exc:
-            raise self._raise_exc
-        return self._text
-
-
-# ── fixtures ─────────────────────────────────────────────────────────────────
 
 
 @pytest.fixture
 def service():
-    return DocumentExtractService(ocr_service=_StubOcrService())
+    return DocumentExtractService()
 
 
 @pytest.fixture
@@ -63,9 +42,6 @@ def _ctx():
     ctx.__enter__ = MagicMock(return_value="/tmp/fake")
     ctx.__exit__ = MagicMock(return_value=False)
     return ctx
-
-
-# ── DocumentNormalizeService 기준 body 추출 검증 ──────────────────────────────
 
 
 class TestNormalizeBodyFromMarkdown:
@@ -142,9 +118,6 @@ class TestNormalizeBodyFromJson:
         assert "표 셀 텍스트" not in doc.body_text
 
 
-# ── _extract_body ─────────────────────────────────────────────────────────────
-
-
 class TestExtractBodyMethod:
     """_extract_body: raw markdown 우선, 비면 json fallback."""
 
@@ -162,22 +135,19 @@ class TestExtractBodyMethod:
         assert service._extract_body(extracted) == ""
 
 
-# ── 기본 추출 성공 ────────────────────────────────────────────────────────────
-
-
 class TestNormalExtract:
     def test_file_not_found_raises(self, service):
         with pytest.raises(AppException) as exc_info:
             service.extract("/nonexistent/path.pdf")
         assert exc_info.value.error_code == ErrorCode.FILE_NOT_FOUND
 
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
-    def test_success_returns_extracted_without_ocr(self, mock_tmpdir, _exists):
+    @patch("domains.document.extract_service.os.path.exists", return_value=True)
+    @patch("domains.document.extract_service.tempfile.TemporaryDirectory")
+    def test_success_returns_extracted(self, mock_tmpdir, _exists):
         mock_tmpdir.return_value = _ctx()
         extracted = _make_extracted(markdown="# 제목\n\n본문 내용입니다.")
 
-        svc = DocumentExtractService(ocr_service=_StubOcrService(text=""))
+        svc = DocumentExtractService()
         svc._convert = MagicMock()
         svc._load_results = MagicMock(return_value=extracted)
 
@@ -185,61 +155,41 @@ class TestNormalExtract:
         assert result is extracted
         svc._convert.assert_called_once_with("/fake/file.pdf", "/tmp/fake")
 
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
+    @patch("domains.document.extract_service.os.path.exists", return_value=True)
+    @patch("domains.document.extract_service.tempfile.TemporaryDirectory")
     def test_raw_markdown_with_table_accepted(self, mock_tmpdir, _exists):
         mock_tmpdir.return_value = _ctx()
         extracted = _make_extracted(
             markdown="| 컬럼1 | 컬럼2 |\n|---|---|\n| 값1 | 값2 |"
         )
 
-        svc = DocumentExtractService(ocr_service=_StubOcrService())
+        svc = DocumentExtractService()
         svc._convert = MagicMock()
         svc._load_results = MagicMock(return_value=extracted)
 
         result = svc.extract("/fake/file.pdf")
         assert result is extracted
 
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
+    @patch("domains.document.extract_service.os.path.exists", return_value=True)
+    @patch("domains.document.extract_service.tempfile.TemporaryDirectory")
     def test_json_content_fallback_accepted(self, mock_tmpdir, _exists):
         mock_tmpdir.return_value = _ctx()
         json_data = {"kids": [{"type": "paragraph", "content": "JSON 본문입니다."}]}
         extracted = _make_extracted(markdown="", json_data=json_data)
 
-        svc = DocumentExtractService(ocr_service=_StubOcrService())
+        svc = DocumentExtractService()
         svc._convert = MagicMock()
         svc._load_results = MagicMock(return_value=extracted)
 
         result = svc.extract("/fake/file.pdf")
         assert result is extracted
 
-
-# ── OCR fallback (body empty) ─────────────────────────────────────────────────
-
-
-class TestOcrFallbackFromEmptyBody:
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
-    def test_empty_body_triggers_ocr_and_returns(self, mock_tmpdir, _exists):
+    @patch("domains.document.extract_service.os.path.exists", return_value=True)
+    @patch("domains.document.extract_service.tempfile.TemporaryDirectory")
+    def test_empty_body_raises_too_short(self, mock_tmpdir, _exists):
         mock_tmpdir.return_value = _ctx()
 
-        ocr = _StubOcrService(text="OCR로 추출된 본문입니다.")
-        svc = DocumentExtractService(ocr_service=ocr)
-        svc._convert = MagicMock()
-        svc._load_results = MagicMock(return_value=_make_extracted(markdown=""))
-
-        result = svc.extract("/fake/scanned.pdf")
-        assert result.markdown == "OCR로 추출된 본문입니다."
-        assert result.json_data is None
-        assert result.source_type == "ocr"
-
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
-    def test_ocr_empty_raises_too_short(self, mock_tmpdir, _exists):
-        mock_tmpdir.return_value = _ctx()
-
-        svc = DocumentExtractService(ocr_service=_StubOcrService(text=""))
+        svc = DocumentExtractService()
         svc._convert = MagicMock()
         svc._load_results = MagicMock(return_value=_make_extracted(markdown=""))
 
@@ -247,55 +197,56 @@ class TestOcrFallbackFromEmptyBody:
             svc.extract("/fake/scanned.pdf")
         assert exc_info.value.error_code == ErrorCode.DOC_PDF_TEXT_TOO_SHORT
 
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
-    def test_ocr_exception_raises_internal_error(self, mock_tmpdir, _exists):
+    @patch("domains.document.extract_service.os.path.exists", return_value=True)
+    @patch("domains.document.extract_service.tempfile.TemporaryDirectory")
+    def test_convert_error_raises_internal_error(self, mock_tmpdir, _exists):
         mock_tmpdir.return_value = _ctx()
 
-        svc = DocumentExtractService(
-            ocr_service=_StubOcrService(raise_exc=RuntimeError("OCR 실패"))
-        )
-        svc._convert = MagicMock()
-        svc._load_results = MagicMock(return_value=_make_extracted(markdown=""))
+        svc = DocumentExtractService()
+        svc._convert = MagicMock(side_effect=RuntimeError("hybrid 변환 실패"))
 
         with pytest.raises(AppException) as exc_info:
             svc.extract("/fake/scanned.pdf")
         assert exc_info.value.error_code == ErrorCode.DOC_INTERNAL_PARSE_ERROR
 
 
-# ── OCR fallback (convert 실패) ───────────────────────────────────────────────
+class TestHybridConvertOptions:
+    @patch("domains.document.extract_service.odl.convert")
+    @patch.dict(
+        "os.environ",
+        {
+            "ODL_OUTPUT_FORMAT": "markdown,json",
+            "ODL_IMAGE_OUTPUT": "off",
+            "ODL_HYBRID": "docling-fast",
+            "ODL_HYBRID_URL": "http://odl_hybrid:5002",
+            "ODL_HYBRID_TIMEOUT": "240000",  # milliseconds (ODL 공식 문서 기준)
+            "ODL_HYBRID_MODE": "balanced",
+            "ODL_HYBRID_FALLBACK": "true",
+        },
+        clear=False,
+    )
+    def test_convert_uses_hybrid_options(self, mock_convert):
+        """env 문자열이 그대로 odl.convert 호출 인자로 전달되는 흐름을 검증한다.
 
+        ODL_HYBRID_TIMEOUT은 milliseconds 단위로 해석된다.
+        런타임 라이브러리 계약에 맞춰 문자열로 전달한다.
+        """
+        svc = DocumentExtractService()
 
-class TestOcrFallbackFromConvertError:
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
-    def test_convert_error_triggers_ocr_success(self, mock_tmpdir, _exists):
-        mock_tmpdir.return_value = _ctx()
+        svc._convert("/fake/file.pdf", "/tmp/out")
 
-        ocr = _StubOcrService(text="OCR 추출 결과.")
-        svc = DocumentExtractService(ocr_service=ocr)
-        svc._convert = MagicMock(side_effect=Exception("변환 실패"))
-        svc._load_results = MagicMock()
-
-        result = svc.extract("/fake/scanned.pdf")
-        assert result.markdown == "OCR 추출 결과."
-        assert result.source_type == "ocr"
-        svc._load_results.assert_not_called()
-
-    @patch("services.document_extract_service.os.path.exists", return_value=True)
-    @patch("services.document_extract_service.tempfile.TemporaryDirectory")
-    def test_convert_error_and_ocr_empty_raises_too_short(self, mock_tmpdir, _exists):
-        mock_tmpdir.return_value = _ctx()
-
-        svc = DocumentExtractService(ocr_service=_StubOcrService(text=""))
-        svc._convert = MagicMock(side_effect=Exception("변환 실패"))
-
-        with pytest.raises(AppException) as exc_info:
-            svc.extract("/fake/scanned.pdf")
-        assert exc_info.value.error_code == ErrorCode.DOC_PDF_TEXT_TOO_SHORT
-
-
-# ── SessionDocumentPayloadService 기준 truncate 검증 ─────────────────────────
+        mock_convert.assert_called_once_with(
+            input_path="/fake/file.pdf",
+            output_dir="/tmp/out",
+            format="markdown,json",
+            image_output="off",
+            quiet=True,
+            hybrid="docling-fast",
+            hybrid_mode="balanced",
+            hybrid_url="http://odl_hybrid:5002",
+            hybrid_timeout="240000",  # string, milliseconds
+            hybrid_fallback=True,
+        )
 
 
 class TestSessionDocumentPayload:
@@ -303,14 +254,14 @@ class TestSessionDocumentPayload:
 
     @pytest.fixture
     def payload_svc(self):
-        from services.chat.session_document_payload_service import (
+        from domains.chat.session_payload import (
             SessionDocumentPayloadService,
         )
 
         return SessionDocumentPayloadService()
 
     def _doc(self, body="", tables=None):
-        from schemas.document_schema import DocumentSchema, DocumentTableBlock
+        from domains.document.document_schema import DocumentSchema, DocumentTableBlock
 
         blocks = [
             DocumentTableBlock(table_id=f"table:{i}", text=t)
@@ -334,7 +285,6 @@ class TestSessionDocumentPayload:
     def test_body_truncated_at_6000(self, payload_svc):
         long_body = "가" * 7000
         result = payload_svc.build(self._doc(body=long_body))
-        # [본문]\n 이후 body 부분이 설정값 이하
         body_part = result.split("[본문]\n", 1)[1].split("\n\n[표]")[0]
         assert len(body_part) <= SESSION_DOCUMENT_BODY_MAX
 

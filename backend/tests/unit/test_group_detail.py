@@ -1,5 +1,6 @@
 import pytest
 
+from domains.auth.service import AuthService
 from models.model import (
     Group,
     GroupMember,
@@ -9,7 +10,6 @@ from models.model import (
     MembershipStatus,
     User,
 )
-from services.auth_service import AuthService
 from tests.dummy_data import groups, users
 
 auth_service = AuthService(None)

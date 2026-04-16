@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/Button.jsx";
-import { Input } from "@/components/ui/Input.jsx";
+import { Button } from "@/shared/ui/Button.jsx";
+import { Input } from "@/shared/ui/Input.jsx";
 import { useEffect, useRef, useState } from 'react';
 import {
   IoAdd,
@@ -22,7 +22,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { useSearchParams } from 'react-router-dom';
 import remarkGfm from 'remark-gfm';
-import { getMyGroups } from '../../../api/groups';
+import { getMyGroups } from '@/shared/api/groups';
 import { useAuth } from '../../../features/auth';
 import { useChat } from '../../../features/chat/hooks/useChat';
 import { useChatSessions } from '../../../features/chat/hooks/useChatSessions';

@@ -1,12 +1,12 @@
-import { Badge } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
-import { Bell, Check, X, Loader2, MessageSquare, Users, FileText, ShieldAlert, Trash2, AtSign } from 'lucide-react'
+import { Badge } from '@/shared/ui/badge'
+import { Button } from '@/shared/ui/Button'
+import { Bell, Check, X, Loader2, MessageSquare, Users, FileText, FileCheck, ShieldAlert, Trash2, AtSign, UserCheck, ShieldCheck } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useNotification } from '../context/NotificationContext'
-import { cn } from '@/lib/utils'
-import { acceptInvite, declineInvite } from '@/api/groups'
+import { cn } from '@/shared/lib/utils'
+import { acceptInvite, declineInvite } from '@/shared/api/groups'
 
 export default function NotificationBell() {
   const {
@@ -77,6 +77,8 @@ export default function NotificationBell() {
         return <MessageSquare size={14} className="text-blue-500" />
       case 'WORKSPACE_INVITED':
         return <Users size={14} className="text-green-500" />
+      case 'WORKSPACE_MEMBER_UPDATE':
+        return <UserCheck size={14} className="text-green-500" />
       case 'DOCUMENT_UPLOAD_REQUESTED':
         return <FileText size={14} className="text-orange-500" />
       case 'WORKSPACE_DELETE_NOTICE':
@@ -85,6 +87,10 @@ export default function NotificationBell() {
         return <Trash2 size={14} className="text-zinc-500" />
       case 'COMMENT_MENTIONED':
         return <AtSign size={14} className="text-purple-500" />
+      case 'WORKSPACE_STATUS_UPDATE':
+        return <ShieldCheck size={14} className="text-blue-500" />
+      case 'DOCUMENT_REVIEW_RESULT':
+        return <FileCheck size={14} className="text-blue-500" />
       default:
         return <Bell size={14} className="text-zinc-400" />
     }
@@ -97,13 +103,17 @@ export default function NotificationBell() {
     li: ({ children }) => <li className="mb-0">{children}</li>,
   }
 
-  const workspaceCount = notifications.filter(n =>
-    n.target_type === 'group' || (n.target_type && n.target_type.startsWith('doc_comment:'))).length;
-  const chatCount = notifications.filter(n => n.target_type === 'chat').length;
+  const isWorkspaceNotification = (n) =>
+    n.target_type === 'group' ||
+    n.target_type === 'group_document' ||
+    (n.target_type && n.target_type.startsWith('doc_comment:'))
+
+  const workspaceCount = notifications.filter(isWorkspaceNotification).length
+  const chatCount = notifications.filter(n => n.target_type === 'chat').length
 
   const filteredNotifications = notifications.filter(n => {
     if (activeTab === 'workspace') {
-      return n.target_type === 'group' || (n.target_type && n.target_type.startsWith('doc_comment:'))
+      return isWorkspaceNotification(n)
     }
     if (activeTab === 'chat') return n.target_type === 'chat'
     return true
