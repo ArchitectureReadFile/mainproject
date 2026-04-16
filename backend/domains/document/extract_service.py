@@ -43,9 +43,9 @@ class DocumentExtractService:
         self.hybrid = os.getenv("ODL_HYBRID", "docling-fast")
         self.hybrid_mode = os.getenv("ODL_HYBRID_MODE")
         self.hybrid_url = os.getenv("ODL_HYBRID_URL", "http://odl_hybrid:5002")
-        self.hybrid_timeout = int(
-            os.getenv("ODL_HYBRID_TIMEOUT", "180000")
-        )  # milliseconds
+        self.hybrid_timeout = os.getenv(
+            "ODL_HYBRID_TIMEOUT", "180000"
+        )  # milliseconds, string per ODL runtime contract
         self.hybrid_fallback = _env_bool("ODL_HYBRID_FALLBACK", False)
 
     # ── public ───────────────────────────────────────────────────────────────
