@@ -425,54 +425,53 @@ export default function ChatSection() {
 
               <div className="p-4 md:p-10 border-t border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl relative">
                 {(showDocSelect || showGroupSelect) && (
-                  <div className="absolute bottom-full left-4 right-4 md:left-10 md:right-10 mb-4 md:mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl md:rounded-[2rem] shadow-2xl p-3 md:p-4 z-30 animate-in slide-in-from-bottom-4 fade-in duration-300">
-                    <div className="flex justify-between items-center mb-3 md:mb-4 px-2 md:px-4 pt-1 md:pt-2">
-                      <span className="text-base md:text-lg font-black text-foreground">
-                        {showDocSelect ? '검토할 문서 선택' : '참조할 그룹 선택'}
-                      </span>
-                      <button onClick={() => { setShowDocSelect(false); setShowGroupSelect(false); }} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
-                        <IoClose size={20} className="md:w-[24px] md:h-[24px] text-slate-400" />
-                      </button>
-                    </div>
-                    <div className="max-h-48 md:max-h-64 overflow-y-auto p-1 md:p-2 space-y-1.5 md:space-y-2 custom-scrollbar">
-                      {showDocSelect && (
-                        <>
-                          <button onClick={() => fileInputRef.current?.click()} className="w-full text-left p-4 md:p-5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10 rounded-xl md:rounded-2xl flex items-center gap-3 md:gap-4 transition-all border border-dashed border-blue-200 dark:border-blue-800 font-bold mb-3 md:mb-4">
-                            <div className="w-10 h-10 md:w-12 md:h-12 bg-white dark:bg-slate-700 rounded-lg md:rounded-xl flex items-center justify-center shadow-sm"><IoCloudUploadOutline size={20} className="md:w-[24px] md:h-[24px]" /></div>
-                            내 PC에서 파일 업로드
-                          </button>
-                        </>
-                      )}
-                      {showGroupSelect && groups.map(group => (
-                        <button key={group.id} onClick={() => { setSelectedGroup(group); setShowGroupSelect(false); }} className="w-full text-left p-3 md:p-4 text-foreground hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg md:rounded-xl flex items-center gap-3 md:gap-4 transition-colors">
-                          <IoPeopleOutline className="text-slate-400" size={18} md:size={20} /> {group.name}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="absolute bottom-full left-4 right-4 md:left-10 md:right-10 mb-4 md:mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl md:rounded-[2rem] shadow-2xl p-2.5 md:p-4 z-30 animate-in slide-in-from-bottom-4 fade-in duration-300">
+                  <div className="flex justify-between items-center mb-2.5 md:mb-4 px-2 md:px-4 pt-1 md:pt-2">
+                    <span className="text-sm md:text-lg font-black text-foreground">
+                      {showDocSelect ? '검토할 문서 선택' : '참조할 그룹 선택'}
+                    </span>
+                    <button onClick={() => { setShowDocSelect(false); setShowGroupSelect(false); }} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
+                      <IoClose size={18} className="md:w-[24px] md:h-[24px] text-slate-400" />
+                    </button>
                   </div>
-                )}
+                  <div className="max-h-48 md:max-h-64 overflow-y-auto p-1 md:p-2 space-y-1 md:space-y-2 custom-scrollbar">
+                    {showDocSelect && (
+                      <>
+                        <button onClick={() => fileInputRef.current?.click()} className="w-full text-left p-3 md:p-5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10 rounded-xl md:rounded-2xl flex items-center gap-3 md:gap-4 transition-all border border-dashed border-blue-200 dark:border-blue-800 font-bold mb-2 md:mb-4 text-xs md:text-base">
+                          <div className="w-8 h-8 md:w-12 md:h-12 bg-white dark:bg-slate-700 rounded-lg md:rounded-xl flex items-center justify-center shadow-sm"><IoCloudUploadOutline size={18} className="md:w-[24px] md:h-[24px]" /></div>
+                          파일 업로드
+                        </button>
+                      </>
+                    )}
+                    {showGroupSelect && groups.map(group => (
+                      <button key={group.id} onClick={() => { setSelectedGroup(group); setShowGroupSelect(false); }} className="w-full text-left p-2.5 md:p-4 text-foreground hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg md:rounded-xl flex items-center gap-3 md:gap-4 transition-colors text-xs md:text-base">
+                        <IoPeopleOutline className="text-slate-400" size={16} md:size={20} /> {group.name}
+                      </button>
+                    ))}
+                  </div>
+                  </div>                )}
 
                 <div className="max-w-5xl mx-auto space-y-3 md:space-y-4">
                   {(referenceTitle || referenceGroup || selectedDoc || selectedGroup) && (
-                    <div className="flex flex-wrap gap-2 md:gap-3 px-1 md:px-2">
+                    <div className="flex flex-wrap gap-1.5 md:gap-3 px-1 md:px-2">
                       {referenceTitle && !selectedDoc && (
-                        <span className="flex items-center gap-1.5 md:gap-2 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-3 md:px-4 py-1.5 md:py-2 rounded-full border border-indigo-200 dark:border-indigo-800 font-bold text-[10px] md:text-sm">
-                          <IoDocumentTextOutline size={14} md:size={18} /> {referenceTitle}
+                        <span className="flex items-center gap-1.5 md:gap-2 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2.5 md:px-4 py-1 md:py-2 rounded-full border border-indigo-200 dark:border-indigo-800 font-bold text-[10px] md:text-sm">
+                          <IoDocumentTextOutline size={12} className="md:w-[18px] md:h-[18px]" /> {referenceTitle}
                           <span className="hidden md:inline text-xs opacity-70 ml-1">(참조 중)</span>
-                          <button onClick={removeReferenceDocument} className="hover:text-indigo-900 dark:hover:text-indigo-100"><IoCloseCircle size={16} md:size={20} /></button>
+                          <button onClick={removeReferenceDocument} className="hover:text-indigo-900 dark:hover:text-indigo-100"><IoCloseCircle size={14} md:size={20} /></button>
                         </span>
                       )}
                       {selectedDoc && (
-                        <span className="flex items-center gap-1.5 md:gap-2 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-3 md:px-4 py-1.5 md:py-2 rounded-full border border-blue-200 dark:border-blue-800 font-bold text-[10px] md:text-sm">
-                          <IoDocumentTextOutline size={14} md:size={18} /> {selectedDoc.title}
-                          <button onClick={() => setSelectedDoc(null)} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={16} md:size={20} /></button>
+                        <span className="flex items-center gap-1.5 md:gap-2 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2.5 md:px-4 py-1 md:py-2 rounded-full border border-blue-200 dark:border-blue-800 font-bold text-[10px] md:text-sm">
+                          <IoDocumentTextOutline size={12} className="md:w-[18px] md:h-[18px]" /> {selectedDoc.title}
+                          <button onClick={() => setSelectedDoc(null)} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={14} md:size={20} /></button>
                         </span>
                       )}
                       {(referenceGroup || selectedGroup) && (
-                        <span className="flex items-center gap-1.5 md:gap-2 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-3 md:px-4 py-1.5 md:py-2 rounded-full border border-emerald-200 dark:border-emerald-800 font-bold text-[10px] md:text-sm">
-                          <IoPeopleOutline size={14} md:size={18} /> {selectedGroup?.name || referenceGroup?.name}
+                        <span className="flex items-center gap-1.5 md:gap-2 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-2.5 md:px-4 py-1 md:py-2 rounded-full border border-emerald-200 dark:border-emerald-800 font-bold text-[10px] md:text-sm">
+                          <IoPeopleOutline size={12} className="md:w-[18px] md:h-[18px]" /> {selectedGroup?.name || referenceGroup?.name}
                           {!selectedGroup && referenceGroup && <span className="hidden md:inline text-xs opacity-70 ml-1">(참조 중)</span>}
-                          <button onClick={() => { selectedGroup ? setSelectedGroup(null) : removeReferenceGroup(); }} className="hover:text-emerald-900 dark:hover:text-emerald-100"><IoCloseCircle size={16} md:size={20} /></button>
+                          <button onClick={() => { selectedGroup ? setSelectedGroup(null) : removeReferenceGroup(); }} className="hover:text-emerald-900 dark:hover:text-emerald-100"><IoCloseCircle size={14} md:size={20} /></button>
                         </span>
                       )}
                     </div>
@@ -529,27 +528,27 @@ export default function ChatSection() {
                 <div className="flex flex-col bg-slate-100/50 dark:bg-slate-800/50 rounded-[2rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-700 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:border-blue-400 dark:focus-within:border-blue-500 focus-within:shadow-2xl focus-within:shadow-blue-100/50 dark:focus-within:shadow-none transition-all duration-500 p-2 md:p-3 relative">
 
                   {(showDocSelect || showGroupSelect) && (
-                    <div className="absolute bottom-full left-0 right-0 mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[2rem] shadow-2xl p-4 z-30 animate-in slide-in-from-bottom-4 fade-in duration-300 text-left">
-                      <div className="flex justify-between items-center mb-4 px-4 pt-2">
-                        <span className="text-lg font-black text-foreground">
+                    <div className="absolute bottom-full left-0 right-0 mb-4 md:mb-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[1.5rem] md:rounded-[2rem] shadow-2xl p-2.5 md:p-4 z-30 animate-in slide-in-from-bottom-4 fade-in duration-300 text-left">
+                      <div className="flex justify-between items-center mb-2.5 md:mb-4 px-2 md:px-4 pt-1 md:pt-2">
+                        <span className="text-sm md:text-lg font-black text-foreground">
                           {showDocSelect ? '검토할 문서 선택' : '참조할 그룹 선택'}
                         </span>
-                        <button onClick={() => { setShowDocSelect(false); setShowGroupSelect(false); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
-                          <IoClose size={24} className="text-slate-400" />
+                        <button onClick={() => { setShowDocSelect(false); setShowGroupSelect(false); }} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
+                          <IoClose size={18} className="md:w-[24px] md:h-[24px] text-slate-400" />
                         </button>
                       </div>
-                      <div className="max-h-64 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+                      <div className="max-h-48 md:max-h-64 overflow-y-auto p-1 md:p-2 space-y-1 md:space-y-2 custom-scrollbar">
                         {showDocSelect && (
                           <>
-                            <button onClick={() => fileInputRef.current?.click()} className="w-full text-left p-5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10 rounded-2xl flex items-center gap-4 transition-all border border-dashed border-blue-200 dark:border-blue-800 font-bold mb-4">
-                              <div className="w-12 h-12 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center shadow-sm"><IoCloudUploadOutline size={24} /></div>
-                              내 PC에서 파일 업로드
+                            <button onClick={() => fileInputRef.current?.click()} className="w-full text-left p-3 md:p-5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10 rounded-xl md:rounded-2xl flex items-center gap-3 md:gap-4 transition-all border border-dashed border-blue-200 dark:border-blue-800 font-bold mb-2 md:mb-4 text-xs md:text-base">
+                              <div className="w-8 h-8 md:w-12 md:h-12 bg-white dark:bg-slate-700 rounded-lg md:rounded-xl flex items-center justify-center shadow-sm"><IoCloudUploadOutline size={18} className="md:w-[24px] md:h-[24px]" /></div>
+                              파일 업로드
                             </button>
                           </>
                         )}
                         {showGroupSelect && groups.map(group => (
-                          <button key={group.id} onClick={() => { setSelectedGroup(group); setShowGroupSelect(false); }} className="w-full text-left p-4 text-foreground hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl flex items-center gap-4 transition-colors">
-                            <IoPeopleOutline className="text-slate-400" size={20} /> {group.name}
+                          <button key={group.id} onClick={() => { setSelectedGroup(group); setShowGroupSelect(false); }} className="w-full text-left p-2.5 md:p-4 text-foreground hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg md:rounded-xl flex items-center gap-3 md:gap-4 transition-colors text-xs md:text-base">
+                            <IoPeopleOutline className="text-slate-400" size={16} md:size={20} /> {group.name}
                           </button>
                         ))}
                       </div>
@@ -557,17 +556,17 @@ export default function ChatSection() {
                   )}
 
                   {(selectedDoc || selectedGroup) && (
-                    <div className="flex flex-wrap gap-3 px-4 pt-2 pb-1 text-left">
+                    <div className="flex flex-wrap gap-1.5 md:gap-3 px-2 md:px-4 pt-2 pb-1 text-left">
                       {selectedDoc && (
-                        <span className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-4 py-1.5 rounded-full border border-blue-200 dark:border-blue-800 font-bold text-xs">
-                          <IoDocumentTextOutline size={14} /> {selectedDoc.title}
-                          <button onClick={() => setSelectedDoc(null)} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={16} /></button>
+                        <span className="flex items-center gap-1.5 md:gap-2 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2.5 md:px-4 py-1 md:py-1.5 rounded-full border border-blue-200 dark:border-blue-800 font-bold text-[10px] md:text-xs">
+                          <IoDocumentTextOutline size={12} className="md:w-[14px] md:h-[14px]" /> {selectedDoc.title}
+                          <button onClick={() => setSelectedDoc(null)} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={14} md:size={16} /></button>
                         </span>
                       )}
                       {selectedGroup && (
-                        <span className="flex items-center gap-2 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-4 py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800 font-bold text-xs">
-                          <IoPeopleOutline size={14} /> {selectedGroup.name}
-                          <button onClick={() => setSelectedGroup(null)} className="hover:text-emerald-900 dark:hover:text-emerald-100"><IoCloseCircle size={16} /></button>
+                        <span className="flex items-center gap-1.5 md:gap-2 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-2.5 md:px-4 py-1 md:py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800 font-bold text-[10px] md:text-xs">
+                          <IoPeopleOutline size={12} className="md:w-[14px] md:h-[14px]" /> {selectedGroup.name}
+                          <button onClick={() => setSelectedGroup(null)} className="hover:text-emerald-900 dark:hover:text-emerald-100"><IoCloseCircle size={14} md:size={16} /></button>
                         </span>
                       )}
                     </div>
@@ -598,11 +597,11 @@ export default function ChatSection() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 md:gap-3 px-2 md:px-4 pb-2 md:pb-3">
-                    <Button variant="outline" size="sm" onClick={() => { setShowDocSelect(!showDocSelect); setShowGroupSelect(false); }} className={`h-9 md:h-11 text-[10px] md:text-sm rounded-full gap-1.5 md:gap-2 px-4 md:px-6 border-slate-200 dark:border-slate-700 transition-all duration-200 font-bold cursor-pointer ${showDocSelect ? 'bg-slate-800 hover:bg-slate-700 dark:bg-slate-200 dark:hover:bg-slate-300 text-white hover:text-white dark:text-slate-800 dark:hover:text-slate-800 border-slate-800 dark:border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'}`}>
-                      <IoAdd size={16} md:size={20} /> 문서 검토
+                    <Button variant="outline" size="sm" onClick={() => { setShowDocSelect(!showDocSelect); setShowGroupSelect(false); }} className={`h-8 md:h-11 text-[10px] md:text-sm rounded-full gap-1.5 md:gap-2 px-3 md:px-6 border-slate-200 dark:border-slate-700 transition-all duration-200 font-bold cursor-pointer ${showDocSelect ? 'bg-slate-800 hover:bg-slate-700 dark:bg-slate-200 dark:hover:bg-slate-300 text-white hover:text-white dark:text-slate-800 dark:hover:text-slate-800 border-slate-800 dark:border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'}`}>
+                      <IoAdd size={14} md:size={20} /> 문서 검토
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => { setShowGroupSelect(!showGroupSelect); setShowDocSelect(false); }} className={`h-9 md:h-11 text-[10px] md:text-sm rounded-full gap-1.5 md:gap-2 px-4 md:px-6 border-slate-200 dark:border-slate-700 transition-all duration-200 font-bold cursor-pointer ${showGroupSelect ? 'bg-slate-800 hover:bg-slate-700 dark:bg-slate-200 dark:hover:bg-slate-300 text-white hover:text-white dark:text-slate-800 dark:hover:text-slate-800 border-slate-800 dark:border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'}`}>
-                      <IoFolderOpenOutline size={16} md:size={20} /> 그룹 참조
+                    <Button variant="outline" size="sm" onClick={() => { setShowGroupSelect(!showGroupSelect); setShowDocSelect(false); }} className={`h-8 md:h-11 text-[10px] md:text-sm rounded-full gap-1.5 md:gap-2 px-3 md:px-6 border-slate-200 dark:border-slate-700 transition-all duration-200 font-bold cursor-pointer ${showGroupSelect ? 'bg-slate-800 hover:bg-slate-700 dark:bg-slate-200 dark:hover:bg-slate-300 text-white hover:text-white dark:text-slate-800 dark:hover:text-slate-800 border-slate-800 dark:border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'}`}>
+                      <IoFolderOpenOutline size={14} md:size={20} /> 그룹 참조
                     </Button>
                   </div>
                 </div>
