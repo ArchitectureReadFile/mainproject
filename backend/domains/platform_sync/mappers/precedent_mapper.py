@@ -19,10 +19,8 @@ metadata:
     detail_mode = "enriched"        : 목록 기반 문서를 상세 본문으로 보강한 문서
     detail_fetch_supported = True   : 상세 조회 가능 표시
 
-기존 Precedent 모델 / chunk_builder.py 와의 관계:
-    - 기존 코드는 그대로 유지.
-    - 이 mapper는 platform knowledge ingestion 경로 전용.
-    - 신규 수집분은 PlatformDocument로 적재, 기존 Precedent는 deprecated 방향.
+이 mapper는 precedent의 유일한 platform knowledge 정규화 경로다.
+판례 source of truth는 PlatformDocument(source_type="precedent")를 기준으로 한다.
 """
 
 from __future__ import annotations

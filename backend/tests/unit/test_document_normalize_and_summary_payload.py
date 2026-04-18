@@ -37,10 +37,6 @@ def _odl(markdown: str = "", json_data=None) -> ExtractedDocument:
     )
 
 
-def _ocr(text: str) -> ExtractedDocument:
-    return ExtractedDocument(markdown=text, json_data=None, source_type="ocr")
-
-
 _SIMPLE_JSON = {
     "kids": [
         {"type": "paragraph", "content": "본문 내용입니다."},
@@ -74,10 +70,6 @@ class TestSourceTypeDetection:
         doc = normalizer.normalize(_odl(markdown="본문", json_data={}))
         assert doc.source_type == "odl"
 
-    def test_ocr_uses_extracted_source_type(self, normalizer):
-        doc = normalizer.normalize(_ocr("OCR 본문"))
-        assert doc.source_type == "ocr"
-
     def test_odl_markdown_only_does_not_fall_back_to_ocr(self, normalizer):
         extracted = ExtractedDocument(
             markdown="# 제목\n\n본문",
@@ -87,7 +79,6 @@ class TestSourceTypeDetection:
         doc = normalizer.normalize(extracted)
         assert doc.source_type == "odl"
         assert doc.raw_markdown == "# 제목\n\n본문"
-        assert doc.raw_text is None
 
 
 class TestRawFields:
@@ -96,13 +87,6 @@ class TestRawFields:
         doc = normalizer.normalize(extracted)
         assert doc.raw_markdown == "# 제목"
         assert doc.raw_json == {"kids": []}
-        assert doc.raw_text is None
-
-    def test_ocr_sets_raw_text_only(self, normalizer):
-        doc = normalizer.normalize(_ocr("OCR 원문"))
-        assert doc.raw_text == "OCR 원문"
-        assert doc.raw_markdown is None
-        assert doc.raw_json is None
 
 
 class TestBodyText:
@@ -115,10 +99,6 @@ class TestBodyText:
         doc = normalizer.normalize(_odl(markdown="", json_data=json_data))
         assert "JSON 본문" in doc.body_text
 
-    def test_ocr_uses_raw_text_as_body(self, normalizer):
-        doc = normalizer.normalize(_ocr("OCR로 추출된 텍스트"))
-        assert doc.body_text == "OCR로 추출된 텍스트"
-
 
 class TestTableBlocks:
     def test_odl_extracts_table_blocks(self, normalizer):
@@ -127,10 +107,6 @@ class TestTableBlocks:
         assert doc.table_blocks[0].table_id == "table:0"
         assert "col1" in doc.table_blocks[0].text
         assert "col2" in doc.table_blocks[0].text
-
-    def test_ocr_has_no_table_blocks(self, normalizer):
-        doc = normalizer.normalize(_ocr("OCR 본문"))
-        assert doc.table_blocks == []
 
     def test_odl_no_tables_in_json(self, normalizer):
         json_data = {"kids": [{"type": "paragraph", "content": "본문만"}]}
@@ -231,11 +207,6 @@ class TestMetadata:
         doc = normalizer.normalize(_odl(markdown="본문", json_data={}))
         assert doc.metadata["normalization_version"] == "v2"
         assert doc.normalization_version == "v2"
-
-    def test_ocr_metadata(self, normalizer):
-        doc = normalizer.normalize(_ocr("텍스트"))
-        assert doc.metadata["extraction_source"] == "ocr"
-        assert doc.metadata["has_tables"] is False
 
 
 # ── DocumentSummaryPayloadService ─────────────────────────────────────────────

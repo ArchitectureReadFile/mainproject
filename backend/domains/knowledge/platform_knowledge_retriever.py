@@ -10,19 +10,12 @@ import logging
 
 from qdrant_client.http import models as qmodels
 
-from domains.knowledge.mappers.platform_item_mapper import (
-    platform_hit_to_item,
-    precedent_grouped_to_item,
-)
+from domains.knowledge.mappers.platform_item_mapper import platform_hit_to_item
 from domains.knowledge.schemas import KnowledgeRetrievalRequest, RetrievedKnowledgeItem
 from domains.rag import bm25_store, vector_store
 from domains.rag.embedding_service import embed_query
-from domains.rag.retrieval_service import retrieve_precedents
 from domains.rag.schemas import SearchMode
-from settings.platform import (
-    get_platform_corpus_source_types,
-    use_legacy_precedent_corpus,
-)
+from settings.platform import get_platform_corpus_source_types
 
 logger = logging.getLogger(__name__)
 
@@ -37,33 +30,11 @@ class PlatformKnowledgeRetriever:
         if not request.include_platform:
             return []
 
-        items: list[RetrievedKnowledgeItem] = []
-
-        if use_legacy_precedent_corpus():
-            try:
-                items += self._retrieve_precedents(request, search_mode=search_mode)
-            except Exception:
-                logger.exception("[PlatformRetriever] precedent corpus 검색 실패")
-
         try:
-            items += self._retrieve_platform_chunks(request, search_mode=search_mode)
+            return self._retrieve_platform_chunks(request, search_mode=search_mode)
         except Exception:
             logger.exception("[PlatformRetriever] platform corpus 검색 실패")
-
-        return items
-
-    def _retrieve_precedents(
-        self,
-        request: KnowledgeRetrievalRequest,
-        *,
-        search_mode: SearchMode,
-    ) -> list[RetrievedKnowledgeItem]:
-        grouped = retrieve_precedents(
-            query=request.query,
-            top_k=request.top_k,
-            search_mode=search_mode,
-        )
-        return [precedent_grouped_to_item(g) for g in grouped]
+            return []
 
     def _retrieve_platform_chunks(
         self,

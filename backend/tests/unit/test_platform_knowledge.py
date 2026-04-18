@@ -4,7 +4,7 @@ tests/unit/test_platform_knowledge.py
 Platform Knowledge 보정 단계 테스트.
 
 커버 범위:
-    1. PlatformKnowledgeRetriever — migration flag 기반 중복 방지
+    1. PlatformKnowledgeRetriever — platform corpus 단일 read path
     2. interpretation mapper — required-field validation (실제 필드명 기준)
     3. admin_rule mapper — required-field validation + 중첩 구조 flatten
     4. PlatformKnowledgeIngestionService — 실패 정책
@@ -20,16 +20,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 1. PlatformKnowledgeRetriever — migration flag 중복 방지
+# 1. PlatformKnowledgeRetriever — platform corpus 단일 read path
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-class TestPlatformKnowledgeRetrieverMigrationFlag:
+class TestPlatformKnowledgeRetriever:
     """
-    ENABLE_PLATFORM_PRECEDENT_CORPUS flag 기반 corpus 라우팅 테스트.
-
-    flag=false: 기존 precedent corpus ON, platform corpus에서 precedent 제외
-    flag=true:  기존 precedent corpus OFF, platform corpus에서 precedent 포함
+    Platform retriever는 platform corpus만 read path로 사용한다.
     """
 
     def _make_retriever(self):
@@ -46,86 +43,62 @@ class TestPlatformKnowledgeRetrieverMigrationFlag:
             query="판례 검색", include_platform=True, top_k=3
         )
 
-    def test_flag_false_legacy_precedent_called(self):
-        """flag=false이면 기존 precedent corpus(_retrieve_precedents)가 호출된다."""
+    def test_platform_corpus_includes_precedent(self):
+        """platform corpus 검색 대상에는 precedent가 항상 포함된다."""
+        from settings.platform import get_platform_corpus_source_types
+
+        types = get_platform_corpus_source_types()
+
+        assert types == ["precedent", "law", "interpretation", "admin_rule"]
+
+    def test_retrieve_uses_platform_corpus_only(self):
+        """retriever는 platform corpus 경로만 호출한다."""
         retriever = self._make_retriever()
         req = self._make_request()
 
-        with (
-            patch(
-                "domains.knowledge.platform_knowledge_retriever.use_legacy_precedent_corpus",
-                return_value=True,
-            ),
-            patch.object(
-                retriever, "_retrieve_precedents", return_value=[]
-            ) as mock_legacy,
-            patch.object(retriever, "_retrieve_platform_chunks", return_value=[]),
-        ):
+        with patch.object(
+            retriever, "_retrieve_platform_chunks", return_value=[]
+        ) as mock_platform:
             retriever.retrieve(req)
 
-        mock_legacy.assert_called_once()
-
-    def test_flag_true_legacy_precedent_not_called(self):
-        """flag=true이면 기존 precedent corpus(_retrieve_precedents)가 호출되지 않는다."""
-        retriever = self._make_retriever()
-        req = self._make_request()
-
-        with (
-            patch(
-                "domains.knowledge.platform_knowledge_retriever.use_legacy_precedent_corpus",
-                return_value=False,
-            ),
-            patch.object(
-                retriever, "_retrieve_precedents", return_value=[]
-            ) as mock_legacy,
-            patch.object(retriever, "_retrieve_platform_chunks", return_value=[]),
-        ):
-            retriever.retrieve(req)
-
-        mock_legacy.assert_not_called()
-
-    def test_flag_false_platform_corpus_excludes_precedent(self):
-        """
-        flag=false이면 platform corpus 검색 시 source_type 목록에 "precedent"가 없다.
-        get_platform_corpus_source_types()가 ["law", "interpretation", "admin_rule"]를 반환해야 한다.
-        """
-        with patch("settings.platform.ENABLE_PLATFORM_PRECEDENT_CORPUS", False):
-            from settings.platform import get_platform_corpus_source_types
-
-            types = get_platform_corpus_source_types()
-
-        assert "precedent" not in types
-        assert "law" in types
-
-    def test_flag_true_platform_corpus_includes_precedent(self):
-        """flag=true이면 platform corpus 검색 source_type 목록에 "precedent"가 포함된다."""
-        with patch("settings.platform.ENABLE_PLATFORM_PRECEDENT_CORPUS", True):
-            import settings.platform as sp
-
-            types = sp.get_platform_corpus_source_types()
-
-        assert "precedent" in types
+        mock_platform.assert_called_once()
 
     def test_include_platform_false_returns_empty(self):
-        """include_platform=False이면 두 corpus 모두 검색하지 않는다."""
+        """include_platform=False이면 platform corpus 검색을 하지 않는다."""
         from domains.knowledge.schemas import KnowledgeRetrievalRequest
 
         retriever = self._make_retriever()
         req = KnowledgeRetrievalRequest(query="질문", include_platform=False)
 
-        with (
-            patch.object(
-                retriever, "_retrieve_precedents", return_value=[]
-            ) as mock_legacy,
-            patch.object(
-                retriever, "_retrieve_platform_chunks", return_value=[]
-            ) as mock_platform,
-        ):
+        with patch.object(
+            retriever, "_retrieve_platform_chunks", return_value=[]
+        ) as mock_platform:
             result = retriever.retrieve(req)
 
         assert result == []
-        mock_legacy.assert_not_called()
         mock_platform.assert_not_called()
+
+    def test_vector_hit_keeps_platform_payload_fields(self):
+        from domains.rag.vector_store import _hit_to_dict
+
+        hit = _hit_to_dict(
+            {
+                "chunk_id": "platform:precedent:pd:1:chunk:0",
+                "platform_document_id": 1,
+                "source_type": "precedent",
+                "chunk_type": "holding",
+                "section_title": "판시사항",
+                "chunk_order": 0,
+                "text": "판시사항 본문",
+                "source_url": "https://example.com",
+            },
+            0.91,
+        )
+
+        assert hit["platform_document_id"] == 1
+        assert hit["source_type"] == "precedent"
+        assert hit["chunk_type"] == "holding"
+        assert hit["text"] == "판시사항 본문"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

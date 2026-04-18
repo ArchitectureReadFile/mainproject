@@ -6,7 +6,6 @@ from models.model import (  # noqa: F401
     Group,
     GroupMember,
     Notification,
-    Precedent,
     Subscription,
     Summary,
     User,

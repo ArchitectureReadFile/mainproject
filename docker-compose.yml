@@ -162,7 +162,7 @@ services:
       - dev
     env_file:
       - ./backend/.env
-    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q chat_queue,document_queue,platform_queue
+    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q chat_queue,document_queue,platform_queue,platform_sync_queue,maintenance_queue,export_queue
 
   celery_beat:
     <<: *backend-common

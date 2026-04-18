@@ -24,10 +24,8 @@ BM25 / Qdrant 네임스페이스:
         source_url, issued_at, agency (metadata에서 promote)
 
     BM25:
-        기존 판례 corpus(bm25:p:*)와 분리해 platform corpus(bm25:pl:*)에 적재한다.
-        단, 1차 단계에서는 기존 precedent corpus와 동일 네임스페이스를 공유한다.
-        → source_type="precedent"는 bm25:p:*, 나머지는 bm25:pl:* 예약.
-        현재 구현: source_type 무관하게 platform_document_id 역인덱스만 관리.
+        platform corpus(bm25:pl:*)에만 적재한다.
+        source_type 무관하게 platform_document_id 역인덱스만 관리한다.
 """
 
 from __future__ import annotations

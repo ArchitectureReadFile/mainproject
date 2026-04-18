@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 class ExtractedDocument:
     markdown: str
     json_data: dict | None
-    source_type: Literal["odl", "ocr"]
+    source_type: Literal["odl"]
 
 
 class DocumentExtractService:

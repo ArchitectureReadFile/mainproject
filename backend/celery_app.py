@@ -17,7 +17,6 @@ celery_app = Celery(
         "domains.document.upload_task",
         "domains.chat.tasks",
         "domains.document.index_task",
-        "domains.platform_sync.precedent_task",
         "domains.platform_sync.sync_task",
         "tasks.subscription_task",
         "domains.export.tasks",
@@ -35,7 +34,7 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     broker_connection_retry_on_startup=True,
     task_track_started=True,
-    task_default_queue="platform_queue",
+    task_default_queue="maintenance_queue",
     task_routes={
         # chat
         "tasks.chat_task.process_chat_message": {"queue": "chat_queue"},
@@ -48,22 +47,24 @@ celery_app.conf.update(
         },
         "tasks.group_document_task.deindex_document": {"queue": "document_queue"},
         "tasks.document_deletion_task.finalize_pending_documents": {
-            "queue": "document_queue"
+            "queue": "maintenance_queue"
         },
-        "tasks.file_cleanup_task.cleanup_document_files": {"queue": "document_queue"},
+        "tasks.file_cleanup_task.cleanup_document_files": {
+            "queue": "maintenance_queue"
+        },
         "tasks.workspace_deletion_task.finalize_pending_workspaces": {
-            "queue": "document_queue"
+            "queue": "maintenance_queue"
         },
+        # export
+        "tasks.export_task.build_group_export": {"queue": "export_queue"},
+        "tasks.export_task.cleanup_expired_exports": {"queue": "maintenance_queue"},
         # platform
         "tasks.platform_sync_task.run_platform_source_sync": {
-            "queue": "platform_queue"
+            "queue": "platform_sync_queue"
         },
-        "tasks.precedent_task.process_next_pending_precedent": {
-            "queue": "platform_queue"
+        "tasks.subscription_task.reconcile_subscriptions": {
+            "queue": "maintenance_queue"
         },
-        "tasks.precedent_task.index_precedent": {"queue": "platform_queue"},
-        "tasks.precedent_task.delete_precedent_index": {"queue": "platform_queue"},
-        "tasks.subscription_task.reconcile_subscriptions": {"queue": "platform_queue"},
     },
     beat_schedule={
         "reconcile-subscriptions-every-hour": {

@@ -201,8 +201,9 @@ ChatProcessor.process_chat()     domains/chat/processor.py
 KnowledgeRetrievalService        domains/knowledge/knowledge_retrieval_service.py
   │  (sort → dedupe → 반환)
   │
-  ├──▶ PlatformKnowledgeRetriever    platform/  판례 RAG (항상 호출)
-  │      retrieve_precedents() → RetrievedKnowledgeItem[]
+  ├──▶ PlatformKnowledgeRetriever    platform/  platform corpus 검색 (항상 호출)
+  │      source_type=precedent|law|interpretation|admin_rule
+  │      → RetrievedKnowledgeItem[]
   │
   ├──▶ WorkspaceKnowledgeRetriever   workspace/ 그룹 문서 RAG (선택형)
   │      retrieve_group_documents()  mode="all" | mode="documents"(whitelist)

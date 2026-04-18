@@ -43,7 +43,6 @@ from models.model import (
     GroupMember,
     GroupPendingReason,
     GroupStatus,
-    Precedent,
     Subscription,
     SubscriptionPlan,
     SubscriptionStatus,
@@ -51,6 +50,7 @@ from models.model import (
     UserRole,
     utc_now_naive,
 )
+from models.platform_knowledge import PlatformDocument, PlatformSyncRun
 
 # ── 통계 ──────────────────────────────────────────────────────────────────────
 
@@ -193,6 +193,20 @@ def get_admin_usage(db: Session) -> AdminUsageResponse:
             FAILED=mapping.get(DocumentStatus.FAILED, 0),
         )
 
+    def _platform_sync_job_counts(source_type: str) -> JobStatusCount:
+        rows = (
+            db.query(PlatformSyncRun.status, func.count())
+            .filter(PlatformSyncRun.source_type == source_type)
+            .group_by(PlatformSyncRun.status)
+            .all()
+        )
+        mapping = {status: count for status, count in rows}
+        return JobStatusCount(
+            DONE=mapping.get("success", 0) + mapping.get("no_changes", 0),
+            PROCESSING=mapping.get("queued", 0) + mapping.get("running", 0),
+            FAILED=mapping.get("failed", 0),
+        )
+
     today_start = datetime.combine(today, datetime.min.time()).replace(tzinfo=None)
     last_7d_start = datetime.combine(
         today - timedelta(days=6), datetime.min.time()
@@ -265,9 +279,14 @@ def get_admin_usage(db: Session) -> AdminUsageResponse:
             document_jobs=_job_counts(Document.processing_status),
         ),
         rag_usage=RagUsage(
-            precedent_count=db.query(func.count(Precedent.id)).scalar() or 0,
+            platform_precedent_count=(
+                db.query(func.count(PlatformDocument.id))
+                .filter(PlatformDocument.source_type == "precedent")
+                .scalar()
+                or 0
+            ),
             vector_storage_mb=0.0,
-            index_jobs=_job_counts(Precedent.processing_status),
+            index_jobs=_platform_sync_job_counts("precedent"),
         ),
     )
 

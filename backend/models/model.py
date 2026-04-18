@@ -161,10 +161,6 @@ class User(Base):
         foreign_keys="Document.uploader_user_id",
         back_populates="owner",
     )
-    # cascade 제거 — FK가 SET NULL이므로 ORM이 row를 삭제하면 안 됨
-    precedents = relationship(
-        "Precedent", back_populates="uploaded_by_admin", passive_deletes=True
-    )
     subscription = relationship(
         "Subscription",
         back_populates="user",
@@ -751,33 +747,6 @@ class ChatMessage(Base):
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
 
     session = relationship("ChatSession", back_populates="messages")
-
-
-class Precedent(Base):
-    """RAG용 판례 메타 및 인덱싱 상태 테이블"""
-
-    __tablename__ = "precedents"
-
-    id = Column(Integer, primary_key=True, index=True)
-    source_url = Column(String(2048), unique=True, nullable=False)
-    title = Column(String(512), nullable=True)
-    text = Column(Text, nullable=True)
-    processing_status = Column(
-        Enum(DocumentStatus, native_enum=False),
-        default=DocumentStatus.PENDING,
-        nullable=False,
-    )
-    error_message = Column(Text, nullable=True)
-    uploaded_by_admin_id = Column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
-    )
-
-    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
-    updated_at = Column(
-        DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
-    )
-
-    uploaded_by_admin = relationship("User", back_populates="precedents")
 
 
 class Notification(Base):

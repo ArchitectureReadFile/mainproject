@@ -55,7 +55,10 @@ services:
   # Celery workers: 역할별 queue 분리
   # chat      → 병렬 처리
   # document  → 한 번에 1개 (업로드 파일 직접 접근 필수)
-  # platform  → 한 번에 1개
+  # export    → 한 번에 1개 (대용량 ZIP 생성 I/O 분리)
+  # platform  → precedent/index 등 한 번에 1개
+  # platform_sync → long-running 동기화 전용
+  # maintenance → cleanup/sweep 성격 작업
   # 모두 backend_runtime volume을 동일 경로(/app/runtime)로 마운트
   # ───────────────────────────────────────────
   chat_worker:
@@ -86,10 +89,52 @@ services:
     networks:
       - app-network
 
+  export_worker:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: export_worker_container
+    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q export_queue
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
+      - TZ=UTC
+    volumes:
+      - backend_runtime:/app/runtime
+    networks:
+      - app-network
+
   platform_worker:
     image: ${DOCKER_HUB_USER}/jiyun-backend:latest
     container_name: platform_worker_container
     command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q platform_queue
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
+      - TZ=UTC
+    volumes:
+      - backend_runtime:/app/runtime
+    networks:
+      - app-network
+
+  platform_sync_worker:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: platform_sync_worker_container
+    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q platform_sync_queue
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
+      - TZ=UTC
+    volumes:
+      - backend_runtime:/app/runtime
+    networks:
+      - app-network
+
+  maintenance_worker:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: maintenance_worker_container
+    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q maintenance_queue
     env_file: !override
       - D:/jiyun-env/backend.env
     environment: !override

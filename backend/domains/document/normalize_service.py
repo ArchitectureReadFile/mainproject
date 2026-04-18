@@ -4,10 +4,10 @@ domains/document/normalize_service.py
 ExtractedDocument → DocumentSchema 정규화 계층.
 
 책임:
-    - extractor가 넘긴 source_type 사용 (현재 기본은 odl, ocr는 레거시 호환용)
+    - extractor가 넘긴 source_type 사용 (현재 기본은 odl)
     - raw_* 필드 세팅
-    - body_text 생성 (ODL: markdown 우선 → json fallback / OCR: raw_text)
-    - table_blocks 생성 (ODL json에서만 추출, OCR는 빈 리스트)
+    - body_text 생성 (markdown 우선 → json fallback)
+    - table_blocks 생성 (ODL json에서만 추출)
     - sections 생성 (ODL raw_json 기반 구조 파싱. 실패 시 빈 리스트)
     - pages 생성 (v1: 전체 문서를 page 1 하나로 단순화)
     - metadata 기본값 생성
@@ -62,13 +62,11 @@ class DocumentNormalizeService:
     def normalize(self, extracted: ExtractedDocument) -> DocumentSchema:
         source_type = extracted.source_type
 
-        raw_markdown, raw_json, raw_text = self._build_raw_fields(
-            extracted, source_type
-        )
-        body_text = self._build_body_text(extracted, source_type)
-        table_blocks = self._build_table_blocks(extracted, source_type)
-        sections = self._build_sections(extracted, source_type, table_blocks)
-        pages = self._build_pages(extracted, source_type, body_text, table_blocks)
+        raw_markdown, raw_json = self._build_raw_fields(extracted)
+        body_text = self._build_body_text(extracted)
+        table_blocks = self._build_table_blocks(extracted)
+        sections = self._build_sections(extracted, table_blocks)
+        pages = self._build_pages(extracted, body_text, table_blocks)
         metadata = self._build_metadata(
             source_type, body_text, table_blocks, pages, sections
         )
@@ -77,7 +75,6 @@ class DocumentNormalizeService:
             source_type=source_type,
             raw_markdown=raw_markdown,
             raw_json=raw_json,
-            raw_text=raw_text,
             body_text=body_text,
             table_blocks=table_blocks,
             pages=pages,
@@ -88,17 +85,13 @@ class DocumentNormalizeService:
     # ── raw 필드 ──────────────────────────────────────────────────────────────
 
     def _build_raw_fields(
-        self, extracted: ExtractedDocument, source_type: str
-    ) -> tuple[str | None, dict | list | None, str | None]:
-        if source_type == "odl":
-            return extracted.markdown or None, extracted.json_data, None
-        return None, None, extracted.markdown or None
+        self, extracted: ExtractedDocument
+    ) -> tuple[str | None, dict | list | None]:
+        return extracted.markdown or None, extracted.json_data
 
     # ── body_text ─────────────────────────────────────────────────────────────
 
-    def _build_body_text(self, extracted: ExtractedDocument, source_type: str) -> str:
-        if source_type == "ocr":
-            return (extracted.markdown or "").strip()
+    def _build_body_text(self, extracted: ExtractedDocument) -> str:
         body = (extracted.markdown or "").strip()
         if not body:
             body = _extract_body_from_json(extracted.json_data)
@@ -107,9 +100,9 @@ class DocumentNormalizeService:
     # ── table_blocks ──────────────────────────────────────────────────────────
 
     def _build_table_blocks(
-        self, extracted: ExtractedDocument, source_type: str
+        self, extracted: ExtractedDocument
     ) -> list[DocumentTableBlock]:
-        if source_type == "ocr" or not extracted.json_data:
+        if not extracted.json_data:
             return []
         return _extract_table_blocks(extracted.json_data)
 
@@ -118,7 +111,6 @@ class DocumentNormalizeService:
     def _build_sections(
         self,
         extracted: ExtractedDocument,
-        source_type: str,
         table_blocks: list[DocumentTableBlock],
     ) -> list[DocumentSection]:
         """
@@ -127,7 +119,7 @@ class DocumentNormalizeService:
         파싱 실패 또는 raw_json 없음 → 빈 리스트 반환.
         chunker가 sections=[] 이면 body_text fallback으로 내려간다.
         """
-        if source_type == "ocr" or not extracted.json_data:
+        if not extracted.json_data:
             return []
         try:
             return _extract_sections(extracted.json_data, table_blocks)
@@ -140,7 +132,6 @@ class DocumentNormalizeService:
     def _build_pages(
         self,
         extracted: ExtractedDocument,
-        source_type: str,
         body_text: str,
         table_blocks: list[DocumentTableBlock],
     ) -> list[DocumentPage]:
@@ -151,7 +142,7 @@ class DocumentNormalizeService:
         if not body_text and not table_blocks:
             return []
 
-        if source_type == "odl" and extracted.json_data:
+        if extracted.json_data:
             try:
                 real_pages = _extract_pages(extracted.json_data, table_blocks)
                 if real_pages:
