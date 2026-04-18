@@ -2,7 +2,6 @@ x-backend-common: &backend-common
   build:
     context: ./backend
     dockerfile: Dockerfile
-  restart: unless-stopped
   working_dir: /app
   volumes:
     - ./backend:/app
@@ -13,13 +12,15 @@ x-backend-common: &backend-common
     - QDRANT_PORT=6333
     - ODL_HYBRID_URL=http://odl_hybrid:5002
     - TZ=UTC
-  depends_on:
-    db:
-      condition: service_healthy
-    redis:
-      condition: service_started
-    qdrant:
-      condition: service_started
+x-backend-runtime-depends: &backend-runtime-depends
+  db:
+    condition: service_healthy
+  redis:
+    condition: service_started
+  qdrant:
+    condition: service_started
+  backend_migrate:
+    condition: service_completed_successfully
 
 services:
   frontend:
@@ -41,11 +42,24 @@ services:
   backend:
     <<: *backend-common
     container_name: backend_container
+    restart: unless-stopped
     env_file:
       - ./backend/.env
     ports:
       - "8000:8000"
+    depends_on: *backend-runtime-depends
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  backend_migrate:
+    <<: *backend-common
+    container_name: backend_migrate_container
+    restart: "no"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+    command: alembic upgrade head
 
   odl_hybrid:
     build:
@@ -158,17 +172,21 @@ services:
   celery_worker:
     <<: *backend-common
     container_name: celery_worker_container
+    restart: unless-stopped
     profiles:
       - dev
     env_file:
       - ./backend/.env
-    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q chat_queue,document_queue,platform_queue,platform_sync_queue,maintenance_queue,export_queue
+    depends_on: *backend-runtime-depends
+    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q chat_queue,chat_reference_queue,document_queue,platform_queue,platform_sync_queue,maintenance_queue,export_queue
 
   celery_beat:
     <<: *backend-common
     container_name: celery_beat_container
+    restart: unless-stopped
     env_file:
       - ./backend/.env
+    depends_on: *backend-runtime-depends
     command: celery -A celery_app beat --loglevel=info --schedule runtime/celery/beat-schedule
 
 volumes:

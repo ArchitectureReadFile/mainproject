@@ -1,11 +1,9 @@
 import os
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from database import init_db
 from domains.admin.router import router as admin_router
 from domains.auth.router import router as auth_router
 from domains.chat.router import router as chat_router
@@ -19,14 +17,7 @@ from domains.oauth.router import router as oauth_router
 from domains.workspace.router import router as group_router
 from errors.exceptions import AppException
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    init_db()
-    yield
-
-
-app = FastAPI(title="Team Project API", lifespan=lifespan, redirect_slashes=False)
+app = FastAPI(title="Team Project API", redirect_slashes=False)
 
 
 @app.exception_handler(AppException)

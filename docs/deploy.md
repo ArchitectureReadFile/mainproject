@@ -120,6 +120,15 @@ OLLAMA_NUM_PREDICT=3072
 OLLAMA_TIMEOUT_SECONDS=600
 ```
 
+스키마는 앱 시작 시 자동 생성되지 않는다. 기본 compose는 `backend_migrate` one-shot 서비스를 먼저 실행하고, backend/worker는 migration 성공 이후에만 올라온다.
+
+수동으로 실행해야 하는 경우에는 backend 컨테이너/실행 환경에서 아래를 먼저 수행한다.
+
+```powershell
+cd backend
+alembic upgrade head
+```
+
 ### 2. self-hosted runner 등록
 
 GitHub → Settings → Actions → Runners → New self-hosted runner  

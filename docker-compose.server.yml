@@ -17,6 +17,22 @@
 # 프론트엔드 업스트림 포트: frontend:3000 (운영 이미지는 nginx 정적 서빙)
 
 services:
+  backend_migrate:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: backend_migrate_container
+    command: alembic upgrade head
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
+      - TZ=UTC
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+
   # ───────────────────────────────────────────
   # Frontend: production image 사용
   # base compose의 command(npm run dev)가 상속되지 않도록 명시적으로 덮어씀
@@ -48,6 +64,15 @@ services:
     volumes:
       - backend_runtime:/app/runtime
     ports: []
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -72,6 +97,38 @@ services:
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
+    networks:
+      - app-network
+
+  chat_reference_worker:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: chat_reference_worker_container
+    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q chat_reference_queue
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
+      - TZ=UTC
+    volumes:
+      - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -86,6 +143,15 @@ services:
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -100,6 +166,15 @@ services:
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -114,6 +189,15 @@ services:
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -128,6 +212,15 @@ services:
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -142,6 +235,15 @@ services:
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -156,6 +258,15 @@ services:
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 
