@@ -52,7 +52,12 @@ class GroupService:
     def _finalize_group_state_sync(
         self, original_error: Exception | None = None
     ) -> None:
-        """접근 시 동기화된 그룹 상태를 확정하고, 원래 예외를 덮어쓰지 않는다."""
+        """접근 중 보정된 그룹 상태를 확정한다.
+
+        조회/권한 확인 경로도 _sync_group_state_if_needed()를 통해 상태를 보정할 수 있다.
+        그래서 read-path finally 블록에서 이 helper를 반복 호출하는 것이 의도된 계약이다.
+        commit 실패나 RAG enqueue 실패는 기록만 남기고, 먼저 발생한 원래 예외를 덮어쓰지 않는다.
+        """
         try:
             self.db.commit()
         except Exception:

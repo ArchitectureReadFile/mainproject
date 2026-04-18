@@ -22,6 +22,15 @@ _normalizer = DocumentNormalizeService()
 _session_payload = SessionDocumentPayloadService()
 
 
+def _create_task_redis_client() -> redis.Redis:
+    """Celery task는 매 실행마다 독립 Redis 연결을 만들고 finally에서 닫는다.
+
+    Web/API 경로의 전역 redis_client와 섞지 않아서 worker 재사용 중에도
+    publish/cleanup 연결 수명이 task 단위로 명확해진다.
+    """
+    return redis.Redis(host=REDIS_HOST, port=6379, db=0, decode_responses=True)
+
+
 @celery_app.task(name="tasks.chat_task.process_chat_message")
 def process_chat_message(payload: dict):
     user_id = payload.get("user_id")
@@ -36,7 +45,7 @@ def process_chat_message(payload: dict):
             document_ids=raw_selection.get("document_ids", []),
         )
 
-    redis_client = redis.Redis(host=REDIS_HOST, port=6379, db=0, decode_responses=True)
+    redis_client = _create_task_redis_client()
     db = SessionLocal()
 
     try:

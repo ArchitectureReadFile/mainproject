@@ -26,6 +26,45 @@ celery_app = Celery(
     ],
 )
 
+from domains.chat.tasks import (  # noqa: E402
+    process_chat_message,
+    process_session_reference_document,
+)
+from domains.document.deletion_task import finalize_pending_documents  # noqa: E402
+from domains.document.file_cleanup_task import cleanup_document_files  # noqa: E402
+from domains.document.index_task import (  # noqa: E402
+    deindex_document,
+    index_approved_document,
+)
+from domains.document.upload_task import process_next_pending_document  # noqa: E402
+from domains.export.tasks import (  # noqa: E402
+    build_group_export,
+    cleanup_expired_exports,
+)
+from domains.platform_sync.sync_task import run_platform_source_sync  # noqa: E402
+from domains.workspace.tasks import finalize_pending_workspaces  # noqa: E402
+from tasks.subscription_task import reconcile_subscriptions  # noqa: E402
+
+ROUTED_TASKS = (
+    (process_chat_message, "chat_queue"),
+    (process_session_reference_document, "chat_reference_queue"),
+    (process_next_pending_document, "document_queue"),
+    (index_approved_document, "document_queue"),
+    (deindex_document, "document_queue"),
+    (finalize_pending_documents, "maintenance_queue"),
+    (cleanup_document_files, "maintenance_queue"),
+    (finalize_pending_workspaces, "maintenance_queue"),
+    (build_group_export, "export_queue"),
+    (cleanup_expired_exports, "maintenance_queue"),
+    (run_platform_source_sync, "platform_sync_queue"),
+    (reconcile_subscriptions, "maintenance_queue"),
+)
+
+TASK_ROUTES = {task.name: {"queue": queue} for task, queue in ROUTED_TASKS}
+
+if len(TASK_ROUTES) != len(ROUTED_TASKS):
+    raise RuntimeError("Celery task route 구성 검증 실패: task name 중복이 있습니다.")
+
 celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
@@ -35,59 +74,26 @@ celery_app.conf.update(
     broker_connection_retry_on_startup=True,
     task_track_started=True,
     task_default_queue="maintenance_queue",
-    task_routes={
-        # chat
-        "tasks.chat_task.process_chat_message": {"queue": "chat_queue"},
-        "tasks.chat_task.process_session_reference_document": {
-            "queue": "chat_reference_queue"
-        },
-        # document — task name은 각 task 파일의 name= 인자와 일치해야 함
-        "domains.document.upload_task.process_next_pending_document": {
-            "queue": "document_queue"
-        },
-        "tasks.group_document_task.index_approved_document": {
-            "queue": "document_queue"
-        },
-        "tasks.group_document_task.deindex_document": {"queue": "document_queue"},
-        "tasks.document_deletion_task.finalize_pending_documents": {
-            "queue": "maintenance_queue"
-        },
-        "tasks.file_cleanup_task.cleanup_document_files": {
-            "queue": "maintenance_queue"
-        },
-        "tasks.workspace_deletion_task.finalize_pending_workspaces": {
-            "queue": "maintenance_queue"
-        },
-        # export
-        "tasks.export_task.build_group_export": {"queue": "export_queue"},
-        "tasks.export_task.cleanup_expired_exports": {"queue": "maintenance_queue"},
-        # platform
-        "tasks.platform_sync_task.run_platform_source_sync": {
-            "queue": "platform_sync_queue"
-        },
-        "tasks.subscription_task.reconcile_subscriptions": {
-            "queue": "maintenance_queue"
-        },
-    },
+    task_routes=TASK_ROUTES,
     beat_schedule={
         "kick-pending-documents-every-minute": {
-            "task": "domains.document.upload_task.process_next_pending_document",
+            "task": process_next_pending_document.name,
             "schedule": crontab(),
         },
         "reconcile-subscriptions-every-hour": {
-            "task": "tasks.subscription_task.reconcile_subscriptions",
+            "task": reconcile_subscriptions.name,
             "schedule": crontab(minute=0),
         },
         "finalize-pending-workspaces-every-10-minutes": {
-            "task": "tasks.workspace_deletion_task.finalize_pending_workspaces",
+            "task": finalize_pending_workspaces.name,
             "schedule": crontab(minute="*/10"),
         },
         "finalize-pending-documents-every-10-minutes": {
-            "task": "tasks.document_deletion_task.finalize_pending_documents",
+            "task": finalize_pending_documents.name,
             "schedule": crontab(minute="*/10"),
         },
         "cleanup-expired-exports-every-10-minutes": {
-            "task": "tasks.export_task.cleanup_expired_exports",
+            "task": cleanup_expired_exports.name,
             "schedule": crontab(minute="*/10"),
         },
     },

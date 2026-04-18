@@ -52,6 +52,7 @@ _D_DOCS_KEY = "bm25:d:docs"
 _D_IDS_KEY = "bm25:d:ids"
 _D_REV_KEY = "bm25:d:rev"
 _DID_KEY_PREFIX = "bm25:did:"
+_DID_GROUP_KEY = "bm25:d:group_ids"
 _GID_KEY_PREFIX = "bm25:gid:"
 
 # platform corpus 키
@@ -306,6 +307,8 @@ def upsert_document_chunk(
     chunk_id: str, document_id: int, group_id: int, text: str
 ) -> None:
     """그룹 문서 chunk를 저장하고 revision을 INCR한다."""
+    r = _get_redis()
+    r.hset(_DID_GROUP_KEY, str(document_id), group_id)
     _save_chunk(
         _D_DOCS_KEY,
         _D_IDS_KEY,
@@ -321,12 +324,14 @@ def delete_document(document_id: int) -> None:
     """document_id에 속한 모든 chunk를 삭제하고 revision을 INCR한다."""
     r = _get_redis()
     chunk_ids = r.smembers(f"{_DID_KEY_PREFIX}{document_id}")
+    group_id = r.hget(_DID_GROUP_KEY, str(document_id))
     for chunk_id in chunk_ids:
         r.hdel(_D_DOCS_KEY, chunk_id)
         r.lrem(_D_IDS_KEY, 1, chunk_id)
-        for key in r.scan_iter(f"{_GID_KEY_PREFIX}*"):
-            r.srem(key, chunk_id)
+        if group_id is not None:
+            r.srem(f"{_GID_KEY_PREFIX}{group_id}", chunk_id)
     r.delete(f"{_DID_KEY_PREFIX}{document_id}")
+    r.hdel(_DID_GROUP_KEY, str(document_id))
     r.incr(_D_REV_KEY)
     logger.info(
         "BM25 delete (그룹문서) 완료: document_id=%s (%d chunks)",
@@ -360,6 +365,7 @@ def delete_document_chunks(
 
     if r.scard(did_key) == 0:
         r.delete(did_key)
+        r.hdel(_DID_GROUP_KEY, str(document_id))
     r.incr(_D_REV_KEY)
     logger.info(
         "BM25 stale chunk delete 완료: document_id=%s, group_id=%s (%d chunks)",
@@ -491,6 +497,7 @@ def clear() -> None:
         _D_DOCS_KEY,
         _D_IDS_KEY,
         _D_REV_KEY,
+        _DID_GROUP_KEY,
         _PL_DOCS_KEY,
         _PL_IDS_KEY,
         _PL_REV_KEY,
