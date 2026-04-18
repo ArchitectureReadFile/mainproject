@@ -1,6 +1,8 @@
 from models.model import (  # noqa: F401
     ChatMessage,
     ChatSession,
+    ChatSessionReference,
+    ChatSessionReferenceChunk,
     Document,
     DocumentApproval,
     Group,

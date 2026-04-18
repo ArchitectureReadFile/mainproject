@@ -155,6 +155,16 @@ class ErrorCode(Enum):
         502,
         "공공 법령 Open API 호출에 실패했습니다.",
     )
+    PLATFORM_SYNC_ENQUEUE_FAILED = (
+        "PLATFORM_003",
+        500,
+        "플랫폼 동기화 작업을 시작하지 못했습니다.",
+    )
+    PLATFORM_SYNC_PROCESS_FAILED = (
+        "PLATFORM_004",
+        500,
+        "플랫폼 동기화 중 오류가 발생했습니다.",
+    )
 
     # ── 채팅 (CHAT) ──────────────────────────────────────────────────────────
     CHAT_ROOM_NOT_FOUND = ("CHAT_001", 404, "채팅방을 찾을 수 없습니다.")
@@ -164,6 +174,24 @@ class ErrorCode(Enum):
         "CHAT_004",
         500,
         "대화 기록을 불러오는 중 오류가 발생했습니다.",
+    )
+    CHAT_RETRIEVAL_FAILED = ("CHAT_005", 500, "지식 검색 중 오류가 발생했습니다.")
+    CHAT_ENQUEUE_FAILED = ("CHAT_006", 500, "채팅 작업을 시작하지 못했습니다.")
+    CHAT_REFERENCE_PROCESSING = (
+        "CHAT_007",
+        409,
+        "첨부 문서를 아직 분석 중입니다. 잠시 후 다시 시도해주세요.",
+    )
+    CHAT_REFERENCE_PARSE_FAILED = ("CHAT_008", 500, "첨부 문서 분석에 실패했습니다.")
+    CHAT_REFERENCE_ENQUEUE_FAILED = (
+        "CHAT_009",
+        500,
+        "첨부 문서 분석 작업을 시작하지 못했습니다.",
+    )
+    CHAT_ALREADY_PROCESSING = (
+        "CHAT_010",
+        409,
+        "같은 채팅방에서 이미 답변을 생성 중입니다. 완료 후 다시 시도해주세요.",
     )
 
     # ── 워크스페이스 (GROUP) ─────────────────────────────────────────────────
@@ -275,3 +303,13 @@ class ErrorCode(Enum):
         "내보내기 파일 보관 기간이 만료되었습니다. 다시 요청해주세요.",
     )
     EXPORT_CANCELLED = ("EXPORT_004", 409, "취소된 내보내기 작업입니다.")
+    EXPORT_ENQUEUE_FAILED = (
+        "EXPORT_005",
+        500,
+        "내보내기 작업을 시작하지 못했습니다.",
+    )
+    EXPORT_BUILD_FAILED = (
+        "EXPORT_006",
+        500,
+        "내보내기 파일 생성에 실패했습니다.",
+    )

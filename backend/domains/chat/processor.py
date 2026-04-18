@@ -3,14 +3,20 @@ import logging
 
 from redis import Redis
 
+from domains.chat.reference_payload import build_chat_reference_payloads
 from domains.chat.repository import ChatRepository
 from domains.knowledge.answer_context_builder import AnswerContextBuilder
 from domains.knowledge.knowledge_retrieval_service import KnowledgeRetrievalService
 from domains.knowledge.schemas import KnowledgeRetrievalRequest, WorkspaceSelection
 from domains.notification.repository import NotificationRepository
 from domains.notification.service import NotificationService
-from errors.error_codes import ErrorCode
-from errors.exceptions import AppException
+from errors import (
+    AppException,
+    ErrorCode,
+    FailureStage,
+    build_exception_failure_payload,
+    build_failure_payload,
+)
 from infra.llm.client import LLMClient
 from models.model import ChatMessage, ChatMessageRole, NotificationType
 from prompts.chat_prompt import CHAT_SUMMARY_PROMPT, CHAT_SYSTEM_PROMPT
@@ -48,8 +54,20 @@ class ChatProcessor:
             if not session:
                 raise AppException(ErrorCode.CHAT_ROOM_NOT_FOUND)
 
-            doc_context = session.reference_document_text or ""
-            doc_title = session.reference_document_title or None
+            reference = getattr(session, "reference", None)
+            reference_status = getattr(reference, "status", None)
+            if (
+                reference is not None
+                and getattr(reference_status, "value", reference_status) == "READY"
+                and reference.extracted_text
+            ):
+                doc_context = reference.extracted_text
+                doc_title = reference.title or None
+                doc_chunks = list(getattr(reference, "chunks", []) or [])
+            else:
+                doc_context = ""
+                doc_title = None
+                doc_chunks = []
 
             summary_key = f"chat_summary:{session_id}"
             last_msg_key = f"chat_last_summarized_id:{session_id}"
@@ -93,6 +111,7 @@ class ChatProcessor:
             if recent_msgs:
                 user_query = recent_msgs[-1].content
                 logger.info("[RETRIEVAL_START] query=%s", user_query[:100])
+                references: list[dict[str, object]] = []
 
                 include_workspace = workspace_selection is not None
                 request = KnowledgeRetrievalRequest(
@@ -114,17 +133,34 @@ class ChatProcessor:
                 try:
                     items = self.knowledge_retrieval.retrieve(
                         request,
-                        reference_document_text=doc_context,
+                        session_reference_text=doc_context,
+                        session_reference_chunks=doc_chunks,
                         session_title=doc_title,
                     )
                     logger.info("[RETRIEVAL_DONE] items=%d", len(items))
+                    references = build_chat_reference_payloads(items)
 
                     rag_context = self.answer_context_builder.build(items)
                     if rag_context:
                         logger.info("[CONTEXT_BUILT] chars=%d", len(rag_context))
                         system_content += f"\n\n{rag_context}"
                 except Exception as e:
-                    logger.warning("[RETRIEVAL_FAILED] %s", e)
+                    failure = build_exception_failure_payload(
+                        stage=FailureStage.RETRIEVE,
+                        exc=e,
+                        fallback_error_code=ErrorCode.CHAT_RETRIEVAL_FAILED,
+                        status="error",
+                    )
+                    logger.warning(
+                        "[CHAT_FAILURE] stage=%s code=%s message=%s raw_error=%s",
+                        failure["failure_stage"],
+                        failure["failure_code"],
+                        failure["error_message"],
+                        e,
+                    )
+                    references = []
+            else:
+                references = []
 
             chat_messages = [{"role": "system", "content": system_content.strip()}]
 
@@ -133,7 +169,7 @@ class ChatProcessor:
                 chat_messages.append({"role": role_str, "content": msg.content})
 
             full_answer = self._generate_llm_response(
-                redis_client, session_id, user_id, chat_messages
+                redis_client, session_id, user_id, chat_messages, references
             )
 
             if full_answer:
@@ -141,6 +177,11 @@ class ChatProcessor:
                     session_id=session_id,
                     role=ChatMessageRole.ASSISTANT,
                     content=full_answer,
+                    metadata_json=(
+                        json.dumps({"references": references}, ensure_ascii=False)
+                        if references
+                        else None
+                    ),
                 )
                 self.chat_repo.add_message(ai_msg)
                 self.chat_repo.commit()
@@ -160,11 +201,26 @@ class ChatProcessor:
                 )
 
         except AppException as ae:
-            self._publish_error(redis_client, session_id, user_id, ae.error_code)
-        except Exception as e:
-            logger.error("[PROCESS_CHAT_FAILED] %s", e, exc_info=True)
             self._publish_error(
-                redis_client, session_id, user_id, ErrorCode.CHAT_HISTORY_LOAD_FAILED
+                redis_client,
+                session_id,
+                user_id,
+                stage=FailureStage.PROCESS,
+                error_code=ae.error_code,
+            )
+        except Exception as e:
+            logger.error(
+                "[PROCESS_CHAT_FAILED] stage=%s error=%s",
+                FailureStage.PROCESS.value,
+                e,
+                exc_info=True,
+            )
+            self._publish_error(
+                redis_client,
+                session_id,
+                user_id,
+                stage=FailureStage.PROCESS,
+                error_code=ErrorCode.CHAT_HISTORY_LOAD_FAILED,
             )
 
     def _summarize_dialogue(self, existing_summary: str, new_dialogue: str) -> str:
@@ -179,7 +235,12 @@ class ChatProcessor:
             return existing_summary
 
     def _generate_llm_response(
-        self, redis_client: Redis, session_id: int, user_id: int, messages: list
+        self,
+        redis_client: Redis,
+        session_id: int,
+        user_id: int,
+        messages: list,
+        references: list[dict[str, object]] | None = None,
     ) -> str:
         full_answer = ""
         try:
@@ -195,15 +256,38 @@ class ChatProcessor:
                         full_answer,
                     )
         except AppException as ae:
-            self._publish_error(redis_client, session_id, user_id, ae.error_code)
-            return ""
-        except Exception:
             self._publish_error(
-                redis_client, session_id, user_id, ErrorCode.LLM_ALL_PROFILES_FAILED
+                redis_client,
+                session_id,
+                user_id,
+                stage=FailureStage.GENERATE,
+                error_code=ae.error_code,
+            )
+            return ""
+        except Exception as e:
+            logger.error(
+                "[CHAT_GENERATE_FAILED] stage=%s error=%s",
+                FailureStage.GENERATE.value,
+                e,
+                exc_info=True,
+            )
+            self._publish_error(
+                redis_client,
+                session_id,
+                user_id,
+                stage=FailureStage.GENERATE,
+                error_code=ErrorCode.LLM_ALL_PROFILES_FAILED,
             )
             return ""
 
-        self._publish_status(redis_client, session_id, user_id, "complete", full_answer)
+        self._publish_status(
+            redis_client,
+            session_id,
+            user_id,
+            "complete",
+            full_answer,
+            references=references or [],
+        )
         return full_answer
 
     def _publish_status(
@@ -213,16 +297,27 @@ class ChatProcessor:
         user_id: int,
         status: str,
         message: str,
+        *,
+        references: list[dict[str, object]] | None = None,
     ):
         payload = {"status": status, "message": message}
+        if references:
+            payload["references"] = references
         redis_client.publish(f"chat:{session_id}:{user_id}", json.dumps(payload))
 
     def _publish_error(
-        self, redis_client: Redis, session_id: int, user_id: int, error_code: ErrorCode
+        self,
+        redis_client: Redis,
+        session_id: int,
+        user_id: int,
+        *,
+        stage: FailureStage,
+        error_code: ErrorCode,
     ):
-        payload = {
-            "status": "error",
-            "code": error_code.code,
-            "message": error_code.message,
-        }
+        payload = build_failure_payload(
+            stage=stage,
+            error_code=error_code,
+            status="error",
+            include_legacy_error_fields=True,
+        )
         redis_client.publish(f"chat:{session_id}:{user_id}", json.dumps(payload))

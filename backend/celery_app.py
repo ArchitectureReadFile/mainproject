@@ -38,6 +38,9 @@ celery_app.conf.update(
     task_routes={
         # chat
         "tasks.chat_task.process_chat_message": {"queue": "chat_queue"},
+        "tasks.chat_task.process_session_reference_document": {
+            "queue": "chat_reference_queue"
+        },
         # document — task name은 각 task 파일의 name= 인자와 일치해야 함
         "domains.document.upload_task.process_next_pending_document": {
             "queue": "document_queue"
@@ -67,6 +70,10 @@ celery_app.conf.update(
         },
     },
     beat_schedule={
+        "kick-pending-documents-every-minute": {
+            "task": "domains.document.upload_task.process_next_pending_document",
+            "schedule": crontab(),
+        },
         "reconcile-subscriptions-every-hour": {
             "task": "tasks.subscription_task.reconcile_subscriptions",
             "schedule": crontab(minute=0),

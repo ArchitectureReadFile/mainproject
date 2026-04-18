@@ -125,13 +125,29 @@ class DocumentRepository:
         self.db.flush()
         return document
 
-    def update_status(self, document_id: int, status: DocumentStatus):
+    def update_status(
+        self,
+        document_id: int,
+        status: DocumentStatus,
+        *,
+        failure_stage: str | None = None,
+        failure_code: str | None = None,
+        error_message: str | None = None,
+    ):
         """
         문서 요약/처리 상태를 갱신
         """
         document = self.db.query(Document).filter(Document.id == document_id).first()
         if document:
             document.processing_status = status
+            if status == DocumentStatus.FAILED:
+                document.failure_stage = failure_stage
+                document.failure_code = failure_code
+                document.error_message = error_message
+            else:
+                document.failure_stage = None
+                document.failure_code = None
+                document.error_message = None
             return
         logger.warning(
             "[Document 상태 변경 누락] document_id=%s, status=%s", document_id, status
@@ -178,8 +194,19 @@ class DocumentRepository:
         """
         처리 대기 중인 다음 문서를 점유하고 PROCESSING 으로 전환
         """
-        document = (
-            self.db.query(Document)
+        while True:
+            document_id = self._get_next_pending_document_id()
+            if document_id is None:
+                return None
+
+            if not self._try_claim_document(document_id):
+                continue
+
+            return self.get_by_id(document_id)
+
+    def _get_next_pending_document_id(self) -> int | None:
+        row = (
+            self.db.query(Document.id)
             .filter(
                 Document.processing_status == DocumentStatus.PENDING,
                 Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE,
@@ -187,12 +214,23 @@ class DocumentRepository:
             .order_by(Document.created_at.asc(), Document.id.asc())
             .first()
         )
-        if not document:
-            return None
+        return row[0] if row else None
 
-        document.processing_status = DocumentStatus.PROCESSING
+    def _try_claim_document(self, document_id: int) -> bool:
+        updated = (
+            self.db.query(Document)
+            .filter(
+                Document.id == document_id,
+                Document.processing_status == DocumentStatus.PENDING,
+                Document.lifecycle_status == DocumentLifecycleStatus.ACTIVE,
+            )
+            .update(
+                {Document.processing_status: DocumentStatus.PROCESSING},
+                synchronize_session=False,
+            )
+        )
         self.db.flush()
-        return document
+        return updated == 1
 
     def get_list(
         self,

@@ -195,7 +195,7 @@ ChatProcessor.process_chat()     domains/chat/processor.py
   ├─ KnowledgeRetrievalRequest 생성
   │    include_platform=True (항상)
   │    include_workspace=bool(workspace_selection)
-  │    include_session=bool(reference_document_text)
+  │    include_session=bool(reference.extracted_text or reference.chunks)
   │
   ▼
 KnowledgeRetrievalService        domains/knowledge/knowledge_retrieval_service.py
@@ -210,18 +210,37 @@ KnowledgeRetrievalService        domains/knowledge/knowledge_retrieval_service.p
   │      → RetrievedKnowledgeItem[]
   │
   └──▶ SessionDocumentRetriever      session/   임시 첨부 문서 (있을 때만)
-         reference_document_text → RetrievedKnowledgeItem (score=1.0)
+         chat_session_reference_chunks 우선 조회
+         chunk가 없으면 reference.extracted_text를 paragraph 기반 chunk로 분할
+         query lexical match로 상위 chunk 선택
   │
   ▼
 AnswerContextBuilder.build()     domains/knowledge/answer_context_builder.py
   - [플랫폼 지식] / [워크스페이스 문서] / [임시 문서] 블록 조립
-  - source별 top-k 및 텍스트 길이 제한
+  - source별 top-k 적용
+  - session block에는 `근거ID(session chunk id)`와 `청크순번`을 함께 노출
   │
   ▼
 system_content += rag_context
   │
   ▼
 LLMClient.stream_chat()          스트리밍 답변 생성
+```
+
+세션 첨부 문서 준비 플로우:
+
+```
+POST /chat/sessions/{id}/reference-upload
+  │
+  ├─ temp file 저장
+  ├─ chat_session_references.status = PROCESSING
+  └─ process_session_reference_document.delay()
+         queue = chat_reference_queue
+               │
+               ├─ extract / normalize
+               ├─ extracted_text 저장
+               ├─ chat_session_reference_chunks 생성
+               └─ status = READY | FAILED
 ```
 
 ---
@@ -298,19 +317,18 @@ WorkspaceKnowledgeRetriever.retrieve()
   - source별 AnswerContextBuilder 노출 개수
 - `ANSWER_CONTEXT_PLATFORM_TEXT_MAX`
 - `ANSWER_CONTEXT_WORKSPACE_TEXT_MAX`
-- `ANSWER_CONTEXT_SESSION_TEXT_MAX`
   - source별 context text trim 길이
+  - session은 retrieval chunk max로 길이를 제어하므로 별도 trim 상수는 두지 않는다
 
 ### `settings/chat.py`
 
-- `SESSION_DOCUMENT_BODY_MAX`
-- `SESSION_DOCUMENT_TABLE_MAX`
-  - 세션 임시 첨부 문서를 `ChatSession.reference_document_text`에 저장할 때의 길이 상한
+- 세션 임시 첨부 문서는 `chat_session_references.extracted_text`에 원문 그대로 저장한다.
+- 길이 제어는 저장 시 truncate가 아니라 session retrieval chunking에서 수행한다.
 
 튜닝 원칙:
 - retrieval 개수를 늘릴수록 recall은 올라가지만 context noise도 증가할 수 있다
 - context text max를 늘릴수록 근거는 많아지지만 prompt 길이와 응답 지연이 늘 수 있다
-- session 문서는 현재 score=1.0으로 포함되므로 길이 상한을 과하게 늘리지 않는 편이 안전하다
+- session 문서는 저장 원문을 유지하고, retrieval chunk target / max / top-k로만 노출량을 조절한다
 
 ---
 

@@ -124,6 +124,13 @@ def test_send_message_success(authenticated_client):
         )
         assert response.status_code == 200
         assert response.json()["status"] == "success"
+        mock_send.assert_called_once_with(
+            user_id=1,
+            session_id=1,
+            text="Hello Chat",
+            group_id=None,
+            workspace_selection=None,
+        )
 
 
 def test_send_message_failure_unauthorized(client):
@@ -139,6 +146,51 @@ def test_send_message_failure_workspace_without_group(authenticated_client):
     response = authenticated_client.post("/api/chat/sessions/1/messages", data=payload)
     assert response.status_code == 422
     assert "group_id" in response.json()["detail"]
+
+
+def test_upload_reference_document_success(authenticated_client):
+    with patch(
+        "domains.chat.service.ChatService.enqueue_reference_document"
+    ) as mock_upload:
+        mock_upload.return_value = {
+            "id": 1,
+            "session_id": 1,
+            "source_type": "upload",
+            "title": "ref.pdf",
+            "status": "PROCESSING",
+            "failure_code": None,
+            "error_message": None,
+            "created_at": "2023-01-01T00:00:00Z",
+            "updated_at": "2023-01-01T00:00:00Z",
+        }
+        response = authenticated_client.post(
+            "/api/chat/sessions/1/reference-upload",
+            files={"file": ("ref.pdf", b"pdf-bytes", "application/pdf")},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["title"] == "ref.pdf"
+
+
+def test_get_reference_document_success(authenticated_client):
+    with patch(
+        "domains.chat.service.ChatService.get_reference_document"
+    ) as mock_get_reference:
+        mock_get_reference.return_value = {
+            "id": 1,
+            "session_id": 1,
+            "source_type": "upload",
+            "title": "ref.pdf",
+            "status": "READY",
+            "failure_code": None,
+            "error_message": None,
+            "created_at": "2023-01-01T00:00:00Z",
+            "updated_at": "2023-01-01T00:00:00Z",
+        }
+        response = authenticated_client.get("/api/chat/sessions/1/reference")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "READY"
 
 
 def test_stop_message_success(authenticated_client):

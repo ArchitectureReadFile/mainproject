@@ -28,6 +28,7 @@ from domains.document.summary_payload import (
     DocumentSummaryPayloadService,
 )
 from domains.document.summary_repository import SummaryRepository
+from errors import ErrorCode, FailureStage, build_exception_failure_payload
 from models.model import DocumentStatus, ReviewStatus
 
 logger = logging.getLogger(__name__)
@@ -67,63 +68,101 @@ class ProcessService:
         db = SessionLocal()
         repository = DocumentRepository(db)
 
+        def _mark_failed(stage: FailureStage, exc: Exception) -> None:
+            failure_payload = build_exception_failure_payload(
+                stage=stage,
+                exc=exc,
+                fallback_error_code=ErrorCode.DOC_INTERNAL_PARSE_ERROR,
+                status="failed",
+                retryable=False,
+            )
+            repository.update_status(
+                document_id,
+                DocumentStatus.FAILED,
+                failure_stage=failure_payload["failure_stage"],
+                failure_code=failure_payload["failure_code"],
+                error_message=failure_payload["error_message"],
+            )
+            db.commit()
+
         try:
             if mark_processing:
                 repository.update_status(document_id, DocumentStatus.PROCESSING)
                 db.commit()
 
-            # 1. normalized document 로드 또는 생성
-            document = self.document_resolver.get_or_create(
-                document_id=document_id,
-                file_path=file_path,
-            )
+            try:
+                # 1. normalized document 로드 또는 생성
+                document = self.document_resolver.get_or_create(
+                    document_id=document_id,
+                    file_path=file_path,
+                )
+            except Exception as exc:
+                db.rollback()
+                self.llm.release_resources()
+                logger.error("[문서 추출 실패] doc_id=%s", document_id, exc_info=True)
+                _mark_failed(FailureStage.EXTRACT, exc)
+                raise
 
-            # 2. classify
-            current_document = repository.get_by_id(document_id)
-            title = (
-                current_document.original_filename
-                if current_document and current_document.original_filename
-                else os.path.basename(file_path)
-            )
-            classification = self.classifier.classify(
-                title=title,
-                body_text=document.body_text,
-            )
-            logger.info(
-                "[분류 완료] doc_id=%s, document_type=%s, category=%s",
-                document_id,
-                classification["document_type"],
-                classification["category"],
-            )
+            try:
+                # 2. classify
+                current_document = repository.get_by_id(document_id)
+                title = (
+                    current_document.original_filename
+                    if current_document and current_document.original_filename
+                    else os.path.basename(file_path)
+                )
+                classification = self.classifier.classify(
+                    title=title,
+                    body_text=document.body_text,
+                )
+                logger.info(
+                    "[분류 완료] doc_id=%s, document_type=%s, category=%s",
+                    document_id,
+                    classification["document_type"],
+                    classification["category"],
+                )
 
-            # 3. classification 저장
-            repository.update_classification(
-                document_id,
-                document_type=classification["document_type"],
-                category=classification["category"],
-            )
-            db.commit()
+                # 3. classification 저장
+                repository.update_classification(
+                    document_id,
+                    document_type=classification["document_type"],
+                    category=classification["category"],
+                )
+                db.commit()
+            except Exception as exc:
+                db.rollback()
+                self.llm.release_resources()
+                logger.error("[분류 저장 실패] doc_id=%s", document_id, exc_info=True)
+                _mark_failed(FailureStage.CLASSIFY, exc)
+                raise
 
-            # 4. summarize
-            summary_input = self.summary_payload.build(document)
-            raw_data = self.llm.summarize([summary_input])
-            summary_data = self._normalize_summary_data(raw_data)
+            try:
+                # 4. summarize
+                summary_input = self.summary_payload.build(document)
+                raw_data = self.llm.summarize([summary_input])
+                summary_data = self._normalize_summary_data(raw_data)
 
-            # 5. summary 저장
-            summary_repo = SummaryRepository(db)
-            summary_repo.create_summary(
-                document_id=document_id,
-                summary_text=summary_data.get("summary_text"),
-                key_points=(
-                    "\n".join(summary_data.get("key_points", []))
-                    if summary_data.get("key_points")
-                    else None
-                ),
-                metadata={"source": "group_document_summary"},
-            )
+                # 5. summary 저장
+                summary_repo = SummaryRepository(db)
+                summary_repo.create_summary(
+                    document_id=document_id,
+                    summary_text=summary_data.get("summary_text"),
+                    key_points=(
+                        "\n".join(summary_data.get("key_points", []))
+                        if summary_data.get("key_points")
+                        else None
+                    ),
+                    metadata={"source": "group_document_summary"},
+                )
 
-            repository.update_status(document_id, DocumentStatus.DONE)
-            db.commit()
+                repository.update_status(document_id, DocumentStatus.DONE)
+                db.commit()
+            except Exception as exc:
+                db.rollback()
+                self.llm.release_resources()
+                logger.error("[요약 실패] doc_id=%s", document_id, exc_info=True)
+                _mark_failed(FailureStage.SUMMARIZE, exc)
+                raise
 
             # 처리 완료 후 approval 상태를 다시 확인해 APPROVED면 인덱싱 enqueue
             # (auto-approved 문서와 조기 승인 문서 모두 이 경로를 통해 인덱싱됨)
@@ -132,11 +171,18 @@ class ProcessService:
             if approval is not None and approval.status == ReviewStatus.APPROVED:
                 from domains.document.index_task import index_approved_document
 
-                index_approved_document.delay(document_id)
-                logger.info(
-                    "[process_file] APPROVED 확인 후 index enqueue: doc_id=%s",
-                    document_id,
-                )
+                try:
+                    index_approved_document.delay(document_id)
+                    logger.info(
+                        "[process_file] APPROVED 확인 후 index enqueue: doc_id=%s",
+                        document_id,
+                    )
+                except Exception:
+                    logger.error(
+                        "[process_file] index enqueue 실패: doc_id=%s",
+                        document_id,
+                        exc_info=True,
+                    )
             else:
                 logger.info(
                     "[process_file] 인덱싱 스킵 (approval_status=%s): doc_id=%s",
@@ -144,14 +190,7 @@ class ProcessService:
                     document_id,
                 )
 
-        except Exception as e:
-            db.rollback()
-            self.llm.release_resources()
-            logger.error(
-                f"[요약 실패] doc_id={document_id}, error={str(e)}", exc_info=True
-            )
-            repository.update_status(document_id, DocumentStatus.FAILED)
-            db.commit()
+        except Exception:
             raise
         finally:
             db.close()

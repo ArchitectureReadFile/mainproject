@@ -6,13 +6,14 @@ const toKSTTime = (date) =>
     date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' });
 
 
-export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup) => {
+export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup, initialReferenceStatus = null) => {
     const { user } = useAuth();
     const [messages, setMessages] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isFetchingHistory, setIsFetchingHistory] = useState(false);
     const [referenceTitle, setReferenceTitle] = useState(initialReferenceTitle || null);
     const [referenceGroup, setReferenceGroup] = useState(initialReferenceGroup || null);
+    const [referenceStatus, setReferenceStatus] = useState(initialReferenceStatus || null);
     const [currentSessionId, setCurrentSessionId] = useState(null);
     const ws = useRef(null);
     const intentionalClose = useRef(false);
@@ -21,7 +22,36 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
     useEffect(() => {
         setReferenceTitle(initialReferenceTitle || null);
         setReferenceGroup(initialReferenceGroup || null);
-    }, [sessionId, initialReferenceTitle, initialReferenceGroup]);
+        setReferenceStatus(initialReferenceStatus || null);
+    }, [sessionId, initialReferenceTitle, initialReferenceGroup, initialReferenceStatus]);
+
+    useEffect(() => {
+        if (!sessionId || referenceStatus !== 'PROCESSING') return;
+
+        let cancelled = false;
+        const timer = setInterval(async () => {
+            try {
+                const reference = await chatApi.getReferenceDocument(sessionId);
+                if (cancelled) return;
+
+                if (!reference) {
+                    setReferenceTitle(null);
+                    setReferenceStatus(null);
+                    return;
+                }
+
+                setReferenceTitle(reference.title || null);
+                setReferenceStatus(reference.status || null);
+            } catch (error) {
+                console.error('Failed to refresh reference status:', error);
+            }
+        }, 2000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(timer);
+        };
+    }, [sessionId, referenceStatus]);
 
     const connectWebSocket = useCallback(() => {
         if (!sessionId || !user?.id) return;
@@ -50,7 +80,11 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
                     const lastMsg = prev[prev.length - 1];
                     if (lastMsg && lastMsg.sender === 'ai' && lastMsg.isStreaming) {
                         const newMessages = [...prev];
-                        newMessages[prev.length - 1] = { ...lastMsg, text: data.message };
+                        newMessages[prev.length - 1] = {
+                            ...lastMsg,
+                            text: data.message,
+                            references: lastMsg.references || [],
+                        };
                         return newMessages;
                     } else {
                         const aiMsg = {
@@ -59,7 +93,8 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
                             sender: 'ai',
                             timestamp: toKSTTime(new Date()),
                             isError: false,
-                            isStreaming: true
+                            isStreaming: true,
+                            references: [],
                         };
                         return [...prev, aiMsg];
                     }
@@ -74,7 +109,8 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
                             ...lastMsg,
                             text: data.message,
                             isStreaming: false,
-                            isError: data.status === 'error'
+                            isError: data.status === 'error',
+                            references: Array.isArray(data.references) ? data.references : (lastMsg.references || []),
                         };
                         return newMessages;
                     } else {
@@ -84,7 +120,8 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
                             sender: 'ai',
                             timestamp: toKSTTime(new Date()),
                             isError: data.status === 'error',
-                            isStreaming: false
+                            isStreaming: false,
+                            references: Array.isArray(data.references) ? data.references : [],
                         };
                         return [...prev, aiMsg];
                     }
@@ -120,7 +157,8 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
                     sender: m.role === 'USER' ? 'user' : 'ai',
                     timestamp: toKSTTime(new Date(m.created_at + 'Z')),
                     isError: false,
-                    isStreaming: false
+                    isStreaming: false,
+                    references: Array.isArray(m.references) ? m.references : [],
                 }));
 
                 setMessages(formattedMessages || []);
@@ -162,14 +200,38 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
         }
     }, [sessionId]);
 
-    const sendMessage = useCallback(async (text, doc, group, workspaceSelection) => {
+    const uploadReferenceDocument = useCallback(async (file) => {
+        if (!sessionId || !file) return;
+
+        const previousReferenceTitle = referenceTitle;
+        const previousReferenceStatus = referenceStatus;
+
+        setReferenceTitle(file.name);
+        setReferenceStatus('PROCESSING');
+
+        try {
+            const reference = await chatApi.uploadReferenceDocument(sessionId, file);
+            setReferenceTitle(reference?.title || file.name);
+            setReferenceStatus(reference?.status || 'PROCESSING');
+        } catch (error) {
+            console.error('Failed to upload reference document:', error);
+            setReferenceTitle(previousReferenceTitle);
+            setReferenceStatus(previousReferenceStatus);
+            throw error;
+        }
+    }, [sessionId, referenceTitle, referenceStatus]);
+
+    const sendMessage = useCallback(async (text, group, workspaceSelection) => {
         if (!user) return;
+        if (referenceStatus === 'PROCESSING') return;
 
-        const effectiveDoc = doc || (referenceTitle ? { title: referenceTitle } : null);
+        const effectiveDoc = referenceTitle ? { title: referenceTitle } : null;
         const effectiveGroup = group || referenceGroup;
+        const previousReferenceTitle = referenceTitle;
+        const previousReferenceGroup = referenceGroup ? { ...referenceGroup } : null;
 
-        const userText = text || (doc ? `${doc.title || doc.file?.name} 검토 부탁드립니다.` : '');
-        if (!userText.trim() && !doc && !group && !referenceGroup) return;
+        const userText = text || '';
+        if (!userText.trim() && !group && !referenceTitle && !referenceGroup) return;
 
         const userMsg = {
             id: Date.now(),
@@ -183,11 +245,6 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
         setMessages((prev) => [...prev, userMsg]);
         setIsLoading(true);
 
-        if (doc) {
-            const newTitle = doc.title || doc.file?.name;
-            setReferenceTitle(newTitle);
-        }
-        
         if (group) {
             setReferenceGroup({ id: group.id, name: group.name });
         }
@@ -196,17 +253,21 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
         const effectiveWorkspaceSelection = workspaceSelection || (effectiveGroupId ? { mode: "all", document_ids: [] } : null);
 
         try {
-            await chatApi.sendMessage(sessionId, userText, doc, effectiveGroupId, effectiveWorkspaceSelection);
+            await chatApi.sendMessage(sessionId, userText, effectiveGroupId, effectiveWorkspaceSelection);
         } catch (error) {
             console.error("Failed to send message via HTTP:", error);
+            setMessages((prev) => prev.filter((msg) => msg.id !== userMsg.id));
+            setReferenceTitle(previousReferenceTitle);
+            setReferenceGroup(previousReferenceGroup);
             setIsLoading(false);
         }
-    }, [sessionId, user, referenceTitle, referenceGroup]);
+    }, [sessionId, user, referenceTitle, referenceGroup, referenceStatus]);
 
     const removeReferenceDocument = useCallback(async () => {
         try {
             await chatApi.deleteReferenceDocument(sessionId);
             setReferenceTitle(null);
+            setReferenceStatus(null);
         } catch (error) {
             console.error("Failed to delete reference document:", error);
         }
@@ -227,7 +288,9 @@ export const useChat = (sessionId, initialReferenceTitle, initialReferenceGroup)
         isFetchingHistory, 
         sendMessage, 
         stopMessage,
+        uploadReferenceDocument,
         referenceTitle, 
+        referenceStatus,
         referenceGroup,
         removeReferenceDocument, 
         removeReferenceGroup,

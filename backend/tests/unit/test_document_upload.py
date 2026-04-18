@@ -357,3 +357,45 @@ def test_upload_document_unauthenticated(client):
 
     res = client.post("/api/groups/1/documents/upload", files=files)
     assert res.status_code == 401
+
+
+@pytest.mark.parametrize("logged_in_user", [users[0]], indirect=True)
+def test_upload_document_returns_success_when_initial_enqueue_fails(
+    client, db_session, logged_in_user, monkeypatch, tmp_path
+):
+    """초기 enqueue 실패는 로그로 남기고 문서 업로드 자체는 성공 처리한다."""
+    monkeypatch.setattr(UploadService, "UPLOAD_DIR", str(tmp_path))
+
+    def _raise_enqueue():
+        raise RuntimeError("broker down")
+
+    monkeypatch.setattr(process_next_pending_document, "delay", _raise_enqueue)
+
+    db_session.add(
+        Group(
+            id=1,
+            owner_user_id=logged_in_user.id,
+            name=groups[0]["name"],
+            description=groups[0]["description"],
+            status=GroupStatus.ACTIVE,
+        )
+    )
+    db_session.flush()
+
+    db_session.add(
+        GroupMember(
+            user_id=logged_in_user.id,
+            group_id=1,
+            role=MembershipRole.OWNER,
+            status=MembershipStatus.ACTIVE,
+        )
+    )
+    db_session.commit()
+
+    files = {"file": ("sample.pdf", b"%PDF-1.4 upload", "application/pdf")}
+
+    res = client.post("/api/groups/1/documents/upload", files=files)
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload["message"] == "업로드 완료, AI 처리 대기 중"
+    assert len(payload["document_ids"]) == 1

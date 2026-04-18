@@ -17,6 +17,8 @@ class ExportJobResponse(BaseModel):
     group_id: int
     status: str
     export_file_name: Optional[str] = None
+    failure_stage: Optional[str] = None
+    failure_code: Optional[str] = None
     error_message: Optional[str] = None
     total_file_count: int = 0
     exported_file_count: int = 0

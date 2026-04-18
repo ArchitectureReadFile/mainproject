@@ -26,17 +26,11 @@ export const chatApi = {
         return response.data;
     },
 
-    sendMessage: async (sessionId, text, doc, groupId, workspaceSelection) => {
+    sendMessage: async (sessionId, text, groupId, workspaceSelection) => {
         const formData = new FormData();
 
         if (text) {
             formData.append('text', text);
-        }
-
-        if (doc?.file) {
-            formData.append('file', doc.file);
-        } else if (doc?.id) {
-            formData.append('document_id', doc.id);
         }
 
         if (groupId) {
@@ -53,6 +47,24 @@ export const chatApi = {
             },
         });
 
+        return response.data;
+    },
+
+    uploadReferenceDocument: async (sessionId, file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await client.post(`/chat/sessions/${sessionId}/reference-upload`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+
+        return response.data;
+    },
+
+    getReferenceDocument: async (sessionId) => {
+        const response = await client.get(`/chat/sessions/${sessionId}/reference`);
         return response.data;
     },
 

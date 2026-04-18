@@ -10,7 +10,6 @@ from domains.knowledge.schemas import RetrievedKnowledgeItem
 from settings.knowledge import (
     ANSWER_CONTEXT_PLATFORM_TEXT_MAX,
     ANSWER_CONTEXT_PLATFORM_TOP_K,
-    ANSWER_CONTEXT_SESSION_TEXT_MAX,
     ANSWER_CONTEXT_SESSION_TOP_K,
     ANSWER_CONTEXT_WORKSPACE_TEXT_MAX,
     ANSWER_CONTEXT_WORKSPACE_TOP_K,
@@ -79,8 +78,11 @@ class AnswerContextBuilder:
         for item in items[:ANSWER_CONTEXT_SESSION_TOP_K]:
             title = item.metadata.get("session_title") or item.title
             lines = [f"- 제목: {title}"]
-            text = _trim_text(item.chunk_text, ANSWER_CONTEXT_SESSION_TEXT_MAX)
-            lines.append(f"- 내용:\n{text}")
+            if item.chunk_id:
+                lines.append(f"- 근거ID: {item.chunk_id}")
+            if item.metadata.get("chunk_order") is not None:
+                lines.append(f"- 청크순번: {int(item.metadata['chunk_order']) + 1}")
+            lines.append(f"- 내용:\n{item.chunk_text}")
             entries.append("\n".join(lines))
 
         body = "\n\n".join(entries)

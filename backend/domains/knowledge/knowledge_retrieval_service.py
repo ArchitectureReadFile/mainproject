@@ -7,6 +7,7 @@ platform / workspace / session retriever를 하나의 진입점으로 묶는 orc
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 
 from domains.knowledge.platform_knowledge_retriever import PlatformKnowledgeRetriever
 from domains.knowledge.schemas import KnowledgeRetrievalRequest, RetrievedKnowledgeItem
@@ -28,7 +29,8 @@ class KnowledgeRetrievalService:
         self,
         request: KnowledgeRetrievalRequest,
         *,
-        reference_document_text: str | None = None,
+        session_reference_text: str | None = None,
+        session_reference_chunks: list[object] | None = None,
         session_title: str | None = None,
         search_mode: SearchMode = SearchMode.dense,
     ) -> list[RetrievedKnowledgeItem]:
@@ -40,14 +42,17 @@ class KnowledgeRetrievalService:
             logger.exception("[KnowledgeRetrievalService] platform retrieval 실패")
 
         try:
-            items += self._workspace.retrieve(request, search_mode=search_mode)
+            items += self._workspace.retrieve(
+                _with_workspace_query(request), search_mode=search_mode
+            )
         except Exception:
             logger.exception("[KnowledgeRetrievalService] workspace retrieval 실패")
 
         try:
-            items += self._session.retrieve_from_text(
-                request,
-                reference_document_text=reference_document_text or "",
+            items += self._session.retrieve(
+                _with_session_query(request),
+                stored_chunks=session_reference_chunks,
+                session_reference_text=session_reference_text or "",
                 session_title=session_title,
             )
         except Exception:
@@ -80,3 +85,19 @@ def _dedupe(items: list[RetrievedKnowledgeItem]) -> list[RetrievedKnowledgeItem]
 
 def _sort_by_score(items: list[RetrievedKnowledgeItem]) -> list[RetrievedKnowledgeItem]:
     return sorted(items, key=lambda x: x.score, reverse=True)
+
+
+def _with_workspace_query(
+    request: KnowledgeRetrievalRequest,
+) -> KnowledgeRetrievalRequest:
+    if not request.include_workspace:
+        return request
+    return replace(request, query=f"그룹 문서를 참고한 질문: {request.query.strip()}")
+
+
+def _with_session_query(
+    request: KnowledgeRetrievalRequest,
+) -> KnowledgeRetrievalRequest:
+    if not request.include_session:
+        return request
+    return replace(request, query=f"첨부 문서를 참고한 질문: {request.query.strip()}")

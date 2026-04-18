@@ -46,7 +46,7 @@ def svc():
 def _mock_retrievers(svc, *, platform=None, workspace=None, session=None):
     svc._platform.retrieve = MagicMock(return_value=platform or [])
     svc._workspace.retrieve = MagicMock(return_value=workspace or [])
-    svc._session.retrieve_from_text = MagicMock(return_value=session or [])
+    svc._session.retrieve = MagicMock(return_value=session or [])
 
 
 # ── 포함 조건 ─────────────────────────────────────────────────────────────────
@@ -71,13 +71,13 @@ class TestIncludeConditions:
     def test_session_excluded_when_text_empty(self, svc):
         _mock_retrievers(svc)
         req = KnowledgeRetrievalRequest(query="질문", include_session=True)
-        result = svc.retrieve(req, reference_document_text="")
+        result = svc.retrieve(req, session_reference_text="")
         assert not any(i.knowledge_type == "session" for i in result)
 
     def test_session_included_when_text_present(self, svc):
         _mock_retrievers(svc, session=[_item("session", score=1.0)])
         req = KnowledgeRetrievalRequest(query="질문", include_session=True)
-        result = svc.retrieve(req, reference_document_text="첨부 문서 내용")
+        result = svc.retrieve(req, session_reference_text="첨부 문서 내용")
         assert any(i.knowledge_type == "session" for i in result)
 
 
@@ -131,6 +131,42 @@ class TestWorkspaceRetrievalContract:
 
         mock_retrieve.assert_called_once()
         assert mock_retrieve.call_args[1]["document_ids"] is None
+
+    def test_workspace_query_augmented_when_workspace_included(self, svc):
+        _mock_retrievers(svc)
+        req = KnowledgeRetrievalRequest(
+            query="요약해줘",
+            include_workspace=True,
+            group_id=1,
+            workspace_selection=WorkspaceSelection(mode="all"),
+        )
+
+        svc.retrieve(req)
+
+        workspace_req = svc._workspace.retrieve.call_args[0][0]
+        assert workspace_req.query == "그룹 문서를 참고한 질문: 요약해줘"
+
+    def test_session_query_augmented_when_session_included(self, svc):
+        _mock_retrievers(svc)
+        req = KnowledgeRetrievalRequest(query="검토해줘", include_session=True)
+
+        svc.retrieve(req, session_reference_text="첨부 문서")
+
+        session_req = svc._session.retrieve.call_args[0][0]
+        assert session_req.query == "첨부 문서를 참고한 질문: 검토해줘"
+
+    def test_session_stored_chunks_forwarded(self, svc):
+        _mock_retrievers(svc)
+        req = KnowledgeRetrievalRequest(query="검토해줘", include_session=True)
+        chunks = [MagicMock(id=1, chunk_order=0, chunk_text="첨부 문서 chunk")]
+
+        svc.retrieve(
+            req,
+            session_reference_text="첨부 문서",
+            session_reference_chunks=chunks,
+        )
+
+        assert svc._session.retrieve.call_args[1]["stored_chunks"] == chunks
 
 
 # ── dedupe (6단계 보정: sort → dedupe 순서 보장) ──────────────────────────────
@@ -215,7 +251,7 @@ class TestRetrieverIsolation:
     def test_platform_exception_does_not_abort(self, svc):
         svc._platform.retrieve = MagicMock(side_effect=RuntimeError("검색 실패"))
         svc._workspace.retrieve = MagicMock(return_value=[_item("workspace")])
-        svc._session.retrieve_from_text = MagicMock(return_value=[])
+        svc._session.retrieve = MagicMock(return_value=[])
         req = KnowledgeRetrievalRequest(
             query="질문", include_workspace=True, group_id=1
         )
@@ -225,7 +261,7 @@ class TestRetrieverIsolation:
     def test_workspace_exception_does_not_abort(self, svc):
         svc._platform.retrieve = MagicMock(return_value=[_item("platform")])
         svc._workspace.retrieve = MagicMock(side_effect=RuntimeError("검색 실패"))
-        svc._session.retrieve_from_text = MagicMock(return_value=[])
+        svc._session.retrieve = MagicMock(return_value=[])
         req = KnowledgeRetrievalRequest(query="질문")
         result = svc.retrieve(req)
         assert any(i.knowledge_type == "platform" for i in result)

@@ -65,14 +65,13 @@ class TestParseInvalid:
 class TestChatProcessorWorkspaceReflection:
     """ChatProcessor가 workspace_selection을 request에 반영하는지 확인."""
 
-    def _make_session(self, reference_document_text=None):
+    def _make_session(self):
         from unittest.mock import MagicMock
 
         session = MagicMock()
         session.id = 1
         session.user_id = 10
-        session.reference_document_text = reference_document_text
-        session.reference_document_title = None
+        session.reference = None
         return session
 
     def _make_message(self, content="질문"):

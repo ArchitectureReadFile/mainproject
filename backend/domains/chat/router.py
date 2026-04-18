@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from dependencies import get_chat_service, get_current_user
 from domains.chat.schemas import (
     ChatMessagesResponse,
+    ChatSessionReferenceResponse,
     ChatSessionRequest,
     ChatSessionResponse,
 )
@@ -64,8 +65,6 @@ def get_messages(
 async def send_message(
     session_id: int,
     text: str = Form(""),
-    document_id: int = Form(None),
-    file: UploadFile = File(None),
     workspace_selection_json: str | None = Form(None),
     group_id: int | None = Form(None),
     current_user: User = Depends(get_current_user),
@@ -82,21 +81,46 @@ async def send_message(
             detail="workspace_selection 사용 시 group_id가 필요합니다.",
         )
 
-    file_bytes = None
-    file_name = None
-    if file:
-        file_bytes = await file.read()
-        file_name = file.filename
-
     return chat_service.send_message(
         user_id=current_user.id,
         session_id=session_id,
         text=text,
-        document_id=document_id,
-        file_name=file_name,
-        file_bytes=file_bytes,
         group_id=group_id,
         workspace_selection=workspace_selection,
+    )
+
+
+@router.post(
+    "/sessions/{session_id}/reference-upload",
+    response_model=ChatSessionReferenceResponse,
+)
+async def upload_reference_document(
+    session_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+):
+    file_bytes = await file.read()
+    return chat_service.enqueue_reference_document(
+        user_id=current_user.id,
+        session_id=session_id,
+        file_name=file.filename or "reference.pdf",
+        file_bytes=file_bytes,
+    )
+
+
+@router.get(
+    "/sessions/{session_id}/reference",
+    response_model=ChatSessionReferenceResponse | None,
+)
+def get_reference_document(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+):
+    return chat_service.get_reference_document(
+        user_id=current_user.id,
+        session_id=session_id,
     )
 
 

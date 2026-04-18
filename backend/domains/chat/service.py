@@ -1,11 +1,10 @@
+import logging
 import os
+import uuid
 
 from celery_app import celery_app
 from domains.auth.service import AuthService
 from domains.chat.repository import ChatRepository
-from domains.chat.session_payload import SessionDocumentPayloadService
-from domains.document.extract_service import DocumentExtractService
-from domains.document.normalize_service import DocumentNormalizeService
 from domains.knowledge.schemas import WorkspaceSelection
 from domains.workspace.service import GroupService
 from errors.error_codes import ErrorCode
@@ -14,15 +13,21 @@ from models.model import (
     ChatMessage,
     ChatMessageRole,
     ChatSession,
+    ChatSessionReference,
+    ChatSessionReferenceStatus,
 )
 from redis_client import redis_client
 
-_extractor = DocumentExtractService()
-_normalizer = DocumentNormalizeService()
-_session_payload = SessionDocumentPayloadService()
+logger = logging.getLogger(__name__)
 
 
 class ChatService:
+    REFERENCE_UPLOAD_DIR = os.getenv(
+        "CHAT_REFERENCE_UPLOAD_DIR", "runtime/uploads/chat_references"
+    )
+    TASK_KEY_PREFIX = "chat_task"
+    TASK_LOCK_KEY_PREFIX = "chat_task_lock"
+
     def __init__(
         self,
         chat_repo: ChatRepository,
@@ -50,7 +55,7 @@ class ChatService:
     def stop_message(self, user_id: int, session_id: int):
         self._get_session_with_permission(user_id, session_id)
 
-        task_key = f"chat_task:{session_id}"
+        task_key = self._task_key(session_id)
         task_id = redis_client.get(task_key)
 
         if task_id:
@@ -71,29 +76,78 @@ class ChatService:
         self._get_session_with_permission(user_id, session_id)
         messages = self.chat_repo.get_messages_by_session_id(session_id)
 
-        is_processing = redis_client.exists(f"chat_task:{session_id}") > 0
+        is_processing = (
+            redis_client.exists(self._task_key(session_id)) > 0
+            or redis_client.exists(self._task_lock_key(session_id)) > 0
+        )
 
         return {"messages": messages, "is_processing": is_processing}
 
-    def upload_reference_document(
+    def enqueue_reference_document(
         self,
         user_id: int,
         session_id: int,
         file_name: str,
         file_bytes: bytes,
-    ):
-        session = self._get_session_with_permission(user_id, session_id)
-        extracted_text = self._extract_text_from_bytes(file_bytes)
-        session.reference_document_title = file_name
-        session.reference_document_text = extracted_text
+    ) -> ChatSessionReference:
+        self._get_session_with_permission(user_id, session_id)
+        previous_reference = self.chat_repo.get_reference_by_session_id(session_id)
+
+        upload_path = self._write_reference_upload(session_id, file_name, file_bytes)
+        old_upload_path = previous_reference.upload_path if previous_reference else None
+
+        if previous_reference is not None:
+            self.chat_repo.delete(previous_reference)
+            self.chat_repo.flush()
+
+        reference = ChatSessionReference(
+            session_id=session_id,
+            source_type="upload",
+            title=file_name,
+            upload_path=upload_path,
+            extracted_text=None,
+            status=ChatSessionReferenceStatus.PROCESSING,
+            failure_code=None,
+            error_message=None,
+        )
+        self.chat_repo.add(reference)
         self.chat_repo.commit()
-        self.chat_repo.refresh(session)
-        return session
+        self.chat_repo.refresh(reference)
+
+        if old_upload_path and old_upload_path != upload_path:
+            self._remove_file_quietly(old_upload_path)
+
+        from domains.chat.tasks import process_session_reference_document
+
+        try:
+            process_session_reference_document.delay(reference.id)
+        except Exception:
+            logger.exception(
+                "[세션 reference enqueue 실패] session_id=%s reference_id=%s",
+                session_id,
+                reference.id,
+            )
+            reference.status = ChatSessionReferenceStatus.FAILED
+            reference.failure_code = ErrorCode.CHAT_REFERENCE_ENQUEUE_FAILED.code
+            reference.error_message = ErrorCode.CHAT_REFERENCE_ENQUEUE_FAILED.message
+            reference.upload_path = None
+            self.chat_repo.commit()
+            self._remove_file_quietly(upload_path)
+            raise AppException(ErrorCode.CHAT_REFERENCE_ENQUEUE_FAILED)
+
+        return reference
+
+    def get_reference_document(self, user_id: int, session_id: int):
+        self._get_session_with_permission(user_id, session_id)
+        return self.chat_repo.get_reference_by_session_id(session_id)
 
     def delete_reference_document(self, user_id: int, session_id: int):
         session = self._get_session_with_permission(user_id, session_id)
-        session.reference_document_title = None
-        session.reference_document_text = None
+        reference = self.chat_repo.get_reference_by_session_id(session_id)
+        if reference and reference.upload_path:
+            self._remove_file_quietly(reference.upload_path)
+        if reference:
+            self.chat_repo.delete(reference)
         self.chat_repo.commit()
         self.chat_repo.refresh(session)
         return session
@@ -110,60 +164,81 @@ class ChatService:
         user_id: int,
         session_id: int,
         text: str,
-        document_id: int = None,
-        file_name: str = None,
-        file_bytes: bytes = None,
         group_id: int | None = None,
         workspace_selection: WorkspaceSelection | None = None,
     ):
         session = self._get_session_with_permission(user_id, session_id)
+        previous_group_id = session.reference_group_id
+        reference = self.chat_repo.get_reference_by_session_id(session_id)
+
+        if (
+            reference is not None
+            and reference.status == ChatSessionReferenceStatus.PROCESSING
+        ):
+            raise AppException(ErrorCode.CHAT_REFERENCE_PROCESSING)
 
         if workspace_selection is not None:
             self._require_group_membership(user_id, group_id)
             session.reference_group_id = group_id
+        task_key = self._task_key(session_id)
+        task_lock_key = self._task_lock_key(session_id)
+        task_lock_token = str(uuid.uuid4())
+        if redis_client.exists(task_key) > 0:
+            raise AppException(ErrorCode.CHAT_ALREADY_PROCESSING)
+        if not redis_client.set(task_lock_key, task_lock_token, nx=True, ex=30):
+            raise AppException(ErrorCode.CHAT_ALREADY_PROCESSING)
 
-        user_msg = ChatMessage(
-            session_id=session_id, role=ChatMessageRole.USER, content=text
-        )
-        self.chat_repo.add_message(user_msg)
+        try:
+            user_msg = ChatMessage(
+                session_id=session_id, role=ChatMessageRole.USER, content=text
+            )
+            self.chat_repo.add_message(user_msg)
 
-        if file_bytes:
-            extracted_text = self._extract_text_from_bytes(file_bytes)
-            session.reference_document_title = file_name
-            session.reference_document_text = extracted_text
-        elif document_id:
-            document = self.chat_repo.get_document_by_id(document_id)
-            if document and self._check_document_permission(user_id, document_id):
-                doc_text = self._get_document_full_text(document)
-                session.reference_document_title = (
-                    document.title or document.original_filename
+            self.chat_repo.commit()
+
+            from domains.chat.tasks import process_chat_message
+
+            payload = {
+                "user_id": user_id,
+                "session_id": session_id,
+                "group_id": group_id or session.reference_group_id,
+                "workspace_selection": (
+                    {
+                        "mode": workspace_selection.mode,
+                        "document_ids": workspace_selection.document_ids,
+                    }
+                    if workspace_selection is not None
+                    else (
+                        {"mode": "all", "document_ids": []}
+                        if session.reference_group_id
+                        else None
+                    )
+                ),
+            }
+            task = process_chat_message.delay(payload)
+        except Exception:
+            logger.exception(
+                "[채팅 enqueue 실패] session_id=%s user_id=%s",
+                session_id,
+                user_id,
+            )
+            try:
+                self.chat_repo.delete_message(user_msg)
+                session.reference_group_id = previous_group_id
+                self.chat_repo.commit()
+            except Exception:
+                self.chat_repo.rollback()
+                logger.exception(
+                    "[채팅 enqueue 보상 실패] session_id=%s user_id=%s",
+                    session_id,
+                    user_id,
                 )
-                session.reference_document_text = doc_text
+            raise AppException(ErrorCode.CHAT_ENQUEUE_FAILED)
+        finally:
+            if redis_client.get(task_lock_key) == task_lock_token:
+                redis_client.delete(task_lock_key)
 
-        self.chat_repo.commit()
-
-        from domains.chat.tasks import process_chat_message
-
-        payload = {
-            "user_id": user_id,
-            "session_id": session_id,
-            "group_id": group_id or session.reference_group_id,
-            "workspace_selection": (
-                {
-                    "mode": workspace_selection.mode,
-                    "document_ids": workspace_selection.document_ids,
-                }
-                if workspace_selection is not None
-                else (
-                    {"mode": "all", "document_ids": []}
-                    if session.reference_group_id
-                    else None
-                )
-            ),
-        }
-        task = process_chat_message.delay(payload)
-
-        redis_client.set(f"chat_task:{session_id}", task.id, ex=3600)
+        redis_client.set(task_key, task.id, ex=3600)
 
         return {"status": "success", "message": "Task queued", "task_id": task.id}
 
@@ -197,36 +272,31 @@ class ChatService:
             raise AppException(ErrorCode.CHAT_UNAUTHORIZED)
         return session
 
-    def _extract_text_from_bytes(self, file_bytes: bytes) -> str:
-        try:
-            extracted = _extractor.extract_bytes(file_bytes)
-            document = _normalizer.normalize(extracted)
-            return _session_payload.build(document)
-        except AppException:
-            raise
-        except Exception:
-            raise AppException(ErrorCode.CHAT_FILE_PARSE_FAILED)
+    def _write_reference_upload(
+        self, session_id: int, file_name: str, file_bytes: bytes
+    ) -> str:
+        safe_name = os.path.basename(file_name or "reference.pdf")
+        session_dir = os.path.join(self.REFERENCE_UPLOAD_DIR, f"session_{session_id}")
+        os.makedirs(session_dir, exist_ok=True)
+        unique_name = f"{uuid.uuid4().hex}_{safe_name}"
+        path = os.path.join(session_dir, unique_name)
+        with open(path, "wb") as f:
+            f.write(file_bytes)
+        return path
 
-    def _check_document_permission(self, user_id: int, doc_id: int) -> bool:
-        document = self.chat_repo.get_document_by_id(doc_id)
-        if not document:
-            return False
-        if document.group_id:
-            member = self.chat_repo.get_group_member(user_id, document.group_id)
-            return bool(member)
-        return True
-
-    def _get_document_full_text(self, document):
-        file_path = getattr(document, "stored_path", None) or getattr(
-            document, "url", None
-        )
-        if not file_path or not os.path.exists(file_path):
-            raise AppException(ErrorCode.FILE_NOT_FOUND)
+    def _remove_file_quietly(self, path: str | None) -> None:
+        if not path:
+            return
         try:
-            extracted = _extractor.extract(file_path)
-            document_schema = _normalizer.normalize(extracted)
-            return _session_payload.build(document_schema)
-        except AppException:
-            raise
+            if os.path.exists(path):
+                os.remove(path)
         except Exception:
-            raise AppException(ErrorCode.DOC_INTERNAL_PARSE_ERROR)
+            logger.warning(
+                "[세션 reference 파일 삭제 실패] path=%s", path, exc_info=True
+            )
+
+    def _task_key(self, session_id: int) -> str:
+        return f"{self.TASK_KEY_PREFIX}:{session_id}"
+
+    def _task_lock_key(self, session_id: int) -> str:
+        return f"{self.TASK_LOCK_KEY_PREFIX}:{session_id}"

@@ -15,9 +15,20 @@ import { Button } from "@/shared/ui/Button.jsx";
 import { Input } from "@/shared/ui/Input.jsx";
 import { Avatar, AvatarFallback } from "@/shared/ui/avatar.jsx";
 import { useChat } from '../hooks/useChat.js';
+import MessageReferences from './MessageReferences.jsx';
 
 export default function ChatRoom({ sessionId, onBack, onClose }) {
-  const { messages, isLoading, sendMessage } = useChat(sessionId);
+  const {
+    messages,
+    isLoading,
+    sendMessage,
+    uploadReferenceDocument,
+    referenceTitle,
+    referenceStatus,
+    referenceGroup,
+    removeReferenceDocument,
+    removeReferenceGroup,
+  } = useChat(sessionId);
   const [input, setInput] = useState('');
   const scrollRef = useRef(null);
 
@@ -25,14 +36,7 @@ export default function ChatRoom({ sessionId, onBack, onClose }) {
 
   const [showDocSelect, setShowDocSelect] = useState(false);
   const [showGroupSelect, setShowGroupSelect] = useState(false);
-  const [selectedDoc, setSelectedDoc] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
-
-  const dummyDocuments = [
-    { id: 1, title: '표준 근로계약서.pdf' },
-    { id: 2, title: '비밀유지 서약서(NDA).pdf' },
-    { id: 3, title: '부동산 임대차 계약서.docx' },
-  ];
 
   const dummyGroups = [
     { id: 1, name: '법무팀 워크스페이스' },
@@ -49,25 +53,19 @@ export default function ChatRoom({ sessionId, onBack, onClose }) {
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    const newDoc = {
-      id: Date.now(),
-      title: file.name,
-      file: file
-    };
-
-    setSelectedDoc(newDoc);
-    setShowDocSelect(false);
     e.target.value = '';
+    setShowDocSelect(false);
+    uploadReferenceDocument(file).catch(() => {});
   };
 
   const handleSend = () => {
-    if (!input.trim() && !selectedDoc && !selectedGroup) return;
+    if (referenceStatus === 'PROCESSING') return;
+    if (!input.trim() && !selectedGroup && !referenceTitle && !referenceGroup) return;
 
-    sendMessage(input, selectedDoc, selectedGroup);
+    sendMessage(input, selectedGroup);
 
     setInput('');
-    setSelectedDoc(null);
+    setSelectedGroup(null);
   };
 
   const toggleDocSelect = () => {
@@ -139,6 +137,9 @@ export default function ChatRoom({ sessionId, onBack, onClose }) {
               )}
 
               <p>{msg.text}</p>
+              {msg.sender === 'ai' && !msg.isError && (
+                <MessageReferences references={msg.references} />
+              )}
               <p className={`text-[10px] mt-1.5 text-right ${msg.sender === 'user' ? 'text-blue-200' : 'text-slate-400 dark:text-slate-500'}`}>
                 {msg.timestamp}
               </p>
@@ -187,17 +188,6 @@ export default function ChatRoom({ sessionId, onBack, onClose }) {
                   >
                     <IoCloudUploadOutline size={18} /> 파일 업로드
                   </button>
-
-                  <div className="px-2 pt-1 pb-0.5 text-[10px] font-semibold text-slate-400 dark:text-slate-500">최근 문서</div>
-                  {dummyDocuments.map(doc => (
-                    <button
-                      key={doc.id}
-                      onClick={() => { setSelectedDoc(doc); setShowDocSelect(false); }}
-                      className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 transition-colors"
-                    >
-                      <IoDocumentTextOutline className="text-slate-400 dark:text-slate-500" size={16} /> {doc.title}
-                    </button>
-                  ))}
                 </>
               )}
 
@@ -215,20 +205,34 @@ export default function ChatRoom({ sessionId, onBack, onClose }) {
         )}
 
         <div className="flex flex-col bg-slate-100/50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-200 dark:border-slate-800 focus-within:bg-white dark:focus-within:bg-slate-900 focus-within:border-blue-400 dark:focus-within:border-blue-500 transition-all duration-500 shadow-sm">
-          {(selectedDoc || selectedGroup) && (
+          {(referenceTitle || referenceGroup || selectedGroup) && (
             <div className="flex flex-wrap gap-2 px-3 pt-3 pb-1">
-              {selectedDoc && (
+              {referenceTitle && (
                 <span className="flex items-center gap-1.5 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-md border border-blue-200 dark:border-blue-800 animate-in fade-in">
                   <IoDocumentTextOutline size={14} />
-                  <span className="max-w-[150px] truncate">{selectedDoc.title}</span>
-                  <button onClick={() => setSelectedDoc(null)} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={15} /></button>
+                  <span className="max-w-[150px] truncate">
+                    {referenceTitle}
+                    {referenceStatus === 'PROCESSING' ? ' (분석 중)' : referenceStatus === 'FAILED' ? ' (분석 실패)' : ' (참조 중)'}
+                  </span>
+                  <button onClick={removeReferenceDocument} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={15} /></button>
                 </span>
               )}
-              {selectedGroup && (
+              {(selectedGroup || referenceGroup) && (
                 <span className="flex items-center gap-1.5 text-xs bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded-md border border-emerald-200 dark:border-emerald-800 animate-in fade-in">
                   <IoPeopleOutline size={14} />
-                  <span className="max-w-[150px] truncate">{selectedGroup.name}</span>
-                  <button onClick={() => setSelectedGroup(null)} className="hover:text-emerald-900 dark:hover:text-emerald-100"><IoCloseCircle size={15} /></button>
+                  <span className="max-w-[150px] truncate">{(selectedGroup || referenceGroup).name}</span>
+                  <button
+                    onClick={() => {
+                      if (selectedGroup) {
+                        setSelectedGroup(null);
+                        return;
+                      }
+                      removeReferenceGroup();
+                    }}
+                    className="hover:text-emerald-900 dark:hover:text-emerald-100"
+                  >
+                    <IoCloseCircle size={15} />
+                  </button>
                 </span>
               )}
             </div>
@@ -239,10 +243,10 @@ export default function ChatRoom({ sessionId, onBack, onClose }) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder={selectedDoc || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "메시지를 입력하세요..."}
+              placeholder={referenceTitle || selectedGroup || referenceGroup ? "내용을 입력하거나 바로 전송하세요" : "메시지를 입력하세요..."}
               className="flex-1 border-0 bg-transparent shadow-none focus:ring-0 focus:outline-none focus:border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-2 h-10 text-slate-800 dark:text-slate-200"
             />
-            <Button size="icon" onClick={handleSend} disabled={isLoading} className="shrink-0 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-full w-10 h-10 shadow-sm">
+            <Button size="icon" onClick={handleSend} disabled={isLoading || referenceStatus === 'PROCESSING'} className="shrink-0 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-full w-10 h-10 shadow-sm">
               <IoSend size={18} className="ml-1" />
             </Button>
           </div>

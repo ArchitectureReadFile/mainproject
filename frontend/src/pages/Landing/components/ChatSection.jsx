@@ -26,6 +26,7 @@ import { getMyGroups } from '@/shared/api/groups';
 import { useAuth } from '../../../features/auth';
 import { useChat } from '../../../features/chat/hooks/useChat';
 import { useChatSessions } from '../../../features/chat/hooks/useChatSessions';
+import MessageReferences from '../../../features/chat/components/MessageReferences.jsx';
 
 export default function ChatSection() {
   const { user } = useAuth();
@@ -69,7 +70,7 @@ export default function ChatSection() {
   }, [searchParams, sessions, setSearchParams]);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || null;
-  const initialGroup = activeSession?.reference_group_id ? { id: activeSession.reference_group_id, name: activeSession.reference_group_name } : null;
+  const initialGroup = activeSession?.group ? { id: activeSession.group.id, name: activeSession.group.name } : null;
 
   useEffect(() => {
     setSelectedDoc(null);
@@ -83,33 +84,38 @@ export default function ChatSection() {
     sendMessage,
     stopMessage,
     isLoading,
+    uploadReferenceDocument,
     referenceTitle,
+    referenceStatus,
     referenceGroup,
     removeReferenceDocument,
     removeReferenceGroup,
     currentSessionId
   } = useChat(
     activeSessionId,
-    activeSession?.reference_document_title,
-    initialGroup
+    activeSession?.reference?.title,
+    initialGroup,
+    activeSession?.reference?.status
   );
 
   useEffect(() => {
     if (activeSessionId && currentSessionId === activeSessionId) {
-      const hasTitleChanged = referenceTitle !== (activeSession?.reference_document_title || null);
-      const hasGroupChanged = referenceGroup?.id !== (activeSession?.reference_group_id || null);
+      const hasTitleChanged = referenceTitle !== (activeSession?.reference?.title || null);
+      const hasStatusChanged = referenceStatus !== (activeSession?.reference?.status || null);
+      const hasGroupChanged = referenceGroup?.id !== (activeSession?.group?.id || null);
 
-      if (hasTitleChanged || hasGroupChanged) {
+      if (hasTitleChanged || hasStatusChanged || hasGroupChanged) {
         refreshRooms();
       }
     }
   }, [
     referenceTitle,
+    referenceStatus,
     referenceGroup,
     activeSessionId,
     currentSessionId,
-    activeSession?.reference_document_title,
-    activeSession?.reference_group_id,
+    activeSession?.reference,
+    activeSession?.group,
     refreshRooms
   ]);
 
@@ -129,10 +135,20 @@ export default function ChatSection() {
 
   useEffect(() => {
     if (activeSessionId && pendingMessage && currentSessionId === activeSessionId) {
-      sendMessage(pendingMessage.text, pendingMessage.doc, pendingMessage.group, pendingMessage.workspaceSelection);
-      setPendingMessage(null);
+      const run = async () => {
+        try {
+          if (pendingMessage.referenceFile) {
+            await uploadReferenceDocument(pendingMessage.referenceFile);
+          }
+          await sendMessage(pendingMessage.text, pendingMessage.group, pendingMessage.workspaceSelection);
+        } finally {
+          setPendingMessage(null);
+        }
+      };
+
+      run();
     }
-  }, [activeSessionId, pendingMessage, currentSessionId, sendMessage]);
+  }, [activeSessionId, pendingMessage, currentSessionId, sendMessage, uploadReferenceDocument]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -190,16 +206,27 @@ export default function ChatSection() {
     setEditingId(null);
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    setSelectedDoc({ id: Date.now(), title: file.name, file: file });
-    setShowDocSelect(false);
     e.target.value = '';
+    setShowDocSelect(false);
+
+    if (!activeSessionId) {
+      setSelectedDoc({ title: file.name, file });
+      return;
+    }
+
+    try {
+      await uploadReferenceDocument(file);
+    } catch {
+      return;
+    }
   };
 
   const handleSend = () => {
-    if (!inputText.trim() && !selectedDoc && !selectedGroup && !referenceTitle && !referenceGroup) return;
+    if (referenceStatus === 'PROCESSING') return;
+    if (!inputText.trim() && !selectedGroup && !referenceTitle && !referenceGroup) return;
 
     let workspaceSelection = null;
     const groupToUse = selectedGroup || referenceGroup;
@@ -210,15 +237,15 @@ export default function ChatSection() {
       };
     }
 
-    sendMessage(inputText, selectedDoc, selectedGroup, workspaceSelection);
+    sendMessage(inputText, selectedGroup, workspaceSelection);
     setInputText('');
-    setSelectedDoc(null);
     setSelectedGroup(null);
   };
 
   const handleInitialSend = async () => {
     const textToSend = inputText.trim();
-    if (!textToSend && !selectedDoc && !selectedGroup) return;
+    if (referenceStatus === 'PROCESSING') return;
+    if (!textToSend && !selectedDoc && !selectedGroup && !referenceTitle && !referenceGroup) return;
 
     let workspaceSelection = null;
     if (selectedGroup) {
@@ -228,7 +255,12 @@ export default function ChatSection() {
       };
     }
 
-    const msg = { text: textToSend, doc: selectedDoc, group: selectedGroup, workspaceSelection };
+    const msg = {
+      text: textToSend,
+      group: selectedGroup,
+      workspaceSelection,
+      referenceFile: selectedDoc?.file || null,
+    };
 
     setInputText('');
     setSelectedDoc(null);
@@ -403,6 +435,10 @@ export default function ChatSection() {
                         </ReactMarkdown>
                       </div>
 
+                      {msg.sender === 'ai' && !msg.isError && (
+                        <MessageReferences references={msg.references} />
+                      )}
+
                       <p className={`text-[9px] md:text-[10px] mt-3 md:mt-4 opacity-50 font-medium ${msg.sender === 'user' ? 'text-right text-blue-50' : 'text-left text-slate-400'}`}>
                         {msg.timestamp}
                       </p>
@@ -452,19 +488,15 @@ export default function ChatSection() {
                   </div>                )}
 
                 <div className="max-w-5xl mx-auto space-y-3 md:space-y-4">
-                  {(referenceTitle || referenceGroup || selectedDoc || selectedGroup) && (
+                  {(referenceTitle || referenceGroup || selectedGroup) && (
                     <div className="flex flex-wrap gap-1.5 md:gap-3 px-1 md:px-2">
-                      {referenceTitle && !selectedDoc && (
+                      {referenceTitle && (
                         <span className="flex items-center gap-1.5 md:gap-2 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2.5 md:px-4 py-1 md:py-2 rounded-full border border-indigo-200 dark:border-indigo-800 font-bold text-[10px] md:text-sm">
                           <IoDocumentTextOutline size={12} className="md:w-[18px] md:h-[18px]" /> {referenceTitle}
-                          <span className="hidden md:inline text-xs opacity-70 ml-1">(참조 중)</span>
+                          <span className="hidden md:inline text-xs opacity-70 ml-1">
+                            {referenceStatus === 'PROCESSING' ? '(분석 중)' : referenceStatus === 'FAILED' ? '(분석 실패)' : '(참조 중)'}
+                          </span>
                           <button onClick={removeReferenceDocument} className="hover:text-indigo-900 dark:hover:text-indigo-100"><IoCloseCircle size={14} md:size={20} /></button>
-                        </span>
-                      )}
-                      {selectedDoc && (
-                        <span className="flex items-center gap-1.5 md:gap-2 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2.5 md:px-4 py-1 md:py-2 rounded-full border border-blue-200 dark:border-blue-800 font-bold text-[10px] md:text-sm">
-                          <IoDocumentTextOutline size={12} className="md:w-[18px] md:h-[18px]" /> {selectedDoc.title}
-                          <button onClick={() => setSelectedDoc(null)} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={14} md:size={20} /></button>
                         </span>
                       )}
                       {(referenceGroup || selectedGroup) && (
@@ -483,7 +515,7 @@ export default function ChatSection() {
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                        placeholder={referenceTitle || referenceGroup || selectedDoc || selectedGroup ? "내용 입력..." : "법률 질문 입력..."}
+                        placeholder={referenceStatus === 'PROCESSING' ? "첨부 문서를 분석 중입니다..." : (referenceTitle || referenceGroup || selectedGroup ? "내용 입력..." : "법률 질문 입력...")}
                         className="flex-1 bg-transparent border-none outline-none shadow-none text-base md:text-xl px-3 md:px-6 h-10 md:h-14 focus:ring-0 text-foreground"
                       />
                       {isLoading ? (
@@ -491,7 +523,7 @@ export default function ChatSection() {
                           <IoStop size={18} md:size={24} />
                         </Button>
                       ) : (
-                        <Button onClick={handleSend} size="icon" className="bg-blue-600 hover:bg-blue-700 rounded-full w-10 h-10 md:w-14 md:h-14 shadow-2xl transition-all active:scale-90 shrink-0">
+                        <Button onClick={handleSend} disabled={referenceStatus === 'PROCESSING'} size="icon" className="bg-blue-600 hover:bg-blue-700 rounded-full w-10 h-10 md:w-14 md:h-14 shadow-2xl transition-all active:scale-90 shrink-0 disabled:opacity-50">
                           <IoSend size={18} md:size={24} />
                         </Button>
                       )}

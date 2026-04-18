@@ -150,9 +150,23 @@
   - id
   - user_id
   - title
-  - reference_document_title
-  - reference_document_text
   - reference_group_id
+  - created_at
+  - updated_at
+
+### 3.9-1 ChatSessionReference
+
+- 설명: 세션 첨부 문서의 원본/상태
+- 주요 속성:
+  - id
+  - session_id
+  - source_type
+  - title
+  - upload_path
+  - extracted_text
+  - status
+  - failure_code
+  - error_message
   - created_at
   - updated_at
 

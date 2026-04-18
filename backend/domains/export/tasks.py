@@ -10,6 +10,7 @@ sys.path.insert(0, "/app")
 from celery_app import celery_app
 from database import SessionLocal
 from domains.export.repository import ExportRepository
+from errors import ErrorCode, FailureStage, build_failure_payload
 from models.model import DocumentLifecycleStatus, ExportJobStatus, utc_now_naive
 
 logger = logging.getLogger(__name__)
@@ -238,14 +239,22 @@ def run_group_export_job(export_job_id: int) -> dict:
         _delete_file_if_exists(final_zip_path)
 
         if job is not None:
-            repository.mark_failed(job.id, str(e))
+            repository.mark_failed(
+                job.id,
+                failure_stage=FailureStage.ZIP_BUILD.value,
+                failure_code=ErrorCode.EXPORT_BUILD_FAILED.code,
+                error_message=ErrorCode.EXPORT_BUILD_FAILED.message,
+            )
             db.commit()
 
-        return {
-            "ready": False,
-            "export_job_id": export_job_id,
-            "error": str(e),
-        }
+        return build_failure_payload(
+            stage=FailureStage.ZIP_BUILD,
+            error_code=ErrorCode.EXPORT_BUILD_FAILED,
+            status="failed",
+            retryable=False,
+            ready=False,
+            export_job_id=export_job_id,
+        )
 
     finally:
         db.close()

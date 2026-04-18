@@ -12,7 +12,6 @@ import pytest
 from domains.document.extract_service import DocumentExtractService, ExtractedDocument
 from domains.document.normalize_service import DocumentNormalizeService
 from errors import AppException, ErrorCode
-from settings.chat import SESSION_DOCUMENT_BODY_MAX, SESSION_DOCUMENT_TABLE_MAX
 
 
 @pytest.fixture
@@ -250,7 +249,7 @@ class TestHybridConvertOptions:
 
 
 class TestSessionDocumentPayload:
-    """SessionDocumentPayloadService: body/table truncate 정책."""
+    """SessionDocumentPayloadService: session 저장용 원문 조립 계약."""
 
     @pytest.fixture
     def payload_svc(self):
@@ -282,14 +281,14 @@ class TestSessionDocumentPayload:
         result = payload_svc.build(self._doc(body="본문"))
         assert "[표]" not in result
 
-    def test_body_truncated_at_6000(self, payload_svc):
+    def test_body_not_truncated(self, payload_svc):
         long_body = "가" * 7000
         result = payload_svc.build(self._doc(body=long_body))
         body_part = result.split("[본문]\n", 1)[1].split("\n\n[표]")[0]
-        assert len(body_part) <= SESSION_DOCUMENT_BODY_MAX
+        assert body_part == long_body
 
-    def test_table_truncated_at_2000(self, payload_svc):
+    def test_table_not_truncated(self, payload_svc):
         long_table = "가" * 3000
         result = payload_svc.build(self._doc(body="본문", tables=[long_table]))
         table_part = result.split("[표]\n", 1)[1]
-        assert len(table_part) <= SESSION_DOCUMENT_TABLE_MAX
+        assert table_part == long_table
