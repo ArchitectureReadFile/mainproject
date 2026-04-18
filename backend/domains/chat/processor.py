@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 class ChatProcessor:
+    """대화 기록, retrieval, LLM 생성, 알림 저장을 하나의 처리 흐름으로 묶는다."""
+
     def __init__(
         self, chat_repo: ChatRepository, notification_repo: NotificationRepository
     ):
@@ -44,6 +46,7 @@ class ChatProcessor:
         group_id: int | None = None,
         workspace_selection: WorkspaceSelection | None = None,
     ):
+        """단일 세션 질문을 처리하고 진행 상태를 Redis pub/sub로 전파한다."""
         self._publish_status(
             redis_client, session_id, user_id, "processing", "답변을 생성중입니다..."
         )
@@ -112,6 +115,8 @@ class ChatProcessor:
                 user_query = recent_msgs[-1].content
                 logger.info("[RETRIEVAL_START] query=%s", user_query[:100])
                 references: list[dict[str, object]] = []
+                # 사용자 응답은 계속 진행하되, source별 retrieval 실패는 metadata에 남긴다.
+                retrieval_failures: list[dict[str, object]] = []
 
                 include_workspace = workspace_selection is not None
                 request = KnowledgeRetrievalRequest(
@@ -136,6 +141,7 @@ class ChatProcessor:
                         session_reference_text=doc_context,
                         session_reference_chunks=doc_chunks,
                         session_title=doc_title,
+                        failure_metadata=retrieval_failures,
                     )
                     logger.info("[RETRIEVAL_DONE] items=%d", len(items))
                     references = build_chat_reference_payloads(items)
@@ -159,8 +165,10 @@ class ChatProcessor:
                         e,
                     )
                     references = []
+                    retrieval_failures = [failure]
             else:
                 references = []
+                retrieval_failures = []
 
             chat_messages = [{"role": "system", "content": system_content.strip()}]
 
@@ -178,8 +186,18 @@ class ChatProcessor:
                     role=ChatMessageRole.ASSISTANT,
                     content=full_answer,
                     metadata_json=(
-                        json.dumps({"references": references}, ensure_ascii=False)
-                        if references
+                        json.dumps(
+                            {
+                                **({"references": references} if references else {}),
+                                **(
+                                    {"retrieval_failures": retrieval_failures}
+                                    if retrieval_failures
+                                    else {}
+                                ),
+                            },
+                            ensure_ascii=False,
+                        )
+                        if references or retrieval_failures
                         else None
                     ),
                 )
@@ -224,6 +242,7 @@ class ChatProcessor:
             )
 
     def _summarize_dialogue(self, existing_summary: str, new_dialogue: str) -> str:
+        """대화 일부를 축약 요약으로 치환한다."""
         prompt = CHAT_SUMMARY_PROMPT.format(
             existing_summary=existing_summary or "기존 요약 없음",
             new_dialogue=new_dialogue,
@@ -242,6 +261,7 @@ class ChatProcessor:
         messages: list,
         references: list[dict[str, object]] | None = None,
     ) -> str:
+        """LLM 스트림을 누적하고 중간 상태를 pub/sub로 브로드캐스트한다."""
         full_answer = ""
         try:
             for chunk in self.llm_client.stream_chat(messages, num_predict=2048):
@@ -300,6 +320,7 @@ class ChatProcessor:
         *,
         references: list[dict[str, object]] | None = None,
     ):
+        """채팅 상태 이벤트를 Redis pub/sub 채널로 발행한다."""
         payload = {"status": status, "message": message}
         if references:
             payload["references"] = references
@@ -314,6 +335,7 @@ class ChatProcessor:
         stage: FailureStage,
         error_code: ErrorCode,
     ):
+        """실패 payload를 표준 형식으로 발행한다."""
         payload = build_failure_payload(
             stage=stage,
             error_code=error_code,

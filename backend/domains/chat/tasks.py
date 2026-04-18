@@ -1,3 +1,5 @@
+"""Celery tasks for chat answer generation and session reference extraction."""
+
 import os
 
 import redis
@@ -23,16 +25,13 @@ _session_payload = SessionDocumentPayloadService()
 
 
 def _create_task_redis_client() -> redis.Redis:
-    """Celery task는 매 실행마다 독립 Redis 연결을 만들고 finally에서 닫는다.
-
-    Web/API 경로의 전역 redis_client와 섞지 않아서 worker 재사용 중에도
-    publish/cleanup 연결 수명이 task 단위로 명확해진다.
-    """
+    """Chat worker task가 사용할 짧은 수명의 Redis 연결을 생성한다."""
     return redis.Redis(host=REDIS_HOST, port=6379, db=0, decode_responses=True)
 
 
 @celery_app.task(name="tasks.chat_task.process_chat_message")
 def process_chat_message(payload: dict):
+    """저장된 사용자 메시지를 읽어 답변 생성 파이프라인을 실행한다."""
     user_id = payload.get("user_id")
     session_id = payload.get("session_id")
     group_id = payload.get("group_id")
@@ -68,6 +67,7 @@ def process_chat_message(payload: dict):
 
 @celery_app.task(name="tasks.chat_task.process_session_reference_document")
 def process_session_reference_document(reference_id: int):
+    """세션 첨부 문서를 추출/정규화하고 retrieval chunk를 저장한다."""
     db = SessionLocal()
     try:
         chat_repo = ChatRepository(db)

@@ -1,3 +1,5 @@
+"""SQLAlchemy engine, session factory, and shared DB context helpers."""
+
 import os
 from contextlib import contextmanager
 
@@ -43,15 +45,7 @@ def get_db():
 
 @contextmanager
 def db_session():
-    """WebSocket / 비-DI 경로에서 DB 세션을 안전하게 사용하기 위한 context manager.
-
-    FastAPI DI(get_db)를 쓸 수 없는 경로(WebSocket, Celery task 등)에서 사용한다.
-
-    Example::
-
-        with db_session() as db:
-            repo = SomeRepository(db)
-    """
+    """FastAPI DI를 쓸 수 없는 경로에서 짧은 DB 세션을 연다."""
     db = SessionLocal()
     try:
         yield db

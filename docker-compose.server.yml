@@ -33,6 +33,14 @@ services:
     networks:
       - app-network
 
+  db:
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - MARIADB_DATABASE=readfile
+      - MARIADB_USER=user
+      - TZ=UTC
+
   # ───────────────────────────────────────────
   # Frontend: production image 사용
   # base compose의 command(npm run dev)가 상속되지 않도록 명시적으로 덮어씀

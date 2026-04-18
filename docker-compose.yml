@@ -78,16 +78,16 @@ services:
     image: mariadb:10.11
     container_name: mariadb_container
     restart: unless-stopped
+    env_file:
+      - ./backend/.env
     command:
       - --default-time-zone=+00:00
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --event-scheduler=ON
     environment:
-      - MARIADB_ROOT_PASSWORD=3141592
       - MARIADB_DATABASE=readfile
       - MARIADB_USER=user
-      - MARIADB_PASSWORD=3141592
       - TZ=UTC
     ports:
       - "3306:3306"

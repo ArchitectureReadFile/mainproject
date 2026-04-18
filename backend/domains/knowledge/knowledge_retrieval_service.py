@@ -1,7 +1,5 @@
 """
-domains/knowledge/knowledge_retrieval_service.py
-
-platform / workspace / session retriever를 하나의 진입점으로 묶는 orchestrator.
+platform, workspace, session retriever를 묶는 orchestration layer.
 """
 
 from __future__ import annotations
@@ -14,12 +12,15 @@ from domains.knowledge.schemas import KnowledgeRetrievalRequest, RetrievedKnowle
 from domains.knowledge.session_document_retriever import SessionDocumentRetriever
 from domains.knowledge.workspace_knowledge_retriever import WorkspaceKnowledgeRetriever
 from domains.rag.schemas import SearchMode
+from errors import ErrorCode, FailureStage, build_failure_payload
 from settings.knowledge import KNOWLEDGE_DEDUPE_TEXT_PREFIX_LEN
 
 logger = logging.getLogger(__name__)
 
 
 class KnowledgeRetrievalService:
+    """각 retriever를 호출하고 score 정렬/중복 제거를 수행한다."""
+
     def __init__(self) -> None:
         self._platform = PlatformKnowledgeRetriever()
         self._workspace = WorkspaceKnowledgeRetriever()
@@ -33,20 +34,23 @@ class KnowledgeRetrievalService:
         session_reference_chunks: list[object] | None = None,
         session_title: str | None = None,
         search_mode: SearchMode = SearchMode.dense,
+        failure_metadata: list[dict[str, object]] | None = None,
     ) -> list[RetrievedKnowledgeItem]:
         items: list[RetrievedKnowledgeItem] = []
 
         try:
             items += self._platform.retrieve(request, search_mode=search_mode)
-        except Exception:
+        except Exception as exc:
             logger.exception("[KnowledgeRetrievalService] platform retrieval 실패")
+            _record_failure(failure_metadata, retriever="platform", exc=exc)
 
         try:
             items += self._workspace.retrieve(
                 _with_workspace_query(request), search_mode=search_mode
             )
-        except Exception:
+        except Exception as exc:
             logger.exception("[KnowledgeRetrievalService] workspace retrieval 실패")
+            _record_failure(failure_metadata, retriever="workspace", exc=exc)
 
         try:
             items += self._session.retrieve(
@@ -55,12 +59,33 @@ class KnowledgeRetrievalService:
                 session_reference_text=session_reference_text or "",
                 session_title=session_title,
             )
-        except Exception:
+        except Exception as exc:
             logger.exception("[KnowledgeRetrievalService] session retrieval 실패")
+            _record_failure(failure_metadata, retriever="session", exc=exc)
 
         items = _sort_by_score(items)
         items = _dedupe(items)
         return items
+
+
+def _record_failure(
+    failure_metadata: list[dict[str, object]] | None,
+    *,
+    retriever: str,
+    exc: Exception,
+) -> None:
+    """source별 retrieval 실패를 상위 계층이 추적할 수 있게 기록한다."""
+    if failure_metadata is None:
+        return
+    payload = build_failure_payload(
+        stage=FailureStage.RETRIEVE,
+        error_code=ErrorCode.CHAT_RETRIEVAL_FAILED,
+        status="error",
+        retryable=False,
+        retriever=retriever,
+        exception_type=type(exc).__name__,
+    )
+    failure_metadata.append(payload)
 
 
 def _dedupe_key(item: RetrievedKnowledgeItem) -> tuple:
@@ -90,6 +115,7 @@ def _sort_by_score(items: list[RetrievedKnowledgeItem]) -> list[RetrievedKnowled
 def _with_workspace_query(
     request: KnowledgeRetrievalRequest,
 ) -> KnowledgeRetrievalRequest:
+    """workspace 검색용 query 문맥을 보강한다."""
     if not request.include_workspace:
         return request
     return replace(request, query=f"그룹 문서를 참고한 질문: {request.query.strip()}")
@@ -98,6 +124,7 @@ def _with_workspace_query(
 def _with_session_query(
     request: KnowledgeRetrievalRequest,
 ) -> KnowledgeRetrievalRequest:
+    """session 첨부 검색용 query 문맥을 보강한다."""
     if not request.include_session:
         return request
     return replace(request, query=f"첨부 문서를 참고한 질문: {request.query.strip()}")

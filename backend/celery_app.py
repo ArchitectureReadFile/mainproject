@@ -1,3 +1,5 @@
+"""Celery application bootstrap, queue routing, and beat schedule definitions."""
+
 import os
 import sys
 
@@ -60,6 +62,7 @@ ROUTED_TASKS = (
     (reconcile_subscriptions, "maintenance_queue"),
 )
 
+# Route key를 문자열로 중복 관리하지 않고 실제 task.name에서 바로 생성한다.
 TASK_ROUTES = {task.name: {"queue": queue} for task, queue in ROUTED_TASKS}
 
 if len(TASK_ROUTES) != len(ROUTED_TASKS):

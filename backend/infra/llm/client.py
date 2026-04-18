@@ -1,8 +1,10 @@
 import json
 import logging
 import os
+import threading
 
 import requests
+from requests.adapters import HTTPAdapter
 
 from errors import AppException, ErrorCode
 
@@ -10,18 +12,45 @@ logger = logging.getLogger(__name__)
 
 
 class LLMClient:
-    """Ollama HTTP 통신 및 fallback 재시도를 담당합니다."""
+    """Ollama HTTP 호출과 프로파일 fallback을 담당한다."""
+
+    _session: requests.Session | None = None
+    _session_lock = threading.Lock()
 
     def __init__(self):
         self._host = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
         self._model = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b")
         self._timeout = int(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "600"))
         self._initial_num_ctx = int(os.environ.get("OLLAMA_NUM_CTX", "8192"))
+        self._pool_connections = int(
+            os.environ.get("OLLAMA_HTTP_POOL_CONNECTIONS", "10")
+        )
+        self._pool_maxsize = int(os.environ.get("OLLAMA_HTTP_POOL_MAXSIZE", "20"))
+
+    def _get_session(self) -> requests.Session:
+        """프로세스 내에서 공유되는 requests.Session을 반환한다."""
+        cls = type(self)
+        if cls._session is not None:
+            return cls._session
+
+        with cls._session_lock:
+            if cls._session is not None:
+                return cls._session
+
+            session = requests.Session()
+            adapter = HTTPAdapter(
+                pool_connections=self._pool_connections,
+                pool_maxsize=self._pool_maxsize,
+            )
+            session.mount("http://", adapter)
+            session.mount("https://", adapter)
+            cls._session = session
+            return session
 
     def unload_model(self) -> None:
-        """실패 후 잔여 세션/모델 점유를 줄이기 위해 모델을 언로드합니다."""
+        """실패 후 Ollama keep-alive 세션을 해제한다."""
         try:
-            requests.post(
+            self._get_session().post(
                 f"{self._host}/api/generate",
                 json={
                     "model": self._model,
@@ -57,15 +86,16 @@ class LLMClient:
                     "temperature": 0.0,
                     "num_predict": num_predict,
                     "num_ctx": num_ctx,
-                    # 이전 요청의 KV 캐시를 재사용하지 않도록 강제한다.
-                    # Ollama는 기본적으로 동일 모델 연속 요청 시 KV 캐시를 유지하는데,
-                    # 문서 요약처럼 매 요청이 독립적이어야 하는 경우 이전 컨텍스트가
-                    # 다음 요청에 섞이는 문제가 생긴다.
+                    # 문서 분류/요약 요청은 독립 실행이므로 KV 캐시를 재사용하지 않는다.
                     "num_keep": 0,
                 },
             }
             try:
-                response = requests.post(endpoint, json=payload, timeout=self._timeout)
+                response = self._get_session().post(
+                    endpoint,
+                    json=payload,
+                    timeout=self._timeout,
+                )
                 response.raise_for_status()
                 return json.loads(response.json().get("response", "{}"))
             except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
@@ -92,7 +122,7 @@ class LLMClient:
         }
 
         try:
-            with requests.post(
+            with self._get_session().post(
                 endpoint, json=payload, stream=True, timeout=self._timeout
             ) as r:
                 r.raise_for_status()
@@ -120,7 +150,11 @@ class LLMClient:
         }
 
         try:
-            response = requests.post(endpoint, json=payload, timeout=self._timeout)
+            response = self._get_session().post(
+                endpoint,
+                json=payload,
+                timeout=self._timeout,
+            )
             response.raise_for_status()
             return response.json().get("message", {}).get("content", "").strip()
         except Exception as e:

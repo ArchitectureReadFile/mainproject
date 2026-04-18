@@ -1,33 +1,9 @@
 """
-domains/rag/bm25_store.py
+Redis-backed BM25 store for workspace and platform chunk search.
 
-BM25 키워드 검색 레이어. chunk 단위 저장.
-
-그룹 문서(document_id), platform corpus(platform_document_id)
-두 경로를 지원한다.
-키 네임스페이스로 corpus를 물리적으로 분리한다.
-
-Redis 키 구조:
-    그룹 문서 corpus:
-        "bm25:d:docs"       → Hash  {chunk_id: text}
-        "bm25:d:ids"        → List  [chunk_id, ...]
-        "bm25:d:rev"        → Int   revision 카운터 (변경 시 INCR)
-        "bm25:did:{did}"    → Set   {chunk_id, ...}  (document_id별 역인덱스)
-
-    그룹 문서 검색 시 group_id 범위 제한:
-        "bm25:gid:{gid}"    → Set   {chunk_id, ...}  (group_id별 역인덱스)
-
-    platform corpus:
-        "bm25:pl:docs"      → Hash  {chunk_id: text}
-        "bm25:pl:ids"       → List  [chunk_id, ...]
-        "bm25:pl:rev"       → Int   revision 카운터 (변경 시 INCR)
-        "bm25:plid:{plid}"  → Set   {chunk_id, ...}  (platform_document_id별 역인덱스)
-
-환경 변수:
-    REDIS_HOST   기본값 "redis"
-    REDIS_PORT   기본값 6379
-    BM25_K1      기본값 1.5
-    BM25_B       기본값 0.75
+Workspace corpus and platform corpus are physically separated by key namespace.
+The store keeps reverse indexes by document/group so delete and scoped search can
+run without rebuilding the full corpus on every request.
 """
 
 import logging
@@ -47,7 +23,7 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 BM25_K1 = float(os.getenv("BM25_K1", "1.5"))
 BM25_B = float(os.getenv("BM25_B", "0.75"))
 
-# 그룹 문서 corpus 키
+# Workspace corpus keys.
 _D_DOCS_KEY = "bm25:d:docs"
 _D_IDS_KEY = "bm25:d:ids"
 _D_REV_KEY = "bm25:d:rev"
@@ -55,7 +31,7 @@ _DID_KEY_PREFIX = "bm25:did:"
 _DID_GROUP_KEY = "bm25:d:group_ids"
 _GID_KEY_PREFIX = "bm25:gid:"
 
-# platform corpus 키
+# Platform corpus keys.
 _PL_DOCS_KEY = "bm25:pl:docs"
 _PL_IDS_KEY = "bm25:pl:ids"
 _PL_REV_KEY = "bm25:pl:rev"
@@ -72,12 +48,9 @@ def _get_redis() -> redis.Redis:
     return _redis
 
 
-# ── 캐시 구조 ─────────────────────────────────────────────────────────────────
-
-
 @dataclass
 class _BM25Snapshot:
-    """프로세스 메모리에 유지되는 BM25 snapshot 캐시."""
+    """현재 revision에 대응하는 BM25 snapshot."""
 
     revision: int = -1
     chunk_ids: list[str] = field(default_factory=list)
@@ -87,14 +60,11 @@ class _BM25Snapshot:
     bm25: BM25Okapi | None = None
 
 
-# 문서·platform 캐시 및 rebuild lock 분리
+# Workspace/platform corpus는 revision과 rebuild lock을 따로 유지한다.
 _d_cache = _BM25Snapshot()
 _pl_cache = _BM25Snapshot()
 _d_lock = threading.Lock()
 _pl_lock = threading.Lock()
-
-
-# ── 토크나이저 ────────────────────────────────────────────────────────────────
 
 
 def _build_tokenizer(texts: list[str]) -> LTokenizer:
@@ -115,9 +85,6 @@ def _build_tokenizer(texts: list[str]) -> LTokenizer:
 
 def _tokenize(text: str, tokenizer: LTokenizer) -> list[str]:
     return [t for t in tokenizer.tokenize(text) if len(t) >= 2]
-
-
-# ── 내부 저장 헬퍼 ────────────────────────────────────────────────────────────
 
 
 def _save_chunk(
@@ -169,9 +136,6 @@ def _current_revision(rev_key: str) -> int:
     return int(val) if val is not None else 0
 
 
-# ── 캐시 rebuild ──────────────────────────────────────────────────────────────
-
-
 def _rebuild_snapshot(
     cache: _BM25Snapshot,
     lock: threading.Lock,
@@ -179,10 +143,7 @@ def _rebuild_snapshot(
     ids_key: str,
     rev_key: str,
 ) -> _BM25Snapshot:
-    """
-    revision이 다를 때만 rebuild한다.
-    lock으로 동시 rebuild를 방지하고, double-check로 중복 rebuild를 차단한다.
-    """
+    """revision이 바뀐 경우에만 snapshot을 재구성한다."""
     current_rev = _current_revision(rev_key)
     if cache.revision == current_rev:
         return cache
@@ -232,9 +193,6 @@ def _get_pl_cache() -> _BM25Snapshot:
     return _pl_cache
 
 
-# ── 검색 코어 ─────────────────────────────────────────────────────────────────
-
-
 def _bm25_search_from_cache(
     query: str,
     cache: _BM25Snapshot,
@@ -275,10 +233,7 @@ def _fallback_lexical_search(
     allowed_ids: set[str],
     top_k: int,
 ) -> list[dict]:
-    """
-    BM25 score가 전부 0인 small-group 상황을 위한 lexical fallback.
-    allowed_ids 범위 내에서만 동작해 corpus isolation을 유지한다.
-    """
+    """BM25 score가 모두 0일 때 allowed_ids 범위에서만 lexical fallback을 수행한다."""
     r = _get_redis()
     query_lower = query.lower()
     query_tokens = [t for t in query_lower.split() if len(t) >= 2]
@@ -298,9 +253,6 @@ def _fallback_lexical_search(
 
     results.sort(key=lambda x: x["score"], reverse=True)
     return results[:top_k]
-
-
-# ── 공개 인터페이스 (그룹 문서) ───────────────────────────────────────────────
 
 
 def upsert_document_chunk(
@@ -428,15 +380,8 @@ def search_documents(
     return _fallback_lexical_search(query, _D_DOCS_KEY, allowed_ids, top_k)
 
 
-# ── 공개 인터페이스 (platform corpus) ────────────────────────────────────────
-
-
 def upsert_platform_chunk(chunk_id: str, platform_document_id: str, text: str) -> None:
-    """
-    platform corpus chunk를 저장하고 revision을 INCR한다.
-
-    platform_document_id: PlatformDocument의 식별자 (str 허용, UUID 등).
-    """
+    """Platform chunk를 저장하고 revision을 증가시킨다."""
     _save_chunk(
         _PL_DOCS_KEY,
         _PL_IDS_KEY,
@@ -464,12 +409,7 @@ def delete_platform_document(platform_document_id: str) -> None:
 
 
 def search_platform(query: str, top_k: int = 5) -> list[dict]:
-    """
-    platform corpus BM25 검색.
-
-    캐시 revision 확인 후 필요 시만 rebuild한다.
-    corpus가 비어 있으면 빈 리스트를 반환한다.
-    """
+    """Platform corpus를 BM25로 검색한다."""
     cache = _get_pl_cache()
     return _bm25_search_from_cache(query, cache, top_k)
 
@@ -481,9 +421,6 @@ def platform_corpus_exists() -> bool:
         return bool(r.exists(_PL_IDS_KEY))
     except Exception:
         return False
-
-
-# ── 유틸리티 ─────────────────────────────────────────────────────────────────
 
 
 def count() -> int:

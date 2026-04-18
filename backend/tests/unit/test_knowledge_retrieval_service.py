@@ -258,6 +258,30 @@ class TestRetrieverIsolation:
         result = svc.retrieve(req)
         assert any(i.knowledge_type == "workspace" for i in result)
 
+    def test_retriever_failure_metadata_collected(self, svc):
+        svc._platform.retrieve = MagicMock(side_effect=RuntimeError("검색 실패"))
+        svc._workspace.retrieve = MagicMock(return_value=[_item("workspace")])
+        svc._session.retrieve = MagicMock(return_value=[])
+        req = KnowledgeRetrievalRequest(
+            query="질문", include_workspace=True, group_id=1
+        )
+
+        failures: list[dict[str, object]] = []
+        result = svc.retrieve(req, failure_metadata=failures)
+
+        assert any(i.knowledge_type == "workspace" for i in result)
+        assert failures == [
+            {
+                "status": "error",
+                "failure_stage": "retrieve",
+                "failure_code": "CHAT_005",
+                "error_message": "지식 검색 중 오류가 발생했습니다.",
+                "retryable": False,
+                "retriever": "platform",
+                "exception_type": "RuntimeError",
+            }
+        ]
+
     def test_workspace_exception_does_not_abort(self, svc):
         svc._platform.retrieve = MagicMock(return_value=[_item("platform")])
         svc._workspace.retrieve = MagicMock(side_effect=RuntimeError("검색 실패"))
