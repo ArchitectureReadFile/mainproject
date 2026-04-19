@@ -1,21 +1,14 @@
 """
 settings/platform.py
 
-Platform Knowledge 운영 파라미터 및 migration flag.
+Platform Knowledge 운영 파라미터.
 
-━━━ Migration 단계 정책 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-현재 단계 (ENABLE_PLATFORM_PRECEDENT_CORPUS=false):
-    - 판례는 기존 precedent corpus(bm25:p:* / Qdrant precedent_id 기반)만 사용
-    - platform corpus(bm25:pl:*) 검색 대상에서 source_type="precedent" 제외
-    - precedent_mapper를 통한 PlatformDocument 적재는 가능하나 검색에는 미반영
+━━━ Corpus 정책 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+platform corpus가 유일한 platform knowledge source of truth다.
 
-migration 완료 단계 (ENABLE_PLATFORM_PRECEDENT_CORPUS=true):
-    - 기존 precedent corpus 검색 OFF
-    - platform corpus에서 source_type="precedent" 포함
-    - 기존 Precedent 모델 / precedent corpus는 read-only deprecated 상태
-
-"둘 다 검색 후 dedupe" 방식은 사용하지 않는다.
-    - source_id 체계가 달라 dedupe 키가 충돌 없이 통과해 중복 반환 위험이 있다.
+    - law / precedent / interpretation / admin_rule 모두
+      platform corpus(source_type 기반)에서 검색한다.
+    - legacy precedent corpus는 더 이상 platform read path에서 사용하지 않는다.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ━━━ Source 지원 범위 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -41,13 +34,6 @@ def _bool_env(name: str, default: bool) -> bool:
         return False
     return default
 
-
-# ── Precedent migration flag ───────────────────────────────────────────────────
-# false(기본): 기존 precedent corpus 유지, platform corpus에서 precedent 제외
-# true:        기존 precedent corpus OFF, platform corpus에서 precedent 포함
-ENABLE_PLATFORM_PRECEDENT_CORPUS: bool = _bool_env(
-    "ENABLE_PLATFORM_PRECEDENT_CORPUS", False
-)
 
 # ── Source별 ingestion 활성화 플래그 ─────────────────────────────────────────
 # 4개 source 모두 API 필드 구조 확인 완료 — 기본 활성
@@ -83,39 +69,10 @@ def is_ingestion_enabled(source_type: str) -> bool:
     return _INGESTION_FLAG_MAP.get(source_type, False)
 
 
-# precedent migration 판단 helper
-def use_legacy_precedent_corpus() -> bool:
-    """
-    기존 precedent corpus 사용 여부를 반환한다.
-
-    precedence 검색의 read path를 한곳에서 판단하기 위한 helper다.
-    """
-    return not ENABLE_PLATFORM_PRECEDENT_CORPUS
-
-
-def use_platform_precedent_corpus() -> bool:
-    """
-    precedent를 platform corpus에서 검색할지 여부를 반환한다.
-
-    migration 완료 후 True가 되며, 이때 legacy precedent corpus는 비활성화된다.
-    """
-    return ENABLE_PLATFORM_PRECEDENT_CORPUS
-
-
-# platform corpus 검색 대상 source_type 목록 (migration flag 기반)
 def get_platform_corpus_source_types() -> list[str]:
     """
-    현재 migration 단계에서 platform corpus 검색 대상 source_type 목록을 반환한다.
+    platform corpus 검색 대상 source_type 목록을 반환한다.
 
-    ENABLE_PLATFORM_PRECEDENT_CORPUS=false:
-        ["law", "interpretation", "admin_rule"]
-        precedent는 기존 corpus에서 처리하므로 제외
-
-    ENABLE_PLATFORM_PRECEDENT_CORPUS=true:
-        ["law", "precedent", "interpretation", "admin_rule"]
-        기존 corpus 비활성화, platform corpus에서 모두 처리
+    platform corpus가 유일 read path이므로 4개 source 모두 포함한다.
     """
-    types = ["law", "interpretation", "admin_rule"]
-    if use_platform_precedent_corpus():
-        types.insert(0, "precedent")
-    return types
+    return ["precedent", "law", "interpretation", "admin_rule"]

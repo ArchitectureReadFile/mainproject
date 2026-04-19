@@ -49,6 +49,7 @@ from domains.platform_sync.platform_knowledge_ingestion_service import (
     PlatformKnowledgeIngestionService,
     PlatformNormalizeError,
 )
+from errors import AppException, ErrorCode, FailureStage
 from models.platform_knowledge import (
     PlatformDocument,
     PlatformDocumentChunk,
@@ -181,6 +182,26 @@ def _save_failure(
     db.add(failure)
 
 
+def _set_run_failure(
+    run: PlatformSyncRun,
+    *,
+    error_code: ErrorCode,
+    failure_stage: FailureStage,
+    raw_error: Exception | None = None,
+) -> None:
+    run.status = "failed"
+    run.finished_at = _utc_now()
+    run.failed_count = max(run.failed_count, 1)
+    run.message = error_code.message
+    meta = _load_run_meta(run)
+    meta["failure_stage"] = failure_stage.value
+    meta["failure_code"] = error_code.code
+    meta["retryable"] = False
+    if raw_error is not None:
+        meta["failure_detail"] = str(raw_error)[:500]
+    _dump_run_meta(run, meta)
+
+
 def get_admin_platform_summary(db: Session) -> AdminPlatformSummaryResponse:
     doc_rows = (
         db.query(PlatformDocument.source_type, func.count(PlatformDocument.id))
@@ -302,7 +323,17 @@ def enqueue_platform_source_sync(
 
     from domains.platform_sync.sync_task import run_platform_source_sync
 
-    task = run_platform_source_sync.delay(run.id)
+    try:
+        task = run_platform_source_sync.delay(run.id)
+    except Exception as exc:
+        _set_run_failure(
+            run,
+            error_code=ErrorCode.PLATFORM_SYNC_ENQUEUE_FAILED,
+            failure_stage=FailureStage.ENQUEUE,
+            raw_error=exc,
+        )
+        db.commit()
+        raise AppException(ErrorCode.PLATFORM_SYNC_ENQUEUE_FAILED)
 
     meta = _load_run_meta(run)
     meta["task_id"] = task.id
@@ -871,10 +902,12 @@ def execute_platform_source_sync(run_id: int) -> None:
         db.rollback()
         run = db.query(PlatformSyncRun).filter_by(id=run_id).first()
         if run and run.status != "cancelled":
-            run.status = "failed"
-            run.finished_at = _utc_now()
-            run.failed_count = max(run.failed_count, 1)
-            run.message = str(exc)
+            _set_run_failure(
+                run,
+                error_code=ErrorCode.PLATFORM_SYNC_PROCESS_FAILED,
+                failure_stage=FailureStage.PROCESS,
+                raw_error=exc,
+            )
             db.commit()
         raise
     finally:

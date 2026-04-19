@@ -4,7 +4,7 @@ from domains.export.repository import ExportRepository
 from domains.export.schemas import ExportJobResponse
 from domains.export.tasks import build_group_export
 from domains.workspace.service import GroupService
-from errors import AppException, ErrorCode
+from errors import AppException, ErrorCode, FailureStage
 from models.model import ExportJobStatus, utc_now_naive
 
 
@@ -42,6 +42,8 @@ class ExportService:
             group_id=job.group_id,
             status=job.status.value,
             export_file_name=job.export_file_name,
+            failure_stage=job.failure_stage,
+            failure_code=job.failure_code,
             error_message=job.error_message,
             total_file_count=job.total_file_count,
             exported_file_count=job.exported_file_count,
@@ -83,7 +85,17 @@ class ExportService:
         self.repository.db.commit()
         self.repository.db.refresh(job)
 
-        build_group_export.delay(job.id)
+        try:
+            build_group_export.delay(job.id)
+        except Exception:
+            self.repository.mark_failed(
+                job.id,
+                failure_stage=FailureStage.ENQUEUE.value,
+                failure_code=ErrorCode.EXPORT_ENQUEUE_FAILED.code,
+                error_message=ErrorCode.EXPORT_ENQUEUE_FAILED.message,
+            )
+            self.repository.db.commit()
+            raise AppException(ErrorCode.EXPORT_ENQUEUE_FAILED)
         return self._to_response(job)
 
     def get_latest_job_for_group(

@@ -250,6 +250,17 @@ class TestCeleryTaskRoutes:
         )
         assert routes[process_next_pending_document.name]["queue"] == "document_queue"
 
+    def test_upload_task_has_periodic_kick_schedule(self):
+        from celery_app import celery_app
+        from domains.document.upload_task import process_next_pending_document
+
+        beat_schedule = celery_app.conf.beat_schedule
+        assert "kick-pending-documents-every-minute" in beat_schedule
+        assert (
+            beat_schedule["kick-pending-documents-every-minute"]["task"]
+            == process_next_pending_document.name
+        )
+
     def test_index_task_route_key_matches_task_name(self):
         from celery_app import celery_app
         from domains.document.index_task import index_approved_document

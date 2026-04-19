@@ -1,270 +1,369 @@
 # ERD
 
-## 1. 문서 개요
+## 1. 목적
 
-- 시스템명: RAG기반 법률 상담 및 문서 요약 시스템
-- 문서 목적:
-  - 시스템의 핵심 엔티티와 관계를 정의한다.
-  - 기능 요구사항을 데이터 구조 관점에서 정리한다.
-  - 백엔드, AI/RAG, 프론트엔드가 동일한 데이터 기준으로 협업할 수 있도록 한다.
+- 현재 서비스의 실제 엔티티와 관계를 정리한다.
+- 기능 요구와 데이터 source of truth를 같은 기준으로 맞춘다.
+- 플랫폼 지식, 문서 처리, 채팅 첨부, export 구조를 한 번에 본다.
 
-## 2. 작성 방식
+## 2. 핵심 엔티티
 
-- 제출용 문서에는 ERD 다이어그램 이미지와 주요 엔티티 설명을 포함한다.
-- ERD 원본은 별도 다이어그램 툴에서 관리한다.
-- 본 문서는 다이어그램에 포함될 엔티티와 관계 기준을 정리한 초안이다.
+### 2.1 사용자 / 구독
 
-권장 산출물 구성:
+#### User
 
-- `docs/04_ERD.md`
-- `docs/assets/erd.png`
-- 필요 시 원본 파일 (`.drawio`, `.dbml` 등)
+- id
+- email
+- username
+- password
+- role
+- is_active
+- created_at
+- updated_at
+- deactivated_at
 
-## 3. 핵심 엔티티 목록
+#### SocialAccount
 
-### 3.1 User
+- id
+- user_id
+- provider
+- provider_id
+- email
+- created_at
 
-- 설명: 시스템 사용자 정보
-- 주요 속성:
-  - id
-  - email
-  - username
-  - password
-  - role
-  - is_active
-  - created_at
-  - updated_at
-  - deactivated_at
+#### Subscription
 
-### 3.2 Subscription
+- id
+- user_id
+- plan
+- status
+- auto_renew
+- started_at
+- ended_at
+- created_at
+- updated_at
 
-- 설명: 사용자 구독 정보
-- 주요 속성:
-  - id
-  - user_id
-  - plan
-  - status
-  - auto_renew
-  - started_at
-  - ended_at
-  - created_at
-  - updated_at
+### 2.2 워크스페이스
 
-### 3.3 Group
+#### Group
 
-- 설명: 워크스페이스 정보
-- 주요 속성:
-  - id
-  - owner_user_id
-  - name
-  - description
-  - status
-  - pending_reason
-  - delete_scheduled_at
-  - created_at
-  - updated_at
+- id
+- owner_user_id
+- name
+- description
+- status
+- pending_reason
+- delete_requested_at
+- delete_scheduled_at
+- deleted_at
+- created_at
+- updated_at
 
-### 3.4 GroupMember
+#### GroupMember
 
-- 설명: 워크스페이스 멤버십 및 권한 정보
-- 주요 속성:
-  - id
-  - group_id
-  - user_id
-  - role
-  - status
-  - invited_by_user_id
-  - joined_at
-  - created_at
-  - updated_at
+- id
+- user_id
+- group_id
+- role
+- status
+- invited_by_user_id
+- invited_at
+- joined_at
+- removed_at
+- created_at
+- updated_at
 
-### 3.5 Document
+### 2.3 문서
 
-- 설명: 워크스페이스 업로드 문서 정보
-- 주요 속성:
-  - id
-  - group_id
-  - uploader_user_id
-  - title
-  - original_filename
-  - stored_path
-  - processing_status
-  - lifecycle_status
-  - metadata_json
-  - created_at
-  - updated_at
-  - deleted_at
-  - deleted_by_user_id
+#### Document
 
-### 3.6 Summary
+- id
+- group_id
+- uploader_user_id
+- original_filename
+- stored_path
+- original_content_type
+- preview_pdf_path
+- preview_status
+- title
+- document_type
+- category
+- processing_status
+- failure_stage
+- failure_code
+- error_message
+- lifecycle_status
+- delete_requested_at
+- delete_scheduled_at
+- deleted_at
+- deleted_by_user_id
+- created_at
+- updated_at
 
-- 설명: 문서 요약 결과
-- 주요 속성:
-  - id
-  - document_id
-  - summary_text
-  - key_points
-  - case_number
-  - case_name
-  - court_name
-  - judgment_date
-  - created_at
-  - updated_at
+설명:
+- 문서 분류의 source of truth는 `documents.document_type`, `documents.category`
+- 처리 실패 메타는 `documents.failure_*`
 
-### 3.7 DocumentApproval
+#### DocumentApproval
 
-- 설명: 문서 승인 및 반려 상태
-- 주요 속성:
-  - id
-  - document_id
-  - assignee_user_id
-  - reviewer_user_id
-  - status
-  - feedback
-  - reviewed_at
-  - created_at
-  - updated_at
+- id
+- document_id
+- assignee_user_id
+- reviewer_user_id
+- status
+- feedback
+- reviewed_at
+- created_at
+- updated_at
 
-### 3.8 DocumentComment
+#### Summary
 
-- 설명: 문서 협업 댓글
-- 주요 속성:
-  - id
-  - document_id
-  - parent_id
-  - author_user_id
-  - scope
-  - content
-  - page
-  - x
-  - y
-  - is_deleted
-  - deleted_by_user_id
-  - created_at
-  - updated_at
+- id
+- document_id
+- summary_text
+- key_points
+- metadata_json
+- created_at
+- updated_at
 
-### 3.9 ChatSession
+#### DocumentComment
 
-- 설명: 사용자 채팅 세션
-- 주요 속성:
-  - id
-  - user_id
-  - title
-  - reference_document_title
-  - reference_document_text
-  - reference_group_id
-  - created_at
-  - updated_at
+- id
+- document_id
+- author_user_id
+- parent_id
+- content
+- comment_scope
+- page
+- x
+- y
+- deleted_by_user_id
+- deleted_at
+- created_at
+- updated_at
 
-### 3.10 ChatMessage
+#### DocumentCommentMention
 
-- 설명: 채팅 세션별 메시지
-- 주요 속성:
-  - id
-  - session_id
-  - role
-  - content
-  - created_at
+- id
+- comment_id
+- mentioned_user_id
+- snapshot_username
+- start_index
+- end_index
+- created_at
 
-### 3.11 Notification
+### 2.4 채팅
 
-- 설명: 시스템 알림
-- 주요 속성:
-  - id
-  - user_id
-  - actor_user_id
-  - group_id
-  - type
-  - title
-  - body
-  - is_read
-  - target_type
-  - target_id
-  - created_at
+#### ChatSession
 
-### 3.12 NotificationSetting
+- id
+- user_id
+- title
+- reference_group_id
+- created_at
+- updated_at
 
-- 설명: 사용자별 알림 수신 설정
-- 주요 속성:
-  - id
-  - user_id
-  - notification_type
-  - enabled
-  - created_at
-  - updated_at
+#### ChatMessage
 
-### 3.13 PlatformKnowledge
+- id
+- session_id
+- role
+- content
+- metadata_json
+- created_at
 
-- 설명: 법률 및 판례 기반 플랫폼 지식 데이터
-- 주요 속성:
-  - id
-  - source_type
-  - source_key
-  - title
-  - content
-  - metadata_json
-  - processing_status
-  - created_at
-  - updated_at
+설명:
+- 답변 citation과 retrieval failure 메타는 `metadata_json`에 저장된다.
 
-## 4. 엔티티 관계
+#### ChatSessionReference
 
-### 4.1 사용자 중심 관계
+- id
+- session_id
+- source_type
+- title
+- upload_path
+- extracted_text
+- status
+- failure_code
+- error_message
+- created_at
+- updated_at
+
+#### ChatSessionReferenceChunk
+
+- id
+- reference_id
+- chunk_order
+- chunk_text
+- created_at
+
+설명:
+- 세션 첨부 문서는 `chat_session_references` + `chat_session_reference_chunks`가 source of truth
+- 예전 `chat_sessions.reference_document_*` 컬럼은 제거됨
+
+### 2.5 알림 / export
+
+#### Notification
+
+- id
+- user_id
+- actor_user_id
+- group_id
+- type
+- title
+- body
+- is_read
+- read_at
+- target_type
+- target_id
+- created_at
+
+#### NotificationSetting
+
+- id
+- user_id
+- notification_type
+- enabled
+- created_at
+- updated_at
+
+#### ExportJob
+
+- id
+- user_id
+- group_id
+- requester_role
+- status
+- file_path
+- export_file_name
+- failure_stage
+- failure_code
+- error_message
+- total_file_count
+- exported_file_count
+- missing_file_count
+- started_at
+- finished_at
+- cancelled_at
+- expires_at
+- created_at
+- updated_at
+
+### 2.6 플랫폼 지식
+
+#### PlatformRawSource
+
+- id
+- source_type
+- provider
+- api_target
+- external_id
+- raw_format
+- raw_payload
+- fetched_at
+- checksum
+- status
+- extra_meta
+- created_at
+- updated_at
+
+#### PlatformDocument
+
+- id
+- raw_source_id
+- source_type
+- external_id
+- title
+- body_text
+- document_url
+- effective_date
+- metadata_json
+- created_at
+- updated_at
+
+#### PlatformDocumentChunk
+
+- id
+- document_id
+- chunk_id
+- chunk_order
+- chunk_type
+- chunk_text
+- metadata_json
+- created_at
+- updated_at
+
+#### PlatformSyncRun
+
+- id
+- source_type
+- started_at
+- finished_at
+- status
+- stats_json
+- metadata_json
+- created_at
+- updated_at
+
+#### PlatformSyncFailure
+
+- id
+- run_id
+- source_type
+- external_id
+- title
+- error_type
+- error_message
+- created_at
+
+설명:
+- 플랫폼 지식 source of truth는 `platform_documents` / `platform_document_chunks`
+- 판례도 `source_type='precedent'`로 여기서 관리
+
+## 3. 주요 관계
+
+### 3.1 사용자 중심
 
 - User 1 : 1 Subscription
-- User 1 : N Group
+- User 1 : N SocialAccount
+- User 1 : N Group(owned_groups)
 - User 1 : N GroupMember
 - User 1 : N Document
 - User 1 : N ChatSession
 - User 1 : N Notification
-- User 1 : N DocumentComment
+- User 1 : N ExportJob
 
-### 4.2 워크스페이스 중심 관계
+### 3.2 워크스페이스 중심
 
 - Group 1 : N GroupMember
 - Group 1 : N Document
 - Group 1 : N Notification
+- Group 1 : N ExportJob
+- Group 1 : N ChatSession(선택 참조)
 
-### 4.3 문서 중심 관계
+### 3.3 문서 중심
 
+- Document 1 : 1 DocumentApproval
 - Document 1 : 1 Summary
-- Document 1 : N DocumentApproval
 - Document 1 : N DocumentComment
+- DocumentComment 1 : N DocumentComment(replies)
+- DocumentComment 1 : N DocumentCommentMention
 
-### 4.4 채팅 중심 관계
+### 3.4 채팅 중심
 
 - ChatSession 1 : N ChatMessage
-- Group 1 : N ChatSession
-  - 선택적 참조 관계로 사용 가능
+- ChatSession 1 : 1 ChatSessionReference
+- ChatSessionReference 1 : N ChatSessionReferenceChunk
 
-### 4.5 댓글 계층 관계
+### 3.5 플랫폼 지식 중심
 
-- DocumentComment 1 : N DocumentComment
-  - parent_id를 통한 대댓글 구조
+- PlatformRawSource 1 : N PlatformDocument
+- PlatformDocument 1 : N PlatformDocumentChunk
+- PlatformSyncRun 1 : N PlatformSyncFailure
 
-## 5. ERD 다이어그램 작성 기준
+## 4. ERD 해석 기준
 
-다이어그램에는 아래 관계를 우선 반영한다.
-
-- `users - subscriptions`
-- `users - groups`
-- `groups - group_members - users`
-- `groups - documents`
-- `documents - summaries`
-- `documents - document_approvals`
-- `documents - document_comments`
-- `users - chat_sessions - chat_messages`
-- `users - notifications`
-
-표현 권장 방식:
-
-- PK, FK를 명확히 구분한다.
-- 상태값은 enum 또는 코드값으로 별도 표시한다.
-- soft delete, 승인 상태, 처리 상태는 주석으로 의미를 표시한다.
-- AI/RAG 인덱스 저장소는 물리 DB 엔티티와 분리해서 설명한다.
-
-## 6. 비고
-
-- 본 문서는 논리 ERD 기준 초안이다.
-- 실제 물리 ERD 작성 시 컬럼명, nullable 여부, 제약조건, index 여부를 추가 정리해야 한다.
-- 벡터 저장소와 BM25 저장소는 별도 검색 인프라로 관리되므로, 핵심 ERD에는 보조 구조로 표기하는 것이 적절하다.
+- source of truth가 둘 이상인 구조는 문서 기준으로 허용하지 않는다.
+- 문서 분류값은 `documents`를 기준으로 본다.
+- 세션 첨부는 `chat_session_references` 계층을 기준으로 본다.
+- 플랫폼 지식은 `platform_*` 계층을 기준으로 본다.

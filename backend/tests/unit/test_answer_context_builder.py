@@ -13,7 +13,6 @@ from domains.knowledge.schemas import RetrievedKnowledgeItem
 from settings.knowledge import (
     ANSWER_CONTEXT_PLATFORM_TEXT_MAX,
     ANSWER_CONTEXT_PLATFORM_TOP_K,
-    ANSWER_CONTEXT_SESSION_TEXT_MAX,
     ANSWER_CONTEXT_SESSION_TOP_K,
     ANSWER_CONTEXT_WORKSPACE_TEXT_MAX,
     ANSWER_CONTEXT_WORKSPACE_TOP_K,
@@ -67,6 +66,8 @@ def _session(
     title: str = "첨부 문서",
     chunk_text: str = "세션 문서 내용",
     score: float = 1.0,
+    chunk_id: str | None = "session:1:chunk:10",
+    chunk_order: int | None = 2,
 ) -> RetrievedKnowledgeItem:
     return RetrievedKnowledgeItem(
         knowledge_type="session",
@@ -75,7 +76,8 @@ def _session(
         title=title,
         chunk_text=chunk_text,
         score=score,
-        metadata={"session_title": title},
+        chunk_id=chunk_id,
+        metadata={"session_title": title, "chunk_order": chunk_order},
     )
 
 
@@ -173,9 +175,9 @@ class TestTextTrim:
         assert "…" in result
 
     def test_session_text_trimmed(self, builder):
-        long_text = "다" * (ANSWER_CONTEXT_SESSION_TEXT_MAX + 500)
+        long_text = "다" * 4000
         result = builder.build([_session(chunk_text=long_text)])
-        assert "…" in result
+        assert long_text in result
 
     def test_short_text_not_trimmed(self, builder):
         result = builder.build([_platform(chunk_text="짧은 내용")])
@@ -209,3 +211,11 @@ class TestMetadataFields:
     def test_session_title(self, builder):
         result = builder.build([_session(title="이번 회의 자료")])
         assert "이번 회의 자료" in result
+
+    def test_session_chunk_citation_id(self, builder):
+        result = builder.build([_session(chunk_id="session:1:chunk:77")])
+        assert "근거ID: session:1:chunk:77" in result
+
+    def test_session_chunk_order(self, builder):
+        result = builder.build([_session(chunk_order=4)])
+        assert "청크순번: 5" in result

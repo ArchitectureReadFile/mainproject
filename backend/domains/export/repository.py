@@ -92,6 +92,8 @@ class ExportRepository:
 
         job.status = ExportJobStatus.PROCESSING
         job.started_at = job.started_at or utc_now_naive()
+        job.failure_stage = None
+        job.failure_code = None
         job.error_message = None
         return job
 
@@ -114,6 +116,8 @@ class ExportRepository:
         job.status = ExportJobStatus.READY
         job.file_path = file_path
         job.export_file_name = export_file_name
+        job.failure_stage = None
+        job.failure_code = None
         job.error_message = None
         job.total_file_count = total_file_count
         job.exported_file_count = exported_file_count
@@ -122,13 +126,22 @@ class ExportRepository:
         job.expires_at = expires_at
         return job
 
-    def mark_failed(self, export_job_id: int, error_message: str) -> ExportJob | None:
+    def mark_failed(
+        self,
+        export_job_id: int,
+        *,
+        failure_stage: str,
+        failure_code: str,
+        error_message: str,
+    ) -> ExportJob | None:
         """job 상태를 FAILED로 변경하고 실패 메시지를 저장"""
         job = self.db.query(ExportJob).filter(ExportJob.id == export_job_id).first()
         if not job:
             return None
 
         job.status = ExportJobStatus.FAILED
+        job.failure_stage = failure_stage
+        job.failure_code = failure_code
         job.error_message = error_message
         job.finished_at = utc_now_naive()
         job.expires_at = None
@@ -142,6 +155,8 @@ class ExportRepository:
 
         now = utc_now_naive()
         job.status = ExportJobStatus.CANCELLED
+        job.failure_stage = None
+        job.failure_code = None
         job.cancelled_at = now
         job.finished_at = now
         job.expires_at = None

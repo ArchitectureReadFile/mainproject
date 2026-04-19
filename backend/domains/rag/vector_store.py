@@ -8,7 +8,7 @@ domains/rag/vector_store.py
 환경 변수:
     QDRANT_HOST          기본값 "qdrant"
     QDRANT_PORT          기본값 6333
-    QDRANT_COLLECTION    기본값 "precedents"
+    QDRANT_COLLECTION    기본값 "rag_chunks"
     EMBEDDING_DIM        기본값 768  (KURE-v1 기준)
     HYBRID_ALPHA         기본값 0.8  (BM25 비중)
 
@@ -30,29 +30,11 @@ logger = logging.getLogger(__name__)
 
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
-QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "precedents")
+QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "rag_chunks")
 EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "768"))
 HYBRID_ALPHA = float(os.getenv("HYBRID_ALPHA", "0.8"))
 
 _client: QdrantClient | None = None
-
-_PRECEDENT_PAYLOAD_FIELDS = (
-    "chunk_id",
-    "precedent_id",
-    "title",
-    "source_url",
-    "case_number",
-    "case_name",
-    "court_name",
-    "judgment_date",
-    "plaintiff",
-    "defendant",
-    "lower_court_case",
-    "text",
-    "section_title",
-    "element_type",
-    "order_index",
-)
 
 _GROUP_DOC_PAYLOAD_FIELDS = (
     "chunk_id",
@@ -64,6 +46,21 @@ _GROUP_DOC_PAYLOAD_FIELDS = (
     "section_title",
     "order_index",
     "text",
+)
+
+_PLATFORM_PAYLOAD_FIELDS = (
+    "chunk_id",
+    "platform_document_id",
+    "source_type",
+    "chunk_type",
+    "section_title",
+    "chunk_order",
+    "text",
+    "source_url",
+    "issued_at",
+    "agency",
+    "related_law_refs",
+    "related_case_refs",
 )
 
 
@@ -105,12 +102,10 @@ def _chunk_id_to_point_id(chunk_id: str) -> int:
 
 
 def _payload_fields(payload: dict) -> tuple:
-    """payload의 source_type에 따라 적합한 필드 목록을 반환한다."""
-    return (
-        _GROUP_DOC_PAYLOAD_FIELDS
-        if payload.get("source_type") == "pdf"
-        else _PRECEDENT_PAYLOAD_FIELDS
-    )
+    """payload의 corpus 유형에 따라 적합한 필드 목록을 반환한다."""
+    if payload.get("source_type") == "pdf":
+        return _GROUP_DOC_PAYLOAD_FIELDS
+    return _PLATFORM_PAYLOAD_FIELDS
 
 
 def _hit_to_dict(payload: dict, score: float, extra: dict | None = None) -> dict:
@@ -255,11 +250,6 @@ def hybrid_search(
             )
         )
     return results
-
-
-def delete(precedent_id: int) -> None:
-    _delete_by_field("precedent_id", precedent_id)
-    logger.info("Qdrant delete 완료: precedent_id=%s", precedent_id)
 
 
 def delete_document(document_id: int) -> None:

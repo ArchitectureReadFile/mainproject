@@ -100,6 +100,13 @@ class UploadService:
             doc_ids.append(document.id)
 
         if doc_ids:
-            process_next_pending_document.delay()
+            try:
+                process_next_pending_document.delay()
+            except Exception:
+                logger.exception(
+                    "[문서 처리 enqueue 실패] group_id=%s doc_ids=%s",
+                    group_id,
+                    doc_ids,
+                )
 
         return {"message": "업로드 완료, AI 처리 대기 중", "document_ids": doc_ids}

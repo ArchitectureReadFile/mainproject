@@ -1,3 +1,5 @@
+"""Celery tasks for chat answer generation and session reference extraction."""
+
 import os
 
 import redis
@@ -6,14 +8,30 @@ from celery_app import celery_app
 from database import SessionLocal
 from domains.chat.processor import ChatProcessor
 from domains.chat.repository import ChatRepository
+from domains.chat.session_payload import SessionDocumentPayloadService
+from domains.document.extract_service import DocumentExtractService
+from domains.document.normalize_service import DocumentNormalizeService
 from domains.knowledge.schemas import WorkspaceSelection
+from domains.knowledge.session_chunking import split_session_text
 from domains.notification.repository import NotificationRepository
+from errors import ErrorCode, FailureStage, build_exception_failure_payload
+from models.model import ChatSessionReferenceChunk, ChatSessionReferenceStatus
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
+
+_extractor = DocumentExtractService()
+_normalizer = DocumentNormalizeService()
+_session_payload = SessionDocumentPayloadService()
+
+
+def _create_task_redis_client() -> redis.Redis:
+    """Chat worker task가 사용할 짧은 수명의 Redis 연결을 생성한다."""
+    return redis.Redis(host=REDIS_HOST, port=6379, db=0, decode_responses=True)
 
 
 @celery_app.task(name="tasks.chat_task.process_chat_message")
 def process_chat_message(payload: dict):
+    """저장된 사용자 메시지를 읽어 답변 생성 파이프라인을 실행한다."""
     user_id = payload.get("user_id")
     session_id = payload.get("session_id")
     group_id = payload.get("group_id")
@@ -26,7 +44,7 @@ def process_chat_message(payload: dict):
             document_ids=raw_selection.get("document_ids", []),
         )
 
-    redis_client = redis.Redis(host=REDIS_HOST, port=6379, db=0, decode_responses=True)
+    redis_client = _create_task_redis_client()
     db = SessionLocal()
 
     try:
@@ -45,3 +63,80 @@ def process_chat_message(payload: dict):
         redis_client.delete(f"chat_task:{session_id}")
         db.close()
         redis_client.close()
+
+
+@celery_app.task(name="tasks.chat_task.process_session_reference_document")
+def process_session_reference_document(reference_id: int):
+    """세션 첨부 문서를 추출/정규화하고 retrieval chunk를 저장한다."""
+    db = SessionLocal()
+    try:
+        chat_repo = ChatRepository(db)
+        reference = chat_repo.get_reference_by_id(reference_id)
+        if not reference:
+            return {
+                "status": "error",
+                "failure_stage": FailureStage.PROCESS.value,
+                "failure_code": ErrorCode.CHAT_REFERENCE_PARSE_FAILED.code,
+                "error_message": "세션 첨부 문서를 찾을 수 없습니다.",
+                "retryable": False,
+            }
+
+        try:
+            if not reference.upload_path or not os.path.exists(reference.upload_path):
+                raise FileNotFoundError(reference.upload_path or "")
+
+            with open(reference.upload_path, "rb") as f:
+                file_bytes = f.read()
+
+            extracted = _extractor.extract_bytes(file_bytes)
+            document = _normalizer.normalize(extracted)
+            extracted_text = _session_payload.build(document)
+            chunks = split_session_text(extracted_text)
+
+            reference.extracted_text = extracted_text
+            for existing_chunk in list(getattr(reference, "chunks", []) or []):
+                chat_repo.delete(existing_chunk)
+            for chunk in chunks:
+                chat_repo.add(
+                    ChatSessionReferenceChunk(
+                        reference_id=reference.id,
+                        chunk_order=chunk.chunk_order,
+                        chunk_text=chunk.chunk_text,
+                    )
+                )
+            reference.status = ChatSessionReferenceStatus.READY
+            reference.failure_code = None
+            reference.error_message = None
+            upload_path = reference.upload_path
+            reference.upload_path = None
+            chat_repo.commit()
+
+            if upload_path and os.path.exists(upload_path):
+                os.remove(upload_path)
+
+            return {
+                "status": "success",
+                "reference_id": reference_id,
+            }
+        except Exception as exc:
+            failure = build_exception_failure_payload(
+                stage=FailureStage.EXTRACT,
+                exc=exc,
+                fallback_error_code=ErrorCode.CHAT_REFERENCE_PARSE_FAILED,
+            )
+            reference.status = ChatSessionReferenceStatus.FAILED
+            reference.failure_code = failure["failure_code"]
+            reference.error_message = failure["error_message"]
+            upload_path = reference.upload_path
+            reference.upload_path = None
+            chat_repo.commit()
+
+            if upload_path and os.path.exists(upload_path):
+                try:
+                    os.remove(upload_path)
+                except OSError:
+                    pass
+
+            return failure
+    finally:
+        db.close()

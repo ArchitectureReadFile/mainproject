@@ -52,7 +52,7 @@ class GroupService:
     def _finalize_group_state_sync(
         self, original_error: Exception | None = None
     ) -> None:
-        """접근 시 동기화된 그룹 상태를 확정하고, 원래 예외를 덮어쓰지 않는다."""
+        """read-path 중 발생한 상태 보정을 commit하고, 원래 예외는 유지한다."""
         try:
             self.db.commit()
         except Exception:

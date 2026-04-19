@@ -325,7 +325,7 @@ def test_summary_process_reuses_normalized_document(monkeypatch):
             self.status_updates: list[tuple[int, str]] = []
             self.classification_updates: list[tuple[int, str, str]] = []
 
-        def update_status(self, document_id, status):
+        def update_status(self, document_id, status, **kwargs):
             self.status_updates.append((document_id, status))
 
         def get_by_id(self, document_id):

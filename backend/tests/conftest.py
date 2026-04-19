@@ -87,6 +87,7 @@ def stub_async_side_effects(monkeypatch, fake_redis):
 
 @pytest.fixture()
 def db_session():
+    # 단위 테스트는 in-memory schema를 직접 bootstrap한다.
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
     try:

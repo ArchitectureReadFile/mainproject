@@ -99,6 +99,12 @@ class ChatMessageRole(enum.Enum):
     ASSISTANT = "ASSISTANT"
 
 
+class ChatSessionReferenceStatus(enum.Enum):
+    PROCESSING = "PROCESSING"
+    READY = "READY"
+    FAILED = "FAILED"
+
+
 class NotificationType(enum.Enum):
     AI_ANSWER_COMPLETE = "AI_ANSWER_COMPLETE"
     WORKSPACE_INVITED = "WORKSPACE_INVITED"
@@ -160,10 +166,6 @@ class User(Base):
         "Document",
         foreign_keys="Document.uploader_user_id",
         back_populates="owner",
-    )
-    # cascade 제거 — FK가 SET NULL이므로 ORM이 row를 삭제하면 안 됨
-    precedents = relationship(
-        "Precedent", back_populates="uploaded_by_admin", passive_deletes=True
     )
     subscription = relationship(
         "Subscription",
@@ -393,6 +395,9 @@ class Document(Base):
         default=DocumentStatus.PENDING,
         nullable=False,
     )
+    failure_stage = Column(String(32), nullable=True)
+    failure_code = Column(String(64), nullable=True)
+    error_message = Column(Text, nullable=True)
 
     lifecycle_status = Column(
         Enum(DocumentLifecycleStatus, native_enum=False),
@@ -546,6 +551,8 @@ class ExportJob(Base):
     file_path = Column(String(1024), nullable=True)
     export_file_name = Column(String(255), nullable=True)
 
+    failure_stage = Column(String(32), nullable=True)
+    failure_code = Column(String(64), nullable=True)
     error_message = Column(Text, nullable=True)
 
     total_file_count = Column(Integer, default=0, nullable=False)
@@ -708,9 +715,6 @@ class ChatSession(Base):
     )
 
     title = Column(String(255))
-
-    reference_document_title = Column(String(255), nullable=True)
-    reference_document_text = Column(Text, nullable=True)
     reference_group_id = Column(
         Integer, ForeignKey("groups.id", ondelete="SET NULL"), nullable=True
     )
@@ -722,6 +726,12 @@ class ChatSession(Base):
 
     user = relationship("User", back_populates="chat_sessions")
     group = relationship("Group")
+    reference = relationship(
+        "ChatSessionReference",
+        back_populates="session",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     messages = relationship(
         "ChatMessage",
@@ -747,37 +757,71 @@ class ChatMessage(Base):
     )
 
     content = Column(Text, nullable=False)
+    metadata_json = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
 
     session = relationship("ChatSession", back_populates="messages")
 
 
-class Precedent(Base):
-    """RAG용 판례 메타 및 인덱싱 상태 테이블"""
+class ChatSessionReference(Base):
+    __tablename__ = "chat_session_references"
 
-    __tablename__ = "precedents"
-
-    id = Column(Integer, primary_key=True, index=True)
-    source_url = Column(String(2048), unique=True, nullable=False)
-    title = Column(String(512), nullable=True)
-    text = Column(Text, nullable=True)
-    processing_status = Column(
-        Enum(DocumentStatus, native_enum=False),
-        default=DocumentStatus.PENDING,
+    id = Column(Integer, primary_key=True)
+    session_id = Column(
+        Integer,
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
     )
+    source_type = Column(String(32), nullable=False, default="upload")
+    title = Column(String(255), nullable=False)
+    upload_path = Column(Text, nullable=True)
+    extracted_text = Column(Text, nullable=True)
+    status = Column(
+        Enum(ChatSessionReferenceStatus, native_enum=False),
+        nullable=False,
+        default=ChatSessionReferenceStatus.PROCESSING,
+    )
+    failure_code = Column(String(64), nullable=True)
     error_message = Column(Text, nullable=True)
-    uploaded_by_admin_id = Column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
-    )
-
     created_at = Column(DateTime, default=utc_now_naive, nullable=False)
     updated_at = Column(
         DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False
     )
 
-    uploaded_by_admin = relationship("User", back_populates="precedents")
+    session = relationship("ChatSession", back_populates="reference")
+    chunks = relationship(
+        "ChatSessionReferenceChunk",
+        back_populates="reference",
+        cascade="all, delete-orphan",
+        order_by="ChatSessionReferenceChunk.chunk_order",
+    )
+
+
+class ChatSessionReferenceChunk(Base):
+    __tablename__ = "chat_session_reference_chunks"
+
+    id = Column(Integer, primary_key=True)
+    reference_id = Column(
+        Integer,
+        ForeignKey("chat_session_references.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    chunk_order = Column(Integer, nullable=False)
+    chunk_text = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "reference_id",
+            "chunk_order",
+            name="uq_chat_session_reference_chunk_order",
+        ),
+    )
+
+    reference = relationship("ChatSessionReference", back_populates="chunks")
 
 
 class Notification(Base):

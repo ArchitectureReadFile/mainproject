@@ -197,7 +197,7 @@ class TestAdminUsage:
         assert "storage" in data["service_usage"]
         assert "daily_uploads" in data["service_usage"]
         assert "document_jobs" in data["service_usage"]
-        assert "precedent_count" in data["rag_usage"]
+        assert "platform_precedent_count" in data["rag_usage"]
         assert "index_jobs" in data["rag_usage"]
         assert len(data["service_usage"]["daily_uploads"]) == 7
 

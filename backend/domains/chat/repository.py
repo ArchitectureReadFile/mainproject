@@ -1,6 +1,12 @@
 from sqlalchemy.orm import Session
 
-from models.model import ChatMessage, ChatSession, Document, GroupMember
+from models.model import (
+    ChatMessage,
+    ChatSession,
+    ChatSessionReference,
+    ChatSessionReferenceChunk,
+    GroupMember,
+)
 
 
 class ChatRepository:
@@ -25,6 +31,32 @@ class ChatRepository:
             self.db.query(ChatSession)
             .filter(ChatSession.id == session_id, ChatSession.user_id == user_id)
             .first()
+        )
+
+    def get_reference_by_session_id(
+        self, session_id: int
+    ) -> ChatSessionReference | None:
+        return (
+            self.db.query(ChatSessionReference)
+            .filter(ChatSessionReference.session_id == session_id)
+            .first()
+        )
+
+    def get_reference_by_id(self, reference_id: int) -> ChatSessionReference | None:
+        return (
+            self.db.query(ChatSessionReference)
+            .filter(ChatSessionReference.id == reference_id)
+            .first()
+        )
+
+    def get_reference_chunks_by_reference_id(
+        self, reference_id: int
+    ) -> list[ChatSessionReferenceChunk]:
+        return (
+            self.db.query(ChatSessionReferenceChunk)
+            .filter(ChatSessionReferenceChunk.reference_id == reference_id)
+            .order_by(ChatSessionReferenceChunk.chunk_order.asc())
+            .all()
         )
 
     def create_session(self, session: ChatSession) -> ChatSession:
@@ -56,8 +88,8 @@ class ChatRepository:
     def add_message(self, message: ChatMessage):
         self.db.add(message)
 
-    def get_document_by_id(self, document_id: int) -> Document | None:
-        return self.db.query(Document).filter(Document.id == document_id).first()
+    def delete_message(self, message: ChatMessage):
+        self.db.delete(message)
 
     def get_group_member(self, user_id: int, group_id: int) -> GroupMember | None:
         return (
@@ -69,8 +101,17 @@ class ChatRepository:
     def add(self, obj):
         self.db.add(obj)
 
+    def delete(self, obj):
+        self.db.delete(obj)
+
+    def flush(self):
+        self.db.flush()
+
     def commit(self):
         self.db.commit()
+
+    def rollback(self):
+        self.db.rollback()
 
     def refresh(self, obj):
         self.db.refresh(obj)

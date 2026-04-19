@@ -17,6 +17,30 @@
 # 프론트엔드 업스트림 포트: frontend:3000 (운영 이미지는 nginx 정적 서빙)
 
 services:
+  backend_migrate:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: backend_migrate_container
+    command: alembic upgrade head
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
+      - TZ=UTC
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  db:
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - MARIADB_DATABASE=readfile
+      - MARIADB_USER=user
+      - TZ=UTC
+
   # ───────────────────────────────────────────
   # Frontend: production image 사용
   # base compose의 command(npm run dev)가 상속되지 않도록 명시적으로 덮어씀
@@ -48,6 +72,15 @@ services:
     volumes:
       - backend_runtime:/app/runtime
     ports: []
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -55,7 +88,10 @@ services:
   # Celery workers: 역할별 queue 분리
   # chat      → 병렬 처리
   # document  → 한 번에 1개 (업로드 파일 직접 접근 필수)
-  # platform  → 한 번에 1개
+  # export    → 한 번에 1개 (대용량 ZIP 생성 I/O 분리)
+  # platform  → precedent/index 등 한 번에 1개
+  # platform_sync → long-running 동기화 전용
+  # maintenance → cleanup/sweep 성격 작업
   # 모두 backend_runtime volume을 동일 경로(/app/runtime)로 마운트
   # ───────────────────────────────────────────
   chat_worker:
@@ -69,6 +105,38 @@ services:
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
+    networks:
+      - app-network
+
+  chat_reference_worker:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: chat_reference_worker_container
+    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q chat_reference_queue
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
+      - TZ=UTC
+    volumes:
+      - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -83,6 +151,38 @@ services:
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
+    networks:
+      - app-network
+
+  export_worker:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: export_worker_container
+    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q export_queue
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
+      - TZ=UTC
+    volumes:
+      - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -97,6 +197,61 @@ services:
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
+    networks:
+      - app-network
+
+  platform_sync_worker:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: platform_sync_worker_container
+    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q platform_sync_queue
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
+      - TZ=UTC
+    volumes:
+      - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
+    networks:
+      - app-network
+
+  maintenance_worker:
+    image: ${DOCKER_HUB_USER}/jiyun-backend:latest
+    container_name: maintenance_worker_container
+    command: celery -A celery_app worker --loglevel=info --concurrency=1 -Q maintenance_queue
+    env_file: !override
+      - D:/jiyun-env/backend.env
+    environment: !override
+      - ODL_HYBRID_URL=http://odl_hybrid:5002
+      - TZ=UTC
+    volumes:
+      - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -111,6 +266,15 @@ services:
       - TZ=UTC
     volumes:
       - backend_runtime:/app/runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      backend_migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 

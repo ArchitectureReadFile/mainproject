@@ -18,43 +18,54 @@ import {
 } from 'react-icons/io5';
 import { getMyGroups } from '@/shared/api/groups';
 import { useChat } from '../hooks/useChat.js';
+import MessageReferences from './MessageReferences.jsx';
 
 export default function ChatSession({ session, onBack, onClose, onUpdateSession }) {
-  const initialGroup = session.reference_group_id ? { id: session.reference_group_id, name: session.reference_group_name } : null;
+  const initialGroup = session.group ? { id: session.group.id, name: session.group.name } : null;
   const { 
     messages, 
     isLoading, 
     sendMessage, 
     stopMessage,
+    uploadReferenceDocument,
     referenceTitle, 
+    referenceStatus,
     referenceGroup,
     removeReferenceDocument,
     removeReferenceGroup
-  } = useChat(session.id, session.reference_document_title, initialGroup);
+  } = useChat(
+    session.id,
+    session.reference?.title,
+    initialGroup,
+    session.reference?.status
+  );
   
   const [input, setInput] = useState('');
   const scrollRef = useRef(null);
 
   useEffect(() => {
     if (onUpdateSession) {
-      const hasTitleChanged = referenceTitle !== (session.reference_document_title || null);
-      const hasGroupChanged = referenceGroup?.id !== (session.reference_group_id || null);
+      const hasTitleChanged = referenceTitle !== (session.reference?.title || null);
+      const hasStatusChanged = referenceStatus !== (session.reference?.status || null);
+      const hasGroupChanged = referenceGroup?.id !== (session.group?.id || null);
 
-      if (hasTitleChanged || hasGroupChanged) {
+      if (hasTitleChanged || hasStatusChanged || hasGroupChanged) {
         onUpdateSession({ 
-          reference_document_title: referenceTitle,
-          reference_group_id: referenceGroup?.id,
-          reference_group_name: referenceGroup?.name
+          reference: referenceTitle
+            ? { ...(session.reference || {}), title: referenceTitle, status: referenceStatus }
+            : null,
+          group: referenceGroup
+            ? { id: referenceGroup.id, name: referenceGroup.name }
+            : null,
         });
       }
     }
-  }, [referenceTitle, referenceGroup, session.reference_document_title, session.reference_group_id, onUpdateSession]);
+  }, [referenceTitle, referenceStatus, referenceGroup, session.reference, session.group, onUpdateSession]);
 
   const fileInputRef = useRef(null);
 
   const [showDocSelect, setShowDocSelect] = useState(false);
   const [showGroupSelect, setShowGroupSelect] = useState(false);
-  const [selectedDoc, setSelectedDoc] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [groups, setGroups] = useState([]);
 
@@ -76,23 +87,22 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
     fetchGroups();
   }, []);
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    const newDoc = {
-      id: Date.now(),
-      title: file.name,
-      file: file
-    };
-
-    setSelectedDoc(newDoc);
-    setShowDocSelect(false);
     e.target.value = '';
+    setShowDocSelect(false);
+
+    try {
+      await uploadReferenceDocument(file);
+    } catch {
+      return;
+    }
   };
 
   const handleSend = () => {
-    if (!input.trim() && !selectedDoc && !selectedGroup && !referenceTitle && !referenceGroup) return;
+    if (referenceStatus === 'PROCESSING') return;
+    if (!input.trim() && !selectedGroup && !referenceTitle && !referenceGroup) return;
 
     let workspaceSelection = null;
     const groupToUse = selectedGroup || referenceGroup;
@@ -103,10 +113,9 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
       };
     }
 
-    sendMessage(input, selectedDoc, selectedGroup, workspaceSelection);
+    sendMessage(input, selectedGroup, workspaceSelection);
 
     setInput('');
-    setSelectedDoc(null);
     setSelectedGroup(null);
   };
 
@@ -212,6 +221,10 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
                 </ReactMarkdown>
               </div>
 
+              {msg.sender === 'ai' && !msg.isError && (
+                <MessageReferences references={msg.references} />
+              )}
+
               <p className={`text-[10px] mt-2 text-right opacity-70 ${msg.sender === 'user' ? 'text-blue-50' : 'text-slate-400 dark:text-slate-500'}`}>
                 {msg.timestamp}
               </p>
@@ -282,21 +295,16 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
         )}
 
         <div className="flex flex-col bg-slate-100/50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-200 dark:border-slate-800 focus-within:bg-white dark:focus-within:bg-slate-900 focus-within:border-blue-400 dark:focus-within:border-blue-500 transition-all duration-500 shadow-sm">
-          {(referenceTitle || referenceGroup || selectedDoc || selectedGroup) && (
+          {(referenceTitle || referenceGroup || selectedGroup) && (
             <div className="flex flex-wrap gap-2 px-3 pt-3 pb-1">
-              {referenceTitle && !selectedDoc && (
+              {referenceTitle && (
                 <span className="flex items-center gap-1.5 text-xs bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded-md border border-indigo-200 dark:border-indigo-800 animate-in fade-in" title="이 문서를 기반으로 답변합니다">
                   <IoDocumentTextOutline size={14} />
                   <span className="max-w-[150px] truncate font-medium">{referenceTitle}</span>
-                  <span className="text-[10px] opacity-70 ml-1">(참조 중)</span>
+                  <span className="text-[10px] opacity-70 ml-1">
+                    {referenceStatus === 'PROCESSING' ? '(분석 중)' : referenceStatus === 'FAILED' ? '(분석 실패)' : '(참조 중)'}
+                  </span>
                   <button onClick={removeReferenceDocument} className="hover:text-indigo-900 dark:hover:text-indigo-100 ml-0.5"><IoCloseCircle size={15} /></button>
-                </span>
-              )}
-              {selectedDoc && (
-                <span className="flex items-center gap-1.5 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-md border border-blue-200 dark:border-blue-800 animate-in fade-in">
-                  <IoDocumentTextOutline size={14} />
-                  <span className="max-w-[150px] truncate">{selectedDoc.title}</span>
-                  <button onClick={() => setSelectedDoc(null)} className="hover:text-blue-900 dark:hover:text-blue-100"><IoCloseCircle size={15} /></button>
                 </span>
               )}
               {(referenceGroup || selectedGroup) && (
@@ -311,19 +319,24 @@ export default function ChatSession({ session, onBack, onClose, onUpdateSession 
           )}
 
           <div className="flex gap-2 items-center p-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder={referenceTitle || referenceGroup || selectedDoc || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "메시지를 입력하세요..."}
-              className="flex-1 border-0 bg-transparent shadow-none focus:ring-0 focus:outline-none focus:border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-2 h-10 text-foreground"
-            />
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder={referenceStatus === 'PROCESSING' ? "첨부 문서를 분석 중입니다..." : (referenceTitle || referenceGroup || selectedGroup ? "내용을 입력하거나 바로 전송하세요" : "메시지를 입력하세요...")}
+                className="flex-1 border-0 bg-transparent shadow-none focus:ring-0 focus:outline-none focus:border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-2 h-10 text-foreground"
+              />
             {isLoading ? (
               <Button size="icon" onClick={stopMessage} className="shrink-0 bg-slate-500 hover:bg-slate-600 rounded-full w-10 h-10 shadow-sm">
                 <IoStop size={18} />
               </Button>
             ) : (
-              <Button size="icon" onClick={handleSend} className="shrink-0 bg-blue-600 hover:bg-blue-700 rounded-full w-10 h-10 shadow-sm">
+              <Button
+                size="icon"
+                onClick={handleSend}
+                disabled={referenceStatus === 'PROCESSING'}
+                className="shrink-0 bg-blue-600 hover:bg-blue-700 rounded-full w-10 h-10 shadow-sm disabled:opacity-50"
+              >
                 <IoSend size={18} className="ml-1" />
               </Button>
             )}

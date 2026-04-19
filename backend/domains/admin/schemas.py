@@ -71,7 +71,7 @@ class ServiceUsage(BaseModel):
 
 
 class RagUsage(BaseModel):
-    precedent_count: int
+    platform_precedent_count: int
     vector_storage_mb: float
     index_jobs: JobStatusCount
 

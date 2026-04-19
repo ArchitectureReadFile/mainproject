@@ -4,9 +4,9 @@ tests/unit/test_group_rag_isolation.py
 그룹 PDF RAG corpus isolation 테스트.
 
 검증 목표:
-1. group document hybrid 검색에서 precedent chunk가 섞이지 않음
+1. group document hybrid 검색에서 platform chunk가 섞이지 않음
 2. 다른 group 문서 chunk도 섞이지 않음
-3. precedent 검색에서 group document chunk가 섞이지 않음
+3. platform 검색에서 group document chunk가 섞이지 않음
 4. APPROVED 아닌 문서 task 호출 시 skip 확인
 """
 
@@ -38,24 +38,32 @@ def fake_redis(monkeypatch):
     return r
 
 
-def test_precedent_corpus_does_not_contain_group_doc_chunks(fake_redis):
-    """판례 corpus 검색 결과에 group document chunk가 없어야 한다."""
-    bm25_store.upsert("p:1:chunk:0", precedent_id=1, text="원고 납세의무 취소 청구")
+def test_platform_corpus_does_not_contain_group_doc_chunks(fake_redis):
+    """platform corpus 검색 결과에 group document chunk가 없어야 한다."""
+    bm25_store.upsert_platform_chunk(
+        "platform:precedent:pd:1:chunk:0",
+        platform_document_id="1",
+        text="원고 납세의무 취소 청구",
+    )
     bm25_store.upsert_document_chunk(
         "gdoc:10:chunk:0", document_id=10, group_id=1, text="원고 납세의무 취소 청구"
     )
 
-    results = bm25_store.search("납세의무", top_k=10)
+    results = bm25_store.search_platform("납세의무", top_k=10)
     chunk_ids = [r["chunk_id"] for r in results]
 
-    assert all(cid.startswith("p:") for cid in chunk_ids), (
-        f"판례 corpus에 group doc chunk가 섞임: {chunk_ids}"
+    assert all(cid.startswith("platform:") for cid in chunk_ids), (
+        f"platform corpus에 group doc chunk가 섞임: {chunk_ids}"
     )
 
 
-def test_group_doc_corpus_does_not_contain_precedent_chunks(fake_redis):
-    """그룹 문서 corpus 검색 결과에 판례 chunk가 없어야 한다."""
-    bm25_store.upsert("p:1:chunk:0", precedent_id=1, text="원고 납세의무 취소 청구")
+def test_group_doc_corpus_does_not_contain_platform_chunks(fake_redis):
+    """그룹 문서 corpus 검색 결과에 platform chunk가 없어야 한다."""
+    bm25_store.upsert_platform_chunk(
+        "platform:precedent:pd:1:chunk:0",
+        platform_document_id="1",
+        text="원고 납세의무 취소 청구",
+    )
     bm25_store.upsert_document_chunk(
         "gdoc:10:chunk:0", document_id=10, group_id=1, text="원고 납세의무 취소 청구"
     )
@@ -64,7 +72,7 @@ def test_group_doc_corpus_does_not_contain_precedent_chunks(fake_redis):
     chunk_ids = [r["chunk_id"] for r in results]
 
     assert all(cid.startswith("gdoc:") for cid in chunk_ids), (
-        f"그룹문서 corpus에 판례 chunk가 섞임: {chunk_ids}"
+        f"그룹문서 corpus에 platform chunk가 섞임: {chunk_ids}"
     )
 
 

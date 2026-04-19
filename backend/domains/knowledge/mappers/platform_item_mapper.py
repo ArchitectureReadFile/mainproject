@@ -8,17 +8,6 @@ from __future__ import annotations
 
 from domains.knowledge.schemas import RetrievedKnowledgeItem
 
-_PRECEDENT_META_FIELDS = (
-    "source_url",
-    "case_number",
-    "case_name",
-    "court_name",
-    "judgment_date",
-    "plaintiff",
-    "defendant",
-    "lower_court_case",
-)
-
 _PLATFORM_HIT_META_FIELDS = (
     "source_url",
     "issued_at",
@@ -28,27 +17,6 @@ _PLATFORM_HIT_META_FIELDS = (
     "related_law_refs",
     "related_case_refs",
 )
-
-
-def precedent_grouped_to_item(grouped: dict) -> RetrievedKnowledgeItem:
-    chunks = grouped.get("chunks") or []
-    chunk_text = "\n".join(c.get("text", "") for c in chunks).strip()
-    chunk_id = chunks[0].get("chunk_id") if chunks else None
-
-    return RetrievedKnowledgeItem(
-        knowledge_type="platform",
-        source_type="precedent",
-        source_id=grouped.get("precedent_id", ""),
-        title=grouped.get("title") or "제목 없음",
-        chunk_text=chunk_text,
-        score=grouped.get("score", 0.0),
-        chunk_id=chunk_id,
-        metadata={
-            field: grouped.get(field)
-            for field in _PRECEDENT_META_FIELDS
-            if grouped.get(field) is not None
-        },
-    )
 
 
 def platform_hit_to_item(hit: dict) -> RetrievedKnowledgeItem:

@@ -5,6 +5,7 @@ sys.path.insert(0, "/app")
 
 from celery_app import celery_app
 from domains.admin.platform_service import execute_platform_source_sync
+from errors import ErrorCode, FailureStage, build_failure_payload
 
 logger = logging.getLogger(__name__)
 
@@ -21,4 +22,10 @@ def run_platform_source_sync(self, run_id: int) -> dict:
         logger.error(
             "platform sync 실패: run_id=%s error=%s", run_id, exc, exc_info=True
         )
-        return {"status": "error", "run_id": run_id, "error": str(exc)}
+        return build_failure_payload(
+            stage=FailureStage.PROCESS,
+            error_code=ErrorCode.PLATFORM_SYNC_PROCESS_FAILED,
+            status="failed",
+            retryable=False,
+            run_id=run_id,
+        )
